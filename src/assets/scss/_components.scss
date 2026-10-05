@@ -1,0 +1,167 @@
+@use "sass:color";
+@use "./tokens" as t;
+
+// Soft UI 元件樣式：在 Bootstrap 載入後引用。
+// 對應先前的 _tokens.scss 命名；顏色與陰影從 tokens 取得。
+// 淡紅背景／外框以 danger 色推算，可依設計稿再調整透明度。
+
+// ---------- 共用：陰影與外框 ----------
+@mixin soft-btn-shadow($shadow) {
+  --bs-btn-box-shadow: #{$shadow};
+  --bs-btn-focus-box-shadow: #{$shadow};
+  --bs-btn-active-shadow: #{$shadow};
+  // Bootstrap 未開啟 enable-shadows 時，仍直接套用陰影。
+  box-shadow: $shadow;
+
+  &:focus-visible,
+  &:active,
+  &.active,
+  .btn-check:checked + & {
+    box-shadow: $shadow;
+  }
+}
+
+@mixin soft-btn-border($border-color: transparent) {
+  --bs-btn-border-color: #{$border-color};
+  --bs-btn-hover-border-color: #{$border-color};
+  --bs-btn-active-border-color: #{$border-color};
+  --bs-btn-disabled-border-color: #{$border-color};
+}
+
+// ---------- Button ----------
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 49px;
+  border-radius: t.$radius-pill;
+}
+
+.btn-lg {
+  min-height: 52px;
+}
+
+// Primary：使用 tokens 中對應 Figma 的外凸與內部反光。
+.btn-primary {
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-color: #fff;
+  --bs-btn-font-size: 1rem;
+  --bs-btn-font-weight: 700;
+  --bs-btn-hover-bg: #{t.$dark-green};
+  --bs-btn-active-bg: #{t.$dark-green};
+  @include soft-btn-border;
+  @include soft-btn-shadow(t.$shadow-primary);
+}
+
+// Secondary：淺底、15px Medium。
+// 使用既有 text-sub；若要原稿的 #636c65，可另加專用 token。
+.btn-secondary {
+  --bs-btn-bg: #{t.$input-bg};
+  --bs-btn-hover-bg: #{t.$input-bg};
+  --bs-btn-active-bg: #{t.$input-bg};
+  --bs-btn-color: #{t.$text-sub};
+  --bs-btn-hover-color: #{t.$text-sub};
+  --bs-btn-active-color: #{t.$text-sub};
+  --bs-btn-font-size: 0.9375rem;
+  --bs-btn-font-weight: 500;
+  @include soft-btn-border;
+  @include soft-btn-shadow(t.$shadow-raised);
+}
+
+// Danger：底色由橋樑的 $danger 設定；陰影沿用 Primary。
+.btn-danger {
+  --bs-btn-color: #fff;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-active-color: #fff;
+  --bs-btn-font-size: 0.9375rem;
+  --bs-btn-font-weight: 500;
+  @include soft-btn-border;
+  @include soft-btn-shadow(t.$shadow-primary);
+}
+
+// Added：已加入清單，淡綠底、內凹。
+.btn-added {
+  --bs-btn-color: #{t.$primary-green};
+  --bs-btn-hover-color: #{t.$primary-green};
+  --bs-btn-active-color: #{t.$primary-green};
+  --bs-btn-bg: #{t.$active-green};
+  --bs-btn-hover-bg: #{t.$active-green};
+  --bs-btn-active-bg: #{t.$active-green};
+  --bs-btn-font-size: 1rem;
+  --bs-btn-font-weight: 700;
+  @include soft-btn-border;
+  @include soft-btn-shadow(t.$shadow-added);
+}
+
+// 退出空間：淡紅底、淡外框。
+.btn-danger-subtle {
+  --bs-btn-color: #{t.$danger};
+  --bs-btn-hover-color: #{t.$danger};
+  --bs-btn-active-color: #{t.$danger};
+  --bs-btn-bg: #{color.change(t.$danger, $alpha: 0.06)};
+  --bs-btn-hover-bg: #{color.change(t.$danger, $alpha: 0.06)};
+  --bs-btn-active-bg: #{color.change(t.$danger, $alpha: 0.06)};
+  --bs-btn-border-width: 1px;
+  --bs-btn-font-size: 1rem;
+  --bs-btn-font-weight: 700;
+  @include soft-btn-border(color.change(t.$danger, $alpha: 0.14));
+  @include soft-btn-shadow(t.$shadow-raised);
+}
+
+// 登出：高 44px、14px Bold、無陰影。
+.btn-danger-flat {
+  --bs-btn-color: #{t.$danger};
+  --bs-btn-hover-color: #{t.$danger};
+  --bs-btn-active-color: #{t.$danger};
+  --bs-btn-bg: #{color.change(t.$danger, $alpha: 0.06)};
+  --bs-btn-hover-bg: #{color.change(t.$danger, $alpha: 0.06)};
+  --bs-btn-active-bg: #{color.change(t.$danger, $alpha: 0.06)};
+  --bs-btn-font-size: 0.875rem;
+  --bs-btn-font-weight: 700;
+  min-height: 44px;
+  @include soft-btn-border;
+  @include soft-btn-shadow(none);
+}
+
+// 新增空間：高 44px、16px Bold、無陰影。
+.btn-brand-light {
+  --bs-btn-color: #{t.$primary-green};
+  --bs-btn-hover-color: #{t.$primary-green};
+  --bs-btn-active-color: #{t.$primary-green};
+  --bs-btn-bg: #{t.$active-green};
+  --bs-btn-hover-bg: #{t.$active-green};
+  --bs-btn-active-bg: #{t.$active-green};
+  --bs-btn-font-size: 1rem;
+  --bs-btn-font-weight: 700;
+  min-height: 44px;
+  @include soft-btn-border;
+  @include soft-btn-shadow(none);
+}
+
+// 保留鍵盤操作的焦點提示。
+.btn:focus-visible {
+  outline: 2px solid t.$primary-green;
+  outline-offset: 4px;
+}
+
+// ---------- Input ----------
+.form-control,
+.form-select {
+  box-shadow: t.$shadow-inset;
+  caret-color: t.$primary-green;
+}
+
+// 使用 outline 呈現焦點，不改變邊框厚度，避免尺寸跳動。
+.form-control:focus,
+.form-select:focus {
+  border-color: t.$primary-green;
+  outline: 1px solid t.$primary-green;
+  box-shadow: t.$shadow-inset;
+}
+
+// ---------- Card ----------
+.card {
+  box-shadow: t.$shadow-card;
+}

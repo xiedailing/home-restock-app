@@ -1,0 +1,128 @@
+// Figma：[Current] Design System Overview｜補補（1349:8106）。
+// 基礎設定取自 Foundations；Soft Button / Soft Input 以實際元件為準。
+
+
+/* 背景 */
+$bg-main: #efebe3;
+$card-bg: #fcfbf8;
+$summary-bg: #f8fbf6;
+$recent-bg: #fffdfa;
+$surface-bg: #ffffff;
+$surface-subtle: #fafaf8;
+// Soft Input 和 Secondary Button 實際使用的底色。
+$input-bg: #f6f5f1;
+
+
+/* 品牌與狀態色 */
+$primary-green: #3f6f3b;
+$dark-green: #244f34;
+$primary-soft: #eef5ec;
+$primary-subtle: #e4f2e8;
+// Added Button 的現況色不同於 Foundations 的 Primary Soft。
+$active-green: #eef3ea;
+$danger: #b83a26;
+$accent-orange: #ff9e42;
+$accent-soft: #fff3e6;
+$accent-text: #9a5510;
+$warning: #8f5500;
+$warning-subtle: #fdf0d5;
+$success: #59655a;
+$success-subtle: #f0f2ec;
+
+
+/* 文字 */
+$text-main: #1d1d1f;
+$text-card-title: $text-main;
+$text-body: #5a5a5f;
+$text-sub: #6e6e73;
+$text-disabled: #a1a1a6;
+$text-inverse: #ffffff;
+$text-button-secondary: #636c65;
+$border-color: #e7e7e3;
+$border-active: #dadfd6;
+
+
+/* 字體：需另外載入字體檔 */
+$font-family:
+ "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+
+// 字級以 px 記錄設計值，避免受既有 :root 字級影響。
+$font-weight-regular: 400;
+$font-weight-medium: 500;
+$font-weight-bold: 700;
+$font-size-display: 48px;
+$font-size-page-title: 26px;
+$font-size-heading: 20px;
+$font-size-card-title: 18px;
+$font-size-app-bar: 17px;
+$font-size-button: 16px;
+$font-size-body: 15px;
+$font-size-body-sm: 14px;
+$font-size-metadata: 13px;
+$font-size-caption: 12px;
+$line-height-page-title: 32px;
+$line-height-app-bar: 24px;
+$line-height-body: 21px;
+
+// Foundations 的間距刻度。
+$space-4: 4px;
+$space-8: 8px;
+$space-12: 12px;
+$space-16: 16px;
+$space-20: 20px;
+$space-24: 24px;
+$space-32: 32px;
+
+
+/* 圓角 */
+$radius-card: 28px;
+$radius-input: 16px;
+$radius-pill: 999px;
+$radius-nav: 38px;
+$radius-sm: 8px;
+$radius-md: 12px;
+$radius-popover: 22px;
+$radius-recent: 26px;
+$radius-action-bar: 36px;
+
+$button-height: 48px;
+$button-height-compact: 44px;
+
+
+/* 卡片陰影 */
+$shadow-card:
+ -3px -3px 8px rgba(249, 249, 249, 0.3),
+ 6px 8px 18px rgba(143, 134, 114, 0.22);
+
+
+/* 小按鈕凸起 */
+$shadow-raised:
+ -2px -2px 4px rgba(249, 249, 249, 0.45),
+ 2px 3px 6px rgba(143, 134, 114, 0.2);
+
+
+/* 輸入框凹陷 */
+$shadow-inset:
+ inset -3px -3px 10px rgba(255, 255, 255, 0.65),
+ inset 2px 3px 6px rgba(105, 99, 85, 0.16);
+
+
+/* Primary / Danger：外凸與內部反光 */
+$shadow-primary:
+ -3px -3px 6px rgba(249, 249, 249, 0.4),
+ 4px 5px 10px rgba(42, 74, 39, 0.4),
+ inset 1.5px 2px 3px rgba(31, 58, 29, 0.35),
+ inset -1.5px -1.5px 3px rgba(255, 255, 255, 0.15);
+
+/* Added Button 的陰影與輸入框分開，供元件樣式使用。 */
+$shadow-added:
+ inset -1.5px -1.5px 4px rgba(255, 255, 255, 0.85),
+ inset 1.5px 2px 5px rgba(138, 158, 136, 0.18);
+
+$shadow-floating:
+ 0 -3px 10px rgba(255, 255, 255, 0.4),
+ 0 10px 28px rgba(140, 136, 127, 0.14);
+
+$shadow-recent:
+ 0 -3px 8px rgba(255, 255, 255, 0.3),
+ 0 10px 24px rgba(140, 135, 128, 0.12);

@@ -1,0 +1,15 @@
+// 先載入 Bootstrap 與自訂變數設定
+@use "./bootstrap-overrides";
+
+// 最後載入元件樣式
+@use "./components";
+
+// @import "bootstrap/scss/functions";
+// @import "tokens";
+// @import "bootstrap-overrides";
+// @import "bootstrap/scss/variables";
+// @import "bootstrap/scss/variables-dark";
+// @import "bootstrap/scss/maps";
+// @import "bootstrap/scss/mixins";
+// // ...其餘 bootstrap 模組
+// @import "components";

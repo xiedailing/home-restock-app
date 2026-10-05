@@ -1,0 +1,106 @@
+// _bootstrap-overrides.scss
+// 將我們的 tokens 對應到 Bootstrap 變數
+@use "./tokens" as t;
+@use "sass:math";
+
+@use "bootstrap/scss/bootstrap" with (
+  // 保留設計中的 px 字級，避免 RFS 轉成 rem 後受示範樣式影響。
+  $enable-rfs: false,
+  $rfs-unit: px,
+  // ---------- 主題顏色 ----------
+  $primary: t.$primary-green,
+  $secondary: t.$text-button-secondary,
+  $danger: t.$danger,
+  $warning: t.$warning,
+  $success: t.$success,
+  $primary-bg-subtle: t.$primary-subtle,
+  $danger-text-emphasis: t.$danger,
+  $warning-text-emphasis: t.$warning,
+  $warning-bg-subtle: t.$warning-subtle,
+  $success-text-emphasis: t.$success,
+  $success-bg-subtle: t.$success-subtle,
+
+  // ---------- 網頁背景與文字 ----------
+  $body-bg: t.$bg-main,
+  $body-color: t.$text-main,
+  $body-secondary-color: t.$text-sub,
+  $body-tertiary-color: t.$text-disabled,
+  $body-secondary-bg: t.$surface-subtle,
+  $font-family-sans-serif: t.$font-family,
+  // Bootstrap 內部計算需要 rem；實際 body 字級在下方 CSS 變數指定。
+  $font-size-base: math.div(t.$font-size-body, 16px) * 1rem,
+  $font-weight-normal: t.$font-weight-regular,
+  $font-weight-medium: t.$font-weight-medium,
+  $font-weight-bold: t.$font-weight-bold,
+  $headings-font-weight: t.$font-weight-bold,
+
+  // ---------- 連結 ----------
+  $link-color: t.$primary-green,
+  $link-hover-color: t.$dark-green,
+
+  // ---------- 邊框與圓角 ----------
+  $border-color: t.$border-color,
+  $border-radius: t.$radius-md,
+  $border-radius-sm: t.$radius-sm,
+  $border-radius-lg: t.$radius-input,
+  $border-radius-xl: t.$radius-card,
+  $border-radius-xxl: t.$radius-card,
+  $border-radius-pill: t.$radius-pill,
+
+  // ---------- 共用陰影 ----------
+  $box-shadow: t.$shadow-card,
+  $box-shadow-sm: t.$shadow-raised,
+  $box-shadow-inset: t.$shadow-inset,
+  // 不全域開啟 enable-shadows；元件檔已直接套用需要的 Soft UI 陰影。
+
+  // ---------- 卡片 ----------
+  $card-bg: t.$card-bg,
+  $card-border-width: 0,
+  $card-border-radius: t.$radius-card,
+  $card-spacer-x: t.$space-20,
+  $card-spacer-y: t.$space-20,
+
+  // ---------- 按鈕 ----------
+  $btn-border-radius: t.$radius-pill,
+  $btn-border-radius-sm: t.$radius-pill,
+  $btn-border-radius-lg: t.$radius-pill,
+  $btn-font-size: t.$font-size-button,
+  $btn-font-weight: t.$font-weight-bold,
+  $btn-padding-x: t.$space-24,
+
+  // ---------- 輸入欄位 ----------
+  $input-bg: t.$input-bg,
+  $input-color: t.$text-main,
+  $input-border-color: t.$border-color,
+  $input-border-radius: t.$radius-input,
+  $input-placeholder-color: t.$text-disabled,
+  $input-padding-y: t.$space-12,
+  $input-padding-x: t.$space-16,
+  $input-font-size: t.$font-size-body,
+  $input-line-height: 1.4,
+  $input-disabled-color: t.$text-disabled,
+  $input-disabled-bg: t.$input-bg,
+
+  // ---------- 輸入欄位聚焦 ----------
+  $input-focus-bg: t.$input-bg,
+  $input-focus-border-color: t.$primary-green,
+  $input-focus-box-shadow: t.$shadow-inset,
+
+  // ---------- 彈出視窗 ----------
+  $modal-content-bg: t.$surface-bg,
+  $modal-content-border-width: 0,
+  $modal-content-border-radius: t.$radius-card
+);
+
+// Sass 的 $變數不會自動變成 CSS 變數。
+// 提供 BottomNav.vue 目前使用的名稱，讓 var(...) 能取得設計色彩。
+:root {
+  --bs-body-font-size: #{t.$font-size-body};
+  --primary-green: #{t.$primary-green};
+  --dark-green: #{t.$dark-green};
+  --active-green: #{t.$active-green};
+  --text-main: #{t.$text-main};
+  --text-sub: #{t.$text-sub};
+  --bg-main: #{t.$bg-main};
+  --card-bg: #{t.$card-bg};
+}
