@@ -1,0 +1,118 @@
+/* src/assets/scss/_bootstrap-overrides.scss */
+@use "./tokens" as t;
+
+
+/* 用專題變數設定 Bootstrap */
+@use "bootstrap/scss/bootstrap" with (
+ /* 品牌色：同步產生 btn、text、bg 等樣式 */
+ $primary: t.$primary-green,
+ $danger: t.$danger,
+ $secondary: t.$text-sub,
+
+
+ /* 頁面與文字 */
+ $body-bg: t.$bg-main,
+ $body-color: t.$text-main,
+ $font-family-sans-serif: t.$font-family,
+ $link-color: t.$primary-green,
+ $link-hover-color: t.$dark-green,
+ $border-color: t.$border-color,
+
+
+ /* 基礎圓角與陰影 */
+ $border-radius: 12px,
+ $border-radius-sm: 8px,
+ $border-radius-lg: t.$radius-input,
+ $border-radius-xl: t.$radius-card,
+ $border-radius-pill: t.$radius-pill,
+ $box-shadow: t.$shadow-card,
+ $box-shadow-sm: t.$shadow-raised,
+ $box-shadow-inset: t.$shadow-inset,
+
+
+ /* 卡片 */
+ $card-bg: t.$card-bg,
+ $card-border-width: 0,
+ $card-border-radius: t.$radius-card,
+ $card-spacer-x: 22px,
+ $card-spacer-y: 22px,
+
+
+ /* 按鈕 */
+ $btn-border-radius: t.$radius-pill,
+ $btn-border-radius-sm: t.$radius-pill,
+ $btn-border-radius-lg: t.$radius-pill,
+ $btn-font-weight: 700,
+
+
+ /* 輸入框 */
+ $input-bg: t.$input-bg,
+ $input-color: t.$text-main,
+ $input-border-color: t.$border-color,
+ $input-border-radius: t.$radius-input,
+ $input-placeholder-color: t.$text-disabled,
+ $input-padding-y: 12px,
+ $input-padding-x: 16px,
+ $input-font-size: 15px,
+ $input-focus-bg: t.$input-bg,
+ $input-focus-border-color: t.$primary-green,
+ $input-focus-box-shadow: t.$shadow-inset,
+
+
+ /* 彈出視窗 */
+ $modal-content-bg: t.$card-bg,
+ $modal-content-border-width: 0,
+ $modal-content-border-radius: t.$radius-card
+);
+
+
+/* 首頁 Soft UI 的額外樣式 */
+.card {
+ box-shadow: t.$shadow-card;
+}
+
+
+.btn {
+ min-height: 49px;
+}
+
+
+.btn-lg {
+ min-height: 52px;
+}
+
+
+/* 主按鈕：淡化外框 */
+.btn-primary {
+ --bs-btn-border-color: transparent;
+ --bs-btn-hover-border-color: transparent;
+ --bs-btn-active-border-color: transparent;
+ --bs-btn-disabled-border-color: transparent;
+
+
+ --bs-btn-hover-bg: #{t.$dark-green};
+ --bs-btn-active-bg: #{t.$dark-green};
+
+
+ box-shadow: t.$shadow-primary;
+}
+
+
+.form-control,
+.form-select {
+ box-shadow: t.$shadow-inset;
+}
+
+
+.form-control:focus,
+.form-select:focus {
+ outline: 1px solid t.$primary-green;
+ box-shadow: t.$shadow-inset;
+}
+
+
+.btn:focus-visible {
+ outline: 2px solid t.$primary-green;
+ outline-offset: 4px;
+}
+

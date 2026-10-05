@@ -1,0 +1,62 @@
+/* src/assets/scss/_tokens.scss */
+
+
+/* 背景 */
+$bg-main: #efebe3;
+$card-bg: #fcfbf8;
+$summary-bg: #f8fbf6;
+$input-bg: #f6f5f1;
+
+
+/* 品牌與狀態色 */
+$primary-green: #3f6f3b;
+$dark-green: #244f34;
+$active-green: #e9f1e5;
+$danger: #b83a26;
+
+
+/* 文字 */
+$text-main: #1d1d1f;
+$text-card-title: #2b2a26;
+$text-sub: #6e6e73;
+$text-disabled: #a1a1a6;
+$border-color: #e7e7e3;
+
+
+/* 字體：需另外載入字體檔 */
+$font-family:
+ "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+
+
+/* 圓角 */
+$radius-card: 28px;
+$radius-input: 16px;
+$radius-pill: 999px;
+$radius-nav: 38px;
+
+
+/* 卡片陰影 */
+$shadow-card:
+ 6px 8px 18px rgba(143, 134, 114, 0.22),
+ -3px -3px 8px rgba(249, 249, 249, 0.3);
+
+
+/* 小按鈕凸起 */
+$shadow-raised:
+ 2px 3px 5px rgba(143, 134, 114, 0.22),
+ -2px -2px 5px rgba(255, 255, 255, 1);
+
+
+/* 輸入框凹陷 */
+$shadow-inset:
+ inset 2px 3px 6px rgba(143, 134, 114, 0.16),
+ inset -3px -3px 6px rgba(255, 255, 255, 0.9);
+
+
+/* 主按鈕：柔化陰影與白色反光 */
+$shadow-primary:
+ 4px 5px 9px rgba(42, 74, 39, 0.28),
+ -3px -3px 7px rgba(255, 255, 255, 0.35),
+ inset -1.5px -1.5px 3px rgba(255, 255, 255, 0.1),
+ inset 1.5px 2px 3px rgba(31, 58, 29, 0.2);
+
