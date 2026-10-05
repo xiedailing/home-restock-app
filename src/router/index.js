@@ -26,6 +26,12 @@ export const routes = [
     component: () => import('../views/SettingsView.vue'),
     meta: { title: '設定' },
   },
+  {
+    path: '/settings/profile',
+    name: 'edit-profile',
+    component: () => import('../views/SettingsEditProfile.vue'),
+    meta: { title: '個人檔案設定', hideBottomNav: true },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/home' },
 ]
 

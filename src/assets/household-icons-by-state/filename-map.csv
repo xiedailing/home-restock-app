@@ -1,0 +1,43 @@
+﻿original_name,path,item_id,label,state,state_label,purpose,additional_usage,sha256
+buy-space.svg,empty-states/shopping-list-empty.svg,shopping-list-empty,尚無購物清單,empty,空狀態,空狀態插圖,,472f9757b0163be5a2a61423f98df527db3d7982ffe7f1cc494b705bf3ed5895
+icon-buy-化妝棉.svg,due-soon/cotton-pads-due-soon.svg,cotton-pads,化妝棉／卸妝棉,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,11b19a3eb1c885e3fe864e22db8e4fa6ce3c499fd1bf56fcc6b7b0c95d5ebf38
+icon-buy-垃圾袋.svg,due-soon/trash-bags-due-soon.svg,trash-bags,垃圾袋,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,40013c8ceb7372d4804fee762f1b023264aeacd32fbc6b0725fa4a073ec94f46
+icon-buy-洗碗精.svg,due-soon/dish-soap-due-soon.svg,dish-soap,洗碗精,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,05e491bcf47befef7ee9b867849f8709896ac229c22c9c4ab7b44f01f0d42139
+icon-buy-洗衣精.svg,due-soon/laundry-detergent-due-soon.svg,laundry-detergent,洗衣精,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,ed2bd033ca47ea12cfc6c4202f9b34f9bc17932f038133e3a8ce87be22732e97
+icon-buy-海綿.svg,due-soon/sponge-due-soon.svg,sponge,海綿,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,51feeaec39f4db5e3141b3deb9f77f6722331a522f4b3ebf111f29fcca7d7104
+icon-buy-燈泡.svg,due-soon/light-bulb-due-soon.svg,light-bulb,燈泡,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,315405bcefbf3de00701b5eb108612cb1dfd5f10dbf47e782631a886b8c266dc
+icon-buy-狗狗糧食.svg,due-soon/dog-food-due-soon.svg,dog-food,狗狗糧食,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,a93f3ef18c11df765601d7894038125d36749e1805c9ab3fddfda8c7fdfa1637
+icon-buy-衛生棉.svg,due-soon/sanitary-pads-due-soon.svg,sanitary-pads,衛生棉,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,d8246c5ab32d1a7a93179fbe74868e2807fd769a0d3a269f7e0d0759b248c7eb
+icon-buy-衛生紙.svg,due-soon/tissues-due-soon.svg,tissues,衛生紙,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,544028e5d93975360fdd3e0f9e363b6f03d04b810980bec84471ee5ae48d36e8
+icon-buy-酒精.svg,due-soon/rubbing-alcohol-due-soon.svg,rubbing-alcohol,酒精,due-soon,接近補貨日（原稿剩 7 天）,用品狀態圖示,購買清單／待買,302a1d85021268cf75f5cf68363a4c9fa8c008c962e8eefe20448e55a2b1cd44
+icon-mo-卸妝棉.svg,in-shopping-list/cotton-pads-in-shopping-list.svg,cotton-pads,化妝棉／卸妝棉,in-shopping-list,在購物清單,用品狀態圖示,,d5418f9aee9c27a82712798ec19ee7f79d3eb7e4982f8f075b60e764b8fbdbf0
+icon-mo-垃圾袋.svg,in-shopping-list/trash-bags-in-shopping-list.svg,trash-bags,垃圾袋,in-shopping-list,在購物清單,用品狀態圖示,,3cb4583e733aef83e022da6449f2538c3987e3640baa981c3982d6d4fc843497
+icon-mo-洗碗精.svg,in-shopping-list/dish-soap-in-shopping-list.svg,dish-soap,洗碗精,in-shopping-list,在購物清單,用品狀態圖示,,ca844ae0cf0af52bd1f7ea26420734f6a288c05362f635a40993f71ae37d2559
+icon-mo-洗衣精.svg,in-shopping-list/laundry-detergent-in-shopping-list.svg,laundry-detergent,洗衣精,in-shopping-list,在購物清單,用品狀態圖示,,b9cab7ecb8dfba0b444983d10794a50d2a0a300277ee788564047e33d2a3bbc2
+icon-mo-海綿.svg,in-shopping-list/sponge-in-shopping-list.svg,sponge,海綿,in-shopping-list,在購物清單,用品狀態圖示,,2eaeab06e4407bb83966776ffa8e331fac8e21932d7b8e1855275aaa93242143
+icon-mo-燈泡.svg,in-shopping-list/light-bulb-in-shopping-list.svg,light-bulb,燈泡,in-shopping-list,在購物清單,用品狀態圖示,,2d816c07c7da6f3ae15b94b54291c02cf8484633ba6a76a0907b6a486f1e0411
+icon-mo-狗狗糧食.svg,in-shopping-list/dog-food-in-shopping-list.svg,dog-food,狗狗糧食,in-shopping-list,在購物清單,用品狀態圖示,,07e9d7166d70c8c50df68c1a4f638016b54bdd59305446c90ef3d53960aa9a53
+icon-mo-衛生棉.svg,in-shopping-list/sanitary-pads-in-shopping-list.svg,sanitary-pads,衛生棉,in-shopping-list,在購物清單,用品狀態圖示,,35935be7c329f4627e86fcbbf6bb9a083a1d73e5d5ab00135eccee764f8066c4
+icon-mo-衛生紙.svg,in-shopping-list/tissues-in-shopping-list.svg,tissues,衛生紙,in-shopping-list,在購物清單,用品狀態圖示,,cf481a789a8d89f9a9b30aa6c9a637f03e5ea2c4b43180ac9eb76739f12707a5
+icon-mo-酒精.svg,in-shopping-list/rubbing-alcohol-in-shopping-list.svg,rubbing-alcohol,酒精,in-shopping-list,在購物清單,用品狀態圖示,,85e650a7242b6a25b2c13b5ecb619d202abe4f82445b63c7c07bbb090a4afada
+icon-n-化妝棉.svg,restock-needed/cotton-pads-restock-needed.svg,cotton-pads,化妝棉／卸妝棉,restock-needed,該補貨,用品狀態圖示,,aa311a4e71c82b31ba2dc98ed2771c0a3d265545e32ce7f5254a3012350f63bb
+icon-n-垃圾袋.svg,restock-needed/trash-bags-restock-needed.svg,trash-bags,垃圾袋,restock-needed,該補貨,用品狀態圖示,,56e07364c375324be48b1c15977caa162f2e66d3df583209659d808700ef259b
+icon-n-洗碗精.svg,restock-needed/dish-soap-restock-needed.svg,dish-soap,洗碗精,restock-needed,該補貨,用品狀態圖示,,8f7954860eb80fe7669567c4880dff93d80d3075c9ed99a667c0cdfb9367f141
+icon-n-洗衣精.svg,restock-needed/laundry-detergent-restock-needed.svg,laundry-detergent,洗衣精,restock-needed,該補貨,用品狀態圖示,,430e8a0e7143ef0d9bf5b3636b1af107a79f4adff4b807032ada48129a822b1b
+icon-n-海綿.svg,restock-needed/sponge-restock-needed.svg,sponge,海綿,restock-needed,該補貨,用品狀態圖示,,cac569c844d11d05ce973ae8a5b2e695bac9ee803494049b50a23957312cf9e7
+icon-n-燈泡.svg,restock-needed/light-bulb-restock-needed.svg,light-bulb,燈泡,restock-needed,該補貨,用品狀態圖示,,88533a38b97281da465597588c0bc09a2f0f372bb98f861afdc91a3ccbcfb6c2
+icon-n-狗狗糧食.svg,restock-needed/dog-food-restock-needed.svg,dog-food,狗狗糧食,restock-needed,該補貨,用品狀態圖示,,b59404f88ead39e8ce4e0436f1ca73d6299ae9e5e5972d5d04d07b1bf6d2d1d0
+icon-n-衛生棉.svg,restock-needed/sanitary-pads-restock-needed.svg,sanitary-pads,衛生棉,restock-needed,該補貨,用品狀態圖示,,13bb178c5c1a571f49b561d54051b21217068d09f55d18df7c78a7e774e483fc
+icon-n-衛生紙.svg,restock-needed/tissues-restock-needed.svg,tissues,衛生紙,restock-needed,該補貨,用品狀態圖示,,a3350694b4c7f6d199f5c04d325c292461ae73f49873dd60b9037414b63d13f7
+icon-n-酒精.svg,restock-needed/rubbing-alcohol-restock-needed.svg,rubbing-alcohol,酒精,restock-needed,該補貨,用品狀態圖示,,4b97a5d577887dd46e958133b7352287324094545be854288c48abff59a5bf77
+icon-ok-化妝棉.svg,in-stock/cotton-pads-in-stock.svg,cotton-pads,化妝棉／卸妝棉,in-stock,充足,用品狀態圖示,購買清單／已補貨,b00a86aea021d4582f40043995fbbebd9717c3071065bfa936a9419fedfd7c81
+icon-ok-垃圾袋.svg,in-stock/trash-bags-in-stock.svg,trash-bags,垃圾袋,in-stock,充足,用品狀態圖示,購買清單／已補貨,16d87ad95ee4cd38c3a8f29afb56313489f048dfce8dea462f3fb57b5be93b53
+icon-ok-洗碗精.svg,in-stock/dish-soap-in-stock.svg,dish-soap,洗碗精,in-stock,充足,用品狀態圖示,購買清單／已補貨,b055577bd97f84479f73420386fd6253a3dcc96777122d84e94d6d37840e4a68
+icon-ok-洗衣精.svg,in-stock/laundry-detergent-in-stock.svg,laundry-detergent,洗衣精,in-stock,充足,用品狀態圖示,購買清單／已補貨,7e607b41c7999dbaf781635b7a047f2e0bef51dc4f1ae88c5feada68c63fb963
+icon-ok-海綿.svg,in-stock/sponge-in-stock.svg,sponge,海綿,in-stock,充足,用品狀態圖示,購買清單／已補貨,4a69476fb0abd19d2deb18034826987f1da7c724b722394b60d410e4c699dc5f
+icon-ok-燈泡.svg,in-stock/light-bulb-in-stock.svg,light-bulb,燈泡,in-stock,充足,用品狀態圖示,購買清單／已補貨,9298b5c85db995f474b4811006b34641405fde56455895b839022318f080a06d
+icon-ok-狗狗糧食.svg,in-stock/dog-food-in-stock.svg,dog-food,狗狗糧食,in-stock,充足,用品狀態圖示,購買清單／已補貨,96b56d06150e15f52682f8bf9500e556dff34da64ed4dab995ea2a61fa906c47
+icon-ok-衛生棉.svg,in-stock/sanitary-pads-in-stock.svg,sanitary-pads,衛生棉,in-stock,充足,用品狀態圖示,購買清單／已補貨,919186280cd481a5a60e74287e3d0f5613d41ff787be48a1501270028ce1c10c
+icon-ok-衛生紙.svg,in-stock/tissues-in-stock.svg,tissues,衛生紙,in-stock,充足,用品狀態圖示,購買清單／已補貨,a14a30563b09e9b4a216e5831663e7431fc9598dbe7450f407a9efbdb6c2ed81
+icon-ok-酒精.svg,in-stock/rubbing-alcohol-in-stock.svg,rubbing-alcohol,酒精,in-stock,充足,用品狀態圖示,購買清單／已補貨,631f4812083bb1cd0b61e4bfd299b186ea5f7cc6830f977e2f5905d935e2375c
+space.svg,empty-states/space-empty.svg,space-empty,尚無空間,empty,空狀態,空狀態插圖,,0ecac5e43bb70a1eccb89f3dbb0a7ad3e0ce633f83b8c370d79c1fab877f62b3
