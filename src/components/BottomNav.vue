@@ -13,6 +13,7 @@ const navItems = [
 </script>
 
 <template>
+  <Teleport to="body">
   <nav class="bottom-nav-wrapper" aria-label="主要導覽">
     <div class="bottom-nav">
       <template v-for="(item, index) in navItems" :key="item.name">
@@ -40,15 +41,18 @@ const navItems = [
       </template>
     </div>
   </nav>
+  </Teleport>
 </template>
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
 
 .bottom-nav-wrapper {
+  // 移到 body 下，固定於視窗，避免祖先容器 transform 影響定位。
   position: fixed;
+  box-sizing: border-box;
   inset-inline: 0;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  bottom: 34px;
   z-index: 1000;
   width: 100%;
   max-width: 390px;

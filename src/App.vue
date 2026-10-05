@@ -17,12 +17,10 @@ const handlePlusClick = () => {
 </script>
 
 <template>
-  <ComponentsTest />
-
-
   <div class="app-container">
+    <ComponentsTest />
     <!-- 主內容呈現區 -->
-    <main class="p-4">
+    <main class="app-content">
       <RouterView />
     </main>
 
@@ -35,6 +33,11 @@ const handlePlusClick = () => {
 
 <style scoped>
 .app-container {
-  padding-bottom: 120px;
+  padding: 0 16px 34px;
+}
+
+.app-content {
+  /* 導覽列高 82px，加上內容與導覽列間距 24px。 */
+  padding-bottom: 106px;
 }
 </style>

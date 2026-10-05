@@ -1,3 +1,8 @@
+html {
+  /* 預留捲軸空間，減少不同頁面高度造成的水平位移。 */
+  scrollbar-gutter: stable;
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
