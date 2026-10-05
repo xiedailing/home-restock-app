@@ -1,6 +1,8 @@
-/* src/assets/scss/main.scss */
+// 先載入 Bootstrap 與自訂變數設定
 @use "./bootstrap-overrides";
 
+// 最後載入元件樣式
+@use "./components";
 
 // @import "bootstrap/scss/functions";
 // @import "tokens";
