@@ -34,6 +34,30 @@ export const STATUS_LABELS = {
   [STATUS.NOT_NEEDED]: '不需補貨',
 }
 
+// 圖示狀態與業務狀態分開；View 透過 getIconState() 取得圖示狀態。
+export const ITEM_STATUS = Object.freeze({
+  RESTOCK_NEEDED: 'restock-needed',
+  DUE_SOON: 'due-soon',
+  IN_SHOPPING_LIST: 'in-shopping-list',
+  IN_STOCK: 'in-stock',
+})
+
+const STATUS_ICON_STATES = Object.freeze({
+  [STATUS.OVERDUE]: ITEM_STATUS.RESTOCK_NEEDED,
+  [STATUS.DUE_SOON]: ITEM_STATUS.DUE_SOON,
+  [STATUS.IN_SHOPPING_LIST]: ITEM_STATUS.IN_SHOPPING_LIST,
+  // 沒有提醒不代表庫存充足；目前使用一般圖樣，不推算庫存。
+  [STATUS.REMINDER_OFF]: ITEM_STATUS.IN_STOCK,
+  [STATUS.NOT_NEEDED]: ITEM_STATUS.IN_STOCK,
+})
+
+export function getIconState(status) {
+  if (Object.hasOwn(STATUS_ICON_STATES, status)) return STATUS_ICON_STATES[status]
+  if (Object.values(ITEM_STATUS).includes(status)) return status
+  // 未知狀態不得暗示用品已加入購買清單。
+  return ITEM_STATUS.IN_STOCK
+}
+
 export function toDateString(date = new Date()) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -59,6 +83,7 @@ export function createItem(input = {}) {
   return {
     id: input.id ?? crypto.randomUUID(),
     name: input.name ?? '',
+    iconKey: input.iconKey ?? null,
     category: input.category ?? null,
     unit: input.unit ?? DEFAULT_UNIT,
     spaceId: input.spaceId ?? DEFAULT_SPACE_ID,
@@ -94,21 +119,13 @@ export function getStatus(item, today = toDateString()) {
 // 示範資料：取自「我的用品」設計稿，日期相對今天計算。
 export function createSampleItems(today = toDateString()) {
   return [
-    createItem({ name: '垃圾袋', category: '生活日用品', unit: '包', spaceId: 'family', nextRestockDate: addDays(today, -2), cycleDays: 30 }),
-    createItem({ name: '洗衣精', category: '洗衣', unit: '瓶', spaceId: 'family', nextRestockDate: addDays(today, 5), cycleDays: 45 }),
-    createItem({ name: '衛生紙', category: '生活日用品', unit: '包', spaceId: 'family', nextRestockDate: addDays(today, 3), cycleDays: 21, inShoppingList: true }),
-    createItem({ name: '洗碗精', category: '廚房', unit: '瓶', spaceId: 'company', nextRestockDate: addDays(today, 20), cycleDays: 40 }),
-    createItem({ name: '狗狗糧食', category: '寵物用品', unit: '包', spaceId: 'family', reminderEnabled: false }),
+    createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: 'family', nextRestockDate: addDays(today, -2), cycleDays: 30 }),
+    createItem({ name: '洗衣精', iconKey: 'laundry-detergent', category: '洗衣', unit: '瓶', spaceId: 'family', nextRestockDate: addDays(today, 5), cycleDays: 45 }),
+    createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: 'family', nextRestockDate: addDays(today, 3), cycleDays: 21, inShoppingList: true }),
+    createItem({ name: '洗碗精', iconKey: 'dish-soap', category: '廚房', unit: '瓶', spaceId: 'company', nextRestockDate: addDays(today, 20), cycleDays: 40 }),
+    createItem({ name: '狗狗糧食', iconKey: 'dog-food', category: '寵物用品', unit: '包', spaceId: 'family', reminderEnabled: false }),
   ]
 }
-
-// 用品圖示狀態；購物清單成員資格與完成狀態可由 store 另外記錄。
-export const ITEM_STATUS = Object.freeze({
-  IN_SHOPPING_LIST: 'in-shopping-list',
-  RESTOCK_NEEDED: 'restock-needed',
-  IN_STOCK: 'in-stock',
-  DUE_SOON: 'due-soon',
-})
 
 export const ITEM_STATUS_LABELS = Object.freeze({
   [ITEM_STATUS.IN_SHOPPING_LIST]: '在購物清單',
@@ -118,5 +135,5 @@ export const ITEM_STATUS_LABELS = Object.freeze({
 })
 
 export function normalizeItemStatus(status) {
-  return Object.hasOwn(ITEM_STATUS_LABELS, status) ? status : ITEM_STATUS.IN_SHOPPING_LIST
+  return getIconState(status)
 }

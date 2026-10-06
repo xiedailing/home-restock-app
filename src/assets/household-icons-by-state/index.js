@@ -1,6 +1,6 @@
 // 共用素材位置：src/assets/household-icons-by-state/。
 // state 是圖示狀態，不是購買清單的完成狀態。
-import { ITEM_STATUS, normalizeItemStatus } from '../../models/item.js';
+import { ITEM_STATUS, getIconState } from '../../models/item.js';
 export const itemIcons = {
   'cotton-pads': {
     'due-soon': new URL('./due-soon/cotton-pads-due-soon.svg', import.meta.url).href,
@@ -76,11 +76,11 @@ export const commonItemIcons = Object.freeze({
   [ITEM_STATUS.IN_STOCK]: new URL('./common/generic-item-in-stock.svg', import.meta.url).href,
   [ITEM_STATUS.DUE_SOON]: new URL('./common/generic-item-due-soon.svg', import.meta.url).href,
 });
-export const fallbackItemIcon = commonItemIcons[ITEM_STATUS.IN_SHOPPING_LIST];
+export const fallbackItemIcon = commonItemIcons[ITEM_STATUS.IN_STOCK];
 
 // iconKey 是用品種類（例如 tissues），不是單筆用品的 id。
-export function getItemIcon(iconKey, state = ITEM_STATUS.IN_SHOPPING_LIST) {
-  const normalizedState = normalizeItemStatus(state);
+export function getItemIcon(iconKey, state) {
+  const normalizedState = getIconState(state);
   const fallback = commonItemIcons[normalizedState];
   if (!Object.hasOwn(itemIcons, iconKey)) return fallback;
   return itemIcons[iconKey][normalizedState] ?? fallback;

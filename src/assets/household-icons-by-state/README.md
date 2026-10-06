@@ -29,7 +29,7 @@ const item = {
 
 兩筆不同用品可以使用相同 `iconKey`。可用 key：`cotton-pads`、`dish-soap`、`dog-food`、`laundry-detergent`、`light-bulb`、`rubbing-alcohol`、`sanitary-pads`、`sponge`、`tissues`、`trash-bags`；程式可從 `ITEM_ICON_KEYS` 取得清單。
 
-狀態常數和中文標籤統一放在 `src/models/item.js`。尚未建立用品 store；組員建立時沿用上述欄位，其他庫存、分類、空間欄位再依功能增加。
+狀態常數和中文標籤統一放在 `src/models/item.js`。用品 store 已建立於 `src/stores/items.js`；`createItem()` 保存 `iconKey`，`itemsWithStatus` 提供計算後的業務 `status`。
 
 這裡的 `status` 用於選擇圖示；`in-shopping-list` 表示在購物清單。用品庫存與清單成員資格可能同時存在，store 可另外記錄 `inShoppingList`，再集中決定顯示哪種圖示。不要僅因加入待買就改為 `due-soon`。
 
@@ -52,7 +52,7 @@ import { ITEM_STATUS } from '../models/item.js'
 </template>
 ```
 
-有用品資料時，使用 `getItemIcon(item.iconKey, item.status)`。`getItemIcon()` 對未知用品回傳 `common/` 中對應狀態的通用圖示；省略或傳入未知狀態時，使用 `in-shopping-list`。已知用品仍使用自己的圖示，不會回傳空值。
+有用品資料時，使用 `getItemIcon(item.iconKey, item.status)`。接口內統一呼叫 model 的 `getIconState()`：`overdue` → `restock-needed`、`dueSoon` → `due-soon`、`inShoppingList` → `in-shopping-list`、`reminderOff`／`notNeeded` → `in-stock`；也接受既有圖示狀態。省略或傳入未知狀態時使用 `in-stock` 一般圖樣，不代表已確認庫存充足。未知用品使用 `common/` 中對應狀態的通用圖示。
 
 `common/generic-item-happy.svg` 與 `common/generic-item-in-shopping-list-plain.svg` 保留供其他畫面使用，目前不加入狀態對應。
 
