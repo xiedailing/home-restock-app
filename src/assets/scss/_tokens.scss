@@ -88,6 +88,16 @@ $radius-action-bar: 36px;
 $button-height: 48px;
 $button-height-compact: 44px;
 
+/* 切換鈕：新增空間與編輯空間共用 */
+$switch-width: 52px;
+$switch-height: 32px;
+$switch-padding: 3px;
+$switch-thumb-size: $switch-height - $switch-padding * 2;
+$switch-bg-off: #dedcd4;
+$switch-bg-on: $primary-green;
+$switch-thumb-bg: $card-bg;
+$switch-radius: $radius-pill;
+
 
 /* 卡片陰影 */
 $shadow-card:
@@ -105,6 +115,14 @@ $shadow-raised:
 $shadow-inset:
  inset -3px -3px 10px rgba(255, 255, 255, 0.65),
  inset 2px 3px 6px rgba(105, 99, 85, 0.16);
+
+// Figma Soft Switch（1385:8921）：On / Off 各自的可見陰影。
+$switch-track-shadow-off: inset 1.5px 2px 4px rgba(143, 134, 114, .3);
+$switch-track-shadow-on: inset 1.5px 2px 3px rgba(31, 58, 29, .35);
+$switch-thumb-shadow-on: 2px 3px 5px rgba(143, 134, 114, .22);
+$switch-thumb-shadow-off:
+  $switch-thumb-shadow-on,
+  -2px -2px 5px rgba(196.15385, 195.02218, 195.02218, .3);
 
 
 /* Primary / Danger：外凸與內部反光 */
