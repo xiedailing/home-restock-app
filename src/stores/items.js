@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { generateId } from '../utils/id.js'
 import {
   DEFAULT_SPACES,
   MIN_CYCLE_DAYS,
@@ -66,7 +67,7 @@ export const useItemsStore = defineStore('items', () => {
   }
 
   function addSpace({ name, shared = false, color = 'green' }) {
-    const space = { id: crypto.randomUUID(), name, shared, color }
+    const space = { id: generateId(), name, shared, color }
     spaces.value.push(space)
     return space
   }
