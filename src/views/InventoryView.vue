@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import ItemListRow from '../components/items/ItemListRow.vue'
 import { useItemsStore } from '../stores/items'
@@ -7,12 +7,71 @@ import { CATEGORIES } from '../models/item'
 import { profile } from '../stores/profile'
 import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
 import chevronIcon from '../assets/settings/chevron.svg'
-import emptyItemIcon from '../assets/household-icons-by-state/common/generic-item-happy.svg'
+import emptyItemIcon from '../assets/household-icons-by-state/common/generic-item-in-shopping-list-plain.svg'
 
 // Figma 原始搜尋 SVG；嵌入資料網址，避免依賴會過期的素材 URL。
 const searchIcon = 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiB2aWV3Qm94PSIwIDAgMjAgMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIGlkPSJJY29uIC8gU2VhcmNoIj4KPGNpcmNsZSBpZD0iRWxsaXBzZSIgY3g9IjgiIGN5PSI4IiByPSI1IiBzdHJva2U9IiM4Qjg4ODAiIHN0cm9rZS13aWR0aD0iMiIvPgo8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTMgMTNMMTcgMTciIHN0cm9rZT0iIzhCODg4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9nPgo8L3N2Zz4K'
 
 const { items, itemsWithStatus, spaces } = storeToRefs(useItemsStore())
+
+// 搜尋字串與空間選擇僅留在頁面層，不進 store、不持久化。
+const searchQuery = ref('')
+const selectedSpaceId = ref(null) // null = 所有用品
+const spaceMenuOpen = ref(false)
+
+const selectedSpaceName = computed(
+  () => spaces.value.find((space) => space.id === selectedSpaceId.value)?.name ?? '所有用品',
+)
+
+const spaceOptions = computed(() => [{ id: null, name: '所有用品' }, ...spaces.value])
+
+function filterBySpace(list, spaceId) {
+  return spaceId === null ? list : list.filter((item) => item.spaceId === spaceId)
+}
+
+// 空間是主要瀏覽 context；切換時（含切回所有用品）重置搜尋，不保留「搜尋 AND 空間」。
+function selectSpace(spaceId) {
+  spaceMenuOpen.value = false
+  // 重新點選同一空間只關閉浮層，不重置搜尋。
+  if (spaceId === selectedSpaceId.value) return
+  selectedSpaceId.value = spaceId
+  searchQuery.value = ''
+}
+
+// 每個篩選都是 (list) => list 的純函式；Phase 2 的空間／分類／狀態篩選可直接接在後面。
+function filterByName(list, query) {
+  const keyword = query.trim().toLocaleLowerCase()
+  if (!keyword) return list
+  return list.filter((item) => item.name.toLocaleLowerCase().includes(keyword))
+}
+
+const spaceItems = computed(() => filterBySpace(itemsWithStatus.value, selectedSpaceId.value))
+const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、不持久化
+
+function filterByCategory(list, category) {
+  return category === null ? list : list.filter((item) => item.category === category)
+}
+
+// 空間 scope AND 搜尋 AND 分類。
+const visibleItems = computed(() =>
+  filterByCategory(filterByName(spaceItems.value, searchQuery.value), selectedCategory.value),
+)
+
+// 目前空間有用品、且搜尋或分類生效、結果為 0；與「完全沒有用品」分開判斷。
+const trimmedQuery = computed(() => searchQuery.value.trim())
+const showSearchNoResults = computed(
+  () =>
+    spaceItems.value.length > 0 &&
+    (trimmedQuery.value !== '' || selectedCategory.value !== null) &&
+    visibleItems.value.length === 0,
+)
+
+// 清除目前生效的搜尋與分類（不影響空間）。
+function clearFilters() {
+  searchQuery.value = ''
+  selectedCategory.value = null
+}
+
 const categoryPills = ref(null)
 const showCategoryFade = ref(false)
 const showLeftCategoryFade = ref(false)
@@ -41,28 +100,63 @@ watch(categoryPills, (element, _previous, onCleanup) => {
       <header class="inventory-header">
         <div class="inventory-heading">
           <div class="inventory-title-row">
-            <h1 id="inventory-title">我的用品</h1>
-            <span class="space-chevron" aria-hidden="true">
+            <h1 id="inventory-title">{{ selectedSpaceId === null ? '所有用品' : selectedSpaceName }}</h1>
+            <button
+              type="button"
+              class="space-chevron"
+              :aria-expanded="spaceMenuOpen"
+              aria-haspopup="listbox"
+              aria-label="切換空間"
+              @click="spaceMenuOpen = !spaceMenuOpen"
+            >
               <img :src="chevronIcon" alt="" />
-            </span>
+            </button>
           </div>
-          <p class="inventory-subtitle">所有用品・共 {{ items.length }} 項用品</p>
+          <p class="inventory-subtitle">共 {{ spaceItems.length }} 項用品</p>
         </div>
         <img class="profile-avatar" :src="profile.avatar || defaultAvatar" alt="個人頭像" />
+
+        <!-- Space Popover：浮層，不推動下方版面。 -->
+        <template v-if="spaceMenuOpen">
+          <div class="space-popover-backdrop" @click="spaceMenuOpen = false" />
+          <div class="space-popover" role="listbox" aria-label="空間切換">
+            <button
+              v-for="option in spaceOptions"
+              :key="option.id ?? 'all'"
+              type="button"
+              role="option"
+              class="space-option"
+              :class="{ 'space-option--selected': selectedSpaceId === option.id }"
+              :aria-selected="selectedSpaceId === option.id"
+              @click="selectSpace(option.id)"
+            >
+              <span>{{ option.name }}</span>
+              <svg v-if="selectedSpaceId === option.id" class="space-check" viewBox="0 0 18 18" aria-hidden="true">
+                <path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <div class="space-popover-divider" />
+            <!-- 視覺入口；本階段尚未提供新增空間流程。 -->
+            <button type="button" class="space-option space-action" aria-disabled="true">
+              <svg class="space-plus" viewBox="0 0 18 18" aria-hidden="true">
+                <path d="M9 3v12M3 9h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+              </svg>
+              <span>新增空間</span>
+            </button>
+          </div>
+        </template>
       </header>
 
       <template v-if="items.length">
-        <!-- 僅呈現工具列視覺；搜尋與狀態篩選尚未啟用。 -->
+        <!-- 搜尋已啟用；狀態篩選尚未啟用。 -->
         <div class="inventory-toolbar">
           <div class="inventory-search">
             <img class="search-icon" :src="searchIcon" alt="" />
             <input
+              v-model="searchQuery"
               type="search"
               placeholder="搜尋用品"
               aria-label="搜尋用品"
-              aria-disabled="true"
-              readonly
-              tabindex="-1"
             />
           </div>
           <button
@@ -85,17 +179,44 @@ watch(categoryPills, (element, _previous, onCleanup) => {
           }"
         >
           <ul ref="categoryPills" class="category-pills" aria-label="用品分類" @scroll.passive="updateCategoryFade">
-            <li class="category-pill category-pill--selected">全部</li>
-            <li v-for="category in CATEGORIES" :key="category" class="category-pill">
-              {{ category }}
+            <li>
+              <button
+                type="button"
+                class="category-pill"
+                :class="{ 'category-pill--selected': selectedCategory === null }"
+                :aria-pressed="selectedCategory === null"
+                @click="selectedCategory = null"
+              >全部</button>
+            </li>
+            <li v-for="category in CATEGORIES" :key="category">
+              <button
+                type="button"
+                class="category-pill"
+                :class="{ 'category-pill--selected': selectedCategory === category }"
+                :aria-pressed="selectedCategory === category"
+                @click="selectedCategory = category"
+              >{{ category }}</button>
             </li>
           </ul>
         </div>
       </template>
     </div>
 
-    <ul v-if="items.length" class="item-list" aria-label="我的用品列表">
-      <ItemListRow v-for="item in itemsWithStatus" :key="item.id" :item="item" :spaces="spaces" />
+    <div v-if="showSearchNoResults" class="inventory-empty" role="status">
+      <div class="empty-illustration" aria-hidden="true">
+        <img :src="emptyItemIcon" alt="" />
+      </div>
+      <div class="empty-copy">
+        <h2>{{ trimmedQuery ? `找不到「${trimmedQuery}」` : '沒有符合條件的用品' }}</h2>
+        <p>{{ trimmedQuery ? '試試其他關鍵字，或調整篩選條件' : '試試其他分類，或清除篩選條件' }}</p>
+      </div>
+      <button type="button" class="empty-clear" @click="clearFilters">
+        {{ selectedCategory === null ? '清除搜尋' : '清除篩選' }}
+      </button>
+    </div>
+
+    <ul v-else-if="spaceItems.length" class="item-list" aria-label="我的用品列表">
+      <ItemListRow v-for="item in visibleItems" :key="item.id" :item="item" :spaces="spaces" />
     </ul>
 
     <div v-else class="inventory-empty" role="status">
@@ -154,6 +275,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
 }
 
 .inventory-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -162,6 +284,59 @@ watch(categoryPills, (element, _previous, onCleanup) => {
 }
 
 .inventory-heading { min-width: 0; }
+
+.space-popover-backdrop { position: fixed; inset: 0; z-index: 1; }
+
+.space-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  padding: 9px;
+  border: 1px solid t.$border-color;
+  border-radius: 22px;
+  background: t.$card-bg;
+  box-shadow: 0 -3px 10px rgba(255, 255, 255, .4), 0 10px 28px rgba(140, 136, 127, .14);
+}
+
+.space-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  width: 100%;
+  height: 44px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: t.$text-main;
+  font: t.$font-weight-regular 15px / normal t.$font-family;
+  text-align: left;
+  cursor: pointer;
+
+  &--selected {
+    background: t.$active-green;
+    box-shadow: inset -1px -1px 4px rgba(255, 255, 255, .85), inset 1px 2px 5px rgba(138, 158, 136, .1);
+    color: t.$primary-green;
+    font-weight: t.$font-weight-bold;
+  }
+}
+
+.space-check, .space-plus { flex: 0 0 18px; width: 18px; height: 18px; }
+
+.space-popover-divider { height: 1px; margin-block: 4px; background: t.$border-color; }
+
+.space-action {
+  justify-content: flex-start;
+  color: t.$primary-green;
+  cursor: default;
+}
 .inventory-title-row { display: flex; align-items: center; gap: t.$space-8; }
 
 h1 {
@@ -180,6 +355,10 @@ h1 {
   border-radius: t.$radius-pill;
   background: t.$input-bg;
   box-shadow: t.$shadow-raised;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
   img { transform: rotate(90deg); }
 }
 
@@ -227,7 +406,7 @@ h1 {
     font: t.$font-weight-regular #{t.$font-size-body} / 20px t.$font-family;
     letter-spacing: 0;
     appearance: none;
-    cursor: default;
+    cursor: text;
     &::placeholder { color: t.$text-disabled; opacity: 1; }
   }
 }
@@ -285,13 +464,18 @@ h1 {
   overscroll-behavior-x: contain;
   touch-action: pan-x;
   margin: -16px 0;
-  padding: 16px 16px 16px 4px;
+  padding: 16px 4px 16px 4px;
   list-style: none;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 }
 
+.category-pills > li { flex-shrink: 0; }
+
 .category-pill {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -348,6 +532,21 @@ h1 {
   font-size: t.$font-size-button;
   cursor: default;
   &:hover, &:active { background: t.$primary-green; }
+}
+
+.empty-copy h2 { overflow-wrap: anywhere; }
+
+.empty-clear {
+  width: 140px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: t.$radius-pill;
+  background: t.$input-bg;
+  box-shadow: t.$shadow-raised;
+  color: t.$text-sub;
+  font: t.$font-weight-medium #{t.$font-size-button} / 20px t.$font-family;
+  cursor: pointer;
 }
 
 .add-symbol { font-size: 20px; line-height: 1; }
