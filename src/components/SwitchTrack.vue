@@ -1,9 +1,9 @@
 <script setup>
-defineProps({ checked: Boolean })
+defineProps({ checked: Boolean, disabled: Boolean })
 </script>
 
 <template>
-  <span class="switch-track" :class="{ checked }" aria-hidden="true"><span class="switch-thumb" /></span>
+  <span class="switch-track" :class="{ checked, disabled }" aria-hidden="true"><span class="switch-thumb" /></span>
 </template>
 
 <style scoped lang="scss">
@@ -21,6 +21,11 @@ defineProps({ checked: Boolean })
   &.checked {
     background: t.$switch-bg-on;
     box-shadow: t.$switch-track-shadow-on;
+  }
+  &.disabled {
+    background: t.$switch-bg-off;
+    box-shadow: t.$switch-track-shadow-off;
+    opacity: .65;
   }
 }
 .switch-thumb {

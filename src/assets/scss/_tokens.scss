@@ -98,6 +98,14 @@ $switch-bg-on: $primary-green;
 $switch-thumb-bg: $card-bg;
 $switch-radius: $radius-pill;
 
+/* Toast 訊息框 */
+$toast-max-width: 358px;
+$toast-min-height: 48px;
+$toast-inset-inline: $space-16;
+$toast-padding-block: $space-12;
+$toast-padding-inline: $space-24;
+$toast-bottom: 132px;
+
 
 /* 卡片陰影 */
 $shadow-card:

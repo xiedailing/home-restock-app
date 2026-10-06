@@ -32,6 +32,24 @@ export const routes = [
     component: () => import('../views/SettingsEditProfile.vue'),
     meta: { title: '個人檔案設定', hideBottomNav: true },
   },
+  {
+    path: '/settings/spaces',
+    name: 'spaces',
+    component: () => import('../views/SettingsSpacesView.vue'),
+    meta: { title: '空間管理' },
+  },
+  {
+    path: '/settings/spaces/new',
+    name: 'add-space',
+    component: () => import('../views/SettingsAddSpace.vue'),
+    meta: { title: '新增空間' },
+  },
+  {
+    path: '/settings/spaces/:spaceId',
+    name: 'edit-space',
+    component: () => import('../views/SettingsEditSpace.vue'),
+    meta: { title: '編輯空間' },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/home' },
 ]
 
