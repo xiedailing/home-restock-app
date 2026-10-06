@@ -1,6 +1,8 @@
 // 用品資料模型：欄位定義、固定選項、狀態計算。
 // 日期一律使用 'YYYY-MM-DD' 字串（本地時間）。
 
+import { generateId } from '../utils/id.js'
+
 export const CATEGORIES = ['生活日用品', '洗浴清潔', '洗衣', '廚房', '個人護理', '寵物用品']
 
 export const UNITS = ['件', '瓶', '包', '串', '條']
@@ -81,7 +83,7 @@ export function daysUntil(dateString, today = toDateString()) {
 export function createItem(input = {}) {
   const now = new Date().toISOString()
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? generateId(),
     name: input.name ?? '',
     iconKey: input.iconKey ?? null,
     category: input.category ?? null,
@@ -100,7 +102,7 @@ export function createItem(input = {}) {
 
 export function createRestockRecord(input = {}) {
   return {
-    id: input.id ?? crypto.randomUUID(),
+    id: input.id ?? generateId(),
     date: input.date ?? toDateString(),
     quantity: input.quantity ?? 1,
   }
