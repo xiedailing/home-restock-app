@@ -10,7 +10,6 @@ import HelloWorld from './components/HelloWorld.vue'
 <script setup>
 import { useRoute } from 'vue-router'
 import BottomNav from './components/BottomNav.vue'
-import ComponentsTest from './components/ComponentsTest.vue'
 
 const route = useRoute()
 
@@ -21,7 +20,6 @@ const handlePlusClick = () => {
 
 <template>
   <div class="app-container">
-    <ComponentsTest v-if="!route.path.startsWith('/settings')" />
     <!-- 主內容呈現區 -->
     <main class="app-content" :class="{ 'without-nav': route.meta.hideBottomNav }">
       <RouterView />
