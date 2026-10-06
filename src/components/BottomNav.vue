@@ -1,5 +1,7 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
+
+const route = useRoute()
 
 const emit = defineEmits(['click-plus'])
 
@@ -19,6 +21,7 @@ const navItems = [
       <template v-for="(item, index) in navItems" :key="item.name">
         <RouterLink
           class="nav-btn"
+          :class="{ active: item.name === 'settings' && route.path.startsWith('/settings/') }"
           :to="{ name: item.name }"
           exact-active-class="active"
         >
