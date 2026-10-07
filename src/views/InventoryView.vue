@@ -1,9 +1,16 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import ItemListRow from '../components/items/ItemListRow.vue'
 import { useItemsStore } from '../stores/items'
-import { CATEGORIES } from '../models/item'
+import { CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
+import statusCheckedIcon from '../assets/items/status-filter/checked.svg'
+import statusPanel from '../assets/items/status-filter/panel.svg'
+import overdueDot from '../assets/items/status-filter/overdue.svg'
+import dueSoonDot from '../assets/items/status-filter/due-soon.svg'
+import reminderOffDot from '../assets/items/status-filter/reminder-off.svg'
+import shoppingListDot from '../assets/items/status-filter/shopping-list.svg'
+import notNeededDot from '../assets/items/status-filter/not-needed.svg'
 import { profile } from '../stores/profile'
 import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
 import chevronIcon from '../assets/settings/chevron.svg'
@@ -18,6 +25,56 @@ const { items, itemsWithStatus, spaces } = storeToRefs(useItemsStore())
 const searchQuery = ref('')
 const selectedSpaceId = ref(null) // null = 所有用品
 const spaceMenuOpen = ref(false)
+const statusMenuOpen = ref(false)
+const selectedStatuses = ref([])
+const statusFilterButton = ref(null)
+const statusPopover = ref(null)
+const statusOptions = [
+  { value: STATUS.OVERDUE, dot: overdueDot },
+  { value: STATUS.DUE_SOON, dot: dueSoonDot },
+  { value: STATUS.REMINDER_OFF, dot: reminderOffDot },
+  { value: STATUS.IN_SHOPPING_LIST, dot: shoppingListDot },
+  { value: STATUS.NOT_NEEDED, dot: notNeededDot },
+]
+
+function toggleStatus(status) {
+  selectedStatuses.value = selectedStatuses.value.includes(status)
+    ? selectedStatuses.value.filter((value) => value !== status)
+    : [...selectedStatuses.value, status]
+}
+
+function closeStatusMenuOutside(event) {
+  if (!statusMenuOpen.value) return
+  if (statusFilterButton.value?.contains(event.target) || statusPopover.value?.contains(event.target)) return
+  statusMenuOpen.value = false
+}
+
+// 浮層的陰影底圖比浮層寬，用 fixed 定位避免撐寬文件；依篩選按鈕位置換算座標。
+const statusPopoverStyle = ref({})
+
+function positionStatusPopover() {
+  const button = statusFilterButton.value
+  if (!button) return
+  const rect = button.getBoundingClientRect()
+  statusPopoverStyle.value = {
+    top: `${rect.bottom + 8}px`,
+    right: `${document.documentElement.clientWidth - rect.right}px`,
+  }
+}
+
+watch(statusMenuOpen, (open, _previous, onCleanup) => {
+  if (!open) return
+  positionStatusPopover()
+  window.addEventListener('resize', positionStatusPopover)
+  window.addEventListener('scroll', positionStatusPopover, { passive: true })
+  onCleanup(() => {
+    window.removeEventListener('resize', positionStatusPopover)
+    window.removeEventListener('scroll', positionStatusPopover)
+  })
+})
+
+onMounted(() => document.addEventListener('pointerdown', closeStatusMenuOutside))
+onUnmounted(() => document.removeEventListener('pointerdown', closeStatusMenuOutside))
 
 const selectedSpaceName = computed(
   () => spaces.value.find((space) => space.id === selectedSpaceId.value)?.name ?? '所有用品',
@@ -52,24 +109,38 @@ function filterByCategory(list, category) {
   return category === null ? list : list.filter((item) => item.category === category)
 }
 
+function filterByStatus(list, statuses) {
+  return statuses.length === 0 ? list : list.filter((item) => statuses.includes(item.status))
+}
+
 // 空間 scope AND 搜尋 AND 分類。
-const visibleItems = computed(() =>
+const categoryFilteredItems = computed(() =>
   filterByCategory(filterByName(spaceItems.value, searchQuery.value), selectedCategory.value),
 )
-
-// 目前空間有用品、且搜尋或分類生效、結果為 0；與「完全沒有用品」分開判斷。
-const trimmedQuery = computed(() => searchQuery.value.trim())
-const showSearchNoResults = computed(
-  () =>
-    spaceItems.value.length > 0 &&
-    (trimmedQuery.value !== '' || selectedCategory.value !== null) &&
-    visibleItems.value.length === 0,
+const visibleItems = computed(() =>
+  filterByStatus(categoryFilteredItems.value, selectedStatuses.value),
 )
 
-// 清除目前生效的搜尋與分類（不影響空間）。
+// 搜尋、分類、狀態屬於 filter；目前空間是 browsing context，不算 active filter。
+const trimmedQuery = computed(() => searchQuery.value.trim())
+const hasActiveFilter = computed(
+  () => trimmedQuery.value !== '' || selectedCategory.value !== null || selectedStatuses.value.length > 0,
+)
+
+// 0 筆結果的三種狀態互斥，依優先順序判斷：
+// general（完全沒有用品）→ space（此空間沒有用品且無 filter）→ noResults（filter 後 0 筆）。
+const emptyState = computed(() => {
+  if (items.value.length === 0) return 'general'
+  if (!hasActiveFilter.value && spaceItems.value.length === 0) return 'space'
+  if (hasActiveFilter.value && visibleItems.value.length === 0) return 'noResults'
+  return null
+})
+
+// 清除搜尋、分類、狀態；保留目前空間。
 function clearFilters() {
   searchQuery.value = ''
   selectedCategory.value = null
+  selectedStatuses.value = []
 }
 
 const categoryPills = ref(null)
@@ -80,6 +151,19 @@ function updateCategoryFade() {
   const element = categoryPills.value
   showLeftCategoryFade.value = !!element && element.scrollWidth - element.clientWidth > 1 && element.scrollLeft > 1
   showCategoryFade.value = !!element && element.scrollWidth - element.clientWidth - element.scrollLeft > 1
+}
+
+// 桌機滑鼠滾輪只會垂直捲動；在 pills 上把垂直滾輪轉成橫向捲動。
+// 已到邊界或無法橫向捲動時不攔截，讓頁面照常垂直捲動。
+function onCategoryWheel(event) {
+  const element = categoryPills.value
+  if (!element || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+  const maxScroll = element.scrollWidth - element.clientWidth
+  const atStart = element.scrollLeft <= 0 && event.deltaY < 0
+  const atEnd = element.scrollLeft >= maxScroll - 1 && event.deltaY > 0
+  if (maxScroll <= 1 || atStart || atEnd) return
+  event.preventDefault()
+  element.scrollLeft += event.deltaY
 }
 
 watch(categoryPills, (element, _previous, onCleanup) => {
@@ -160,14 +244,53 @@ watch(categoryPills, (element, _previous, onCleanup) => {
             />
           </div>
           <button
+            ref="statusFilterButton"
             type="button"
             class="status-filter-button"
             aria-label="狀態篩選"
-            aria-disabled="true"
-            tabindex="-1"
+            :aria-expanded="statusMenuOpen"
+            aria-controls="status-filter-popover"
+            @click="statusMenuOpen = !statusMenuOpen"
           >
             <span class="filter-icon" aria-hidden="true"><span /><span /><span /></span>
+            <span v-if="selectedStatuses.length" class="status-badge" aria-hidden="true">{{ selectedStatuses.length }}</span>
           </button>
+          <div
+            v-if="statusMenuOpen"
+            id="status-filter-popover"
+            ref="statusPopover"
+            class="status-popover"
+            :style="statusPopoverStyle"
+            role="group"
+            aria-labelledby="status-filter-title"
+            @keydown.esc.stop="statusMenuOpen = false; statusFilterButton?.focus()"
+          >
+            <img class="status-panel-background" :src="statusPanel" alt="" aria-hidden="true" />
+            <div class="status-popover-panel">
+              <p id="status-filter-title" class="status-popover-title">狀態篩選・已選 {{ selectedStatuses.length }} 項</p>
+              <div class="status-options">
+                <button
+                  v-for="option in statusOptions"
+                  :key="option.value"
+                  type="button"
+                  class="status-option"
+                  role="checkbox"
+                  :aria-checked="selectedStatuses.includes(option.value)"
+                  @click="toggleStatus(option.value)"
+                >
+                  <span class="status-checkbox" :class="{ 'status-checkbox--checked': selectedStatuses.includes(option.value) }" aria-hidden="true">
+                    <img v-if="selectedStatuses.includes(option.value)" :src="statusCheckedIcon" alt="" />
+                  </span>
+                  <img class="status-dot" :src="option.dot" alt="" />
+                  <span>{{ STATUS_LABELS[option.value] }}</span>
+                </button>
+              </div>
+              <div class="status-popover-divider" />
+              <div class="status-clear-action">
+                <button type="button" class="status-clear" @click="selectedStatuses = []">清除篩選</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Phase 1 僅呈現分類；切換與篩選留待 Phase 2。 -->
@@ -178,7 +301,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
             'category-strip--has-previous': showLeftCategoryFade,
           }"
         >
-          <ul ref="categoryPills" class="category-pills" aria-label="用品分類" @scroll.passive="updateCategoryFade">
+          <ul ref="categoryPills" class="category-pills" aria-label="用品分類" @scroll.passive="updateCategoryFade" @wheel="onCategoryWheel">
             <li>
               <button
                 type="button"
@@ -202,23 +325,33 @@ watch(categoryPills, (element, _previous, onCleanup) => {
       </template>
     </div>
 
-    <div v-if="showSearchNoResults" class="inventory-empty" role="status">
+    <!-- 搜尋／篩選後 0 筆 -->
+    <div v-if="emptyState === 'noResults'" class="inventory-empty" role="status">
       <div class="empty-illustration" aria-hidden="true">
         <img :src="emptyItemIcon" alt="" />
       </div>
       <div class="empty-copy">
-        <h2>{{ trimmedQuery ? `找不到「${trimmedQuery}」` : '沒有符合條件的用品' }}</h2>
-        <p>{{ trimmedQuery ? '試試其他關鍵字，或調整篩選條件' : '試試其他分類，或清除篩選條件' }}</p>
+        <h2>找不到符合條件的用品</h2>
+        <p>試著調整搜尋或篩選條件</p>
       </div>
-      <button type="button" class="empty-clear" @click="clearFilters">
-        {{ selectedCategory === null ? '清除搜尋' : '清除篩選' }}
-      </button>
+      <button type="button" class="empty-clear" @click="clearFilters">清除篩選</button>
     </div>
 
-    <ul v-else-if="spaceItems.length" class="item-list" aria-label="我的用品列表">
+    <!-- 目前空間沒有用品（無任何 filter） -->
+    <div v-else-if="emptyState === 'space'" class="inventory-empty" role="status">
+      <div class="empty-illustration" aria-hidden="true">
+        <img :src="emptyItemIcon" alt="" />
+      </div>
+      <div class="empty-copy">
+        <h2>這個空間目前還沒有用品</h2>
+      </div>
+    </div>
+
+    <ul v-else-if="emptyState === null" class="item-list" aria-label="我的用品列表">
       <ItemListRow v-for="item in visibleItems" :key="item.id" :item="item" :spaces="spaces" />
     </ul>
 
+    <!-- 完全沒有任何用品 -->
     <div v-else class="inventory-empty" role="status">
       <div class="empty-illustration" aria-hidden="true">
         <img :src="emptyItemIcon" alt="" />
@@ -425,7 +558,109 @@ h1 {
   background: t.$input-bg;
   box-shadow: t.$shadow-raised;
   color: t.$text-main;
-  cursor: default;
+  cursor: pointer;
+}
+
+.inventory-toolbar { position: relative; }
+
+.status-popover {
+  // top / right 由 script 依篩選按鈕位置設定。
+  position: fixed;
+  z-index: 3;
+  width: 250px;
+  height: 342px;
+}
+
+.status-panel-background {
+  position: absolute;
+  top: -18.5px;
+  left: -28px;
+  pointer-events: none;
+}
+
+.status-popover-panel {
+  position: relative;
+  top: 10px;
+  display: flex;
+  flex-direction: column;
+  padding: 9px;
+  border-radius: t.$radius-popover;
+}
+
+.status-popover-title {
+  margin: 0;
+  padding: 6px 12px;
+  color: t.$text-button-secondary;
+  font: t.$font-weight-medium 14px / normal t.$font-family;
+}
+
+.status-options { display: flex; flex-direction: column; height: 235px; }
+
+.status-option {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 10px;
+  width: 100%;
+  height: 46px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: t.$text-main;
+  font: t.$font-weight-regular 15px / normal t.$font-family;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.status-checkbox {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid #a9a59b;
+  border-radius: 10px;
+  background: t.$input-bg;
+  box-shadow: t.$shadow-raised;
+
+  &--checked { border: 0; background: transparent; box-shadow: none; }
+  img { display: block; }
+}
+
+.status-dot { display: block; flex: 0 0 8px; }
+.status-popover-divider { height: 1px; background: #edeae3; }
+.status-clear-action { display: flex; justify-content: center; }
+
+.status-clear {
+  width: 78px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: t.$radius-pill;
+  background: transparent;
+  color: t.$primary-green;
+  font: t.$font-weight-medium 15px / normal t.$font-family;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.status-filter-button { position: relative; }
+
+// 附著在按鈕右上角，絕對定位，不影響按鈕尺寸與 Tools Row 版面。
+.status-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding-inline: 5px;
+  border-radius: t.$radius-pill;
+  background: t.$primary-green;
+  color: t.$text-inverse;
+  font: t.$font-weight-medium 11px / 1 t.$font-family;
+  pointer-events: none;
 }
 
 .filter-icon {
