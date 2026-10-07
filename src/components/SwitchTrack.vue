@@ -18,6 +18,7 @@ defineProps({ checked: Boolean, disabled: Boolean })
   border-radius: t.$switch-radius;
   background: t.$switch-bg-off;
   box-shadow: t.$switch-track-shadow-off;
+  transition: background-color .5s ease, box-shadow .5s ease;
   &.checked {
     background: t.$switch-bg-on;
     box-shadow: t.$switch-track-shadow-on;
@@ -35,9 +36,13 @@ defineProps({ checked: Boolean, disabled: Boolean })
   border-radius: t.$switch-radius;
   background: t.$switch-thumb-bg;
   box-shadow: t.$switch-thumb-shadow-off;
+  transition: transform .5s ease, box-shadow .5s ease;
   .checked & {
     transform: translateX(t.$switch-width - t.$switch-padding * 2 - t.$switch-thumb-size);
     box-shadow: t.$switch-thumb-shadow-on;
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-track, .switch-thumb { transition: none; }
 }
 </style>

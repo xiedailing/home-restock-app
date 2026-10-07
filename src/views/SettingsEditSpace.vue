@@ -8,6 +8,7 @@ import SpaceColorPicker from '../components/SpaceColorPicker.vue'
 import chevron from '../assets/settings/chevron.svg'
 import SwitchTrack from '../components/SwitchTrack.vue'
 import { DEFAULT_SPACE_ID } from '../models/item'
+import { defaultAvatar, avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,6 +22,12 @@ const spaceMembers = computed(() => store.getSpaceMembers(route.params.spaceId))
 const collapsibleMembers = computed(() => spaceMembers.value.length > 4)
 const visibleMembers = computed(() => collapsibleMembers.value && !membersExpanded.value
   ? spaceMembers.value.slice(0, 3) : spaceMembers.value)
+function memberAvatar(member) {
+  if (member.avatar) return member.avatar
+  if (member.id === 'self') return defaultAvatar
+  const index = Array.from(member.id).reduce((total, char) => total + char.codePointAt(0), 0) % avatarOptions.length
+  return avatarOptions[index].image
+}
 const sharedLocked = computed(() => !!space.value?.shared && memberCount.value > 1)
 const isOwner = computed(() => space.value?.ownerId === 'self')
 const canEditSpace = computed(() => !!space.value && (space.value.shared || isOwner.value))
@@ -37,13 +44,11 @@ const nameEnterCount = ref(0)
 const originalName = ref('')
 const notice = ref('')
 const inviteSheetOpen = ref(false)
-const enteringForInvite = ref(route.query.invite === '1')
 let inviteEntryTimer
 onMounted(async () => {
   if (route.query.invite !== '1') return
-  const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300
+  const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500
   inviteEntryTimer = setTimeout(() => {
-    enteringForInvite.value = false
     if (space.value?.shared && memberCount.value < 10) inviteSheetOpen.value = true
   }, delay)
   const { invite, ...query } = route.query
@@ -129,7 +134,7 @@ function confirmLeave() {
 </script>
 
 <template>
-  <section class="edit-space-page" :class="{ 'entering-for-invite': enteringForInvite }">
+  <section class="edit-space-page">
     <header class="space-header">
       <RouterLink :to="{ name: 'spaces' }" class="back-button" aria-label="返回空間管理"><img :src="chevron" alt="" /></RouterLink>
       <h1>編輯空間</h1>
@@ -186,7 +191,10 @@ function confirmLeave() {
       </div>
       <h2>成員</h2>
       <div class="space-card members-card">
-        <div v-for="member in visibleMembers" :key="member.id" class="info-row">{{ member.name }}{{ member.id === 'self' ? '（你）' : '' }}</div>
+        <div v-for="member in visibleMembers" :key="member.id" class="info-row member-row">
+          <img class="member-avatar" :src="memberAvatar(member)" alt="" />
+          <span>{{ member.name }}{{ member.id === 'self' ? '（你）' : '' }}</span>
+        </div>
         <button v-if="collapsibleMembers" type="button" class="members-toggle" :aria-expanded="membersExpanded" @click="membersExpanded = !membersExpanded">
           {{ membersExpanded ? '收合成員' : `展開其餘 ${spaceMembers.length - 3} 人` }}
           <i class="fa-solid" :class="membersExpanded ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
@@ -228,9 +236,6 @@ function confirmLeave() {
 .members-toggle { width: 100%; display: flex; align-items: center; justify-content: center; gap: t.$space-8; margin-bottom: t.$space-12; padding: t.$space-8; border: 0; background: transparent; color: t.$text-sub; font: 400 t.$font-size-caption t.$font-family; }
 .name-count-value { position: absolute; right: 36px; top: 18px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; white-space: nowrap; pointer-events: none; }
 .edit-space-page { max-width: 358px; width: 100%; margin-inline: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 16px; text-align: left; color: t.$text-main; font-family: t.$font-family; }
-.entering-for-invite { animation: invite-page-enter .3s ease both; }
-@keyframes invite-page-enter { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-@media (prefers-reduced-motion: reduce) { .entering-for-invite { animation: none; } }
 .space-header { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; h1 { margin: 0; text-align: center; font: 700 17px / 24px t.$font-family; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; transform: rotate(180deg); } }
 h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
@@ -285,6 +290,8 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
   legend { float: left; width: 100%; margin: 0 0 t.$space-8; font: 400 14px / 20px t.$font-family; color: t.$text-body; }
 }
 .members-card { .info-row { border-bottom: 1px solid t.$border-color; } }
+.member-row { gap: t.$space-12; }
+.member-row .member-avatar { width: 32px; height: 32px; flex-shrink: 0; object-fit: cover; border-radius: 50%; background: t.$active-green; }
 .members-card .info-row + .invite-button { margin-top: t.$space-16; }
 .private-space-hint { margin: t.$space-16 0 0; color: t.$text-sub; font-size: t.$font-size-caption; line-height: t.$line-height-body; font-family: t.$font-family; font-weight: 400; }
 .invite-button { width: 100%; min-height: 48px; border: 0; border-radius: t.$radius-pill; background: #ecf4ea; color: #3c763c; font: 700 16px / 22px t.$font-family; }
@@ -333,7 +340,7 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
   pointer-events: none;
   i { color: t.$primary-green; flex-shrink: 0; }
 }
-.color-toast-leave-active { transition: opacity .8s ease; }
+.color-toast-leave-active { transition: opacity .5s ease; }
 .color-toast-leave-to { opacity: 0; }
 .leave-button { width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: t.$text-sub; font-size: 20px; display: grid; place-items: center; }
 .leave-dialog:focus { outline: none; }

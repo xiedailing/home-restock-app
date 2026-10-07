@@ -96,14 +96,14 @@ export const useItemsStore = defineStore('items', () => {
     if (!space?.shared || !member?.id || !member.name?.trim()) return
     const members = space.members ?? (space.members = [])
     if (members.length >= 9 || members.some(existing => existing.id === member.id)) return
-    members.push({ id: member.id, name: member.name.trim() })
+    members.push({ id: member.id, name: member.name.trim(), avatar: member.avatar || '' })
     return space
   }
 
   function getSpaceMembers(spaceId) {
     const space = getSpace(spaceId)
     if (!space) return []
-    return [{ id: 'self', name: profile.name }, ...(space.members || [])]
+    return [{ id: 'self', name: profile.name, avatar: profile.avatar }, ...(space.members || [])]
   }
 
   function leaveSpace(spaceId) {

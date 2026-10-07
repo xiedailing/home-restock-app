@@ -176,7 +176,7 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
         <input id="invite-code" v-model="inviteCode" placeholder="輸入空間邀請碼" autocomplete="off" />
         <button type="submit" class="join-button">加入</button>
       </form>
-      <Teleport to="body"><p v-if="notice" class="invite-toast" role="status">{{ notice }}</p></Teleport>
+      <Teleport to="body"><Transition name="join-toast"><p v-if="notice" class="invite-toast" role="status">{{ notice }}</p></Transition></Teleport>
     </section>
 
   </section>
@@ -243,9 +243,14 @@ h2 { margin: 0 0 16px; color: #292624; font: 700 16px / 22px t.$font-family; }
 .space-list.sorting .space-row { touch-action: none; cursor: grab; user-select: none; }
 .space-row.is-dragging { background: t.$input-bg; border-radius: t.$radius-input; cursor: grabbing; }
 .sort-grip { color: t.$text-disabled; flex-shrink: 0; }
-.space-sort-move { transition: transform .35s ease; }
+.space-sort-move { transition: transform .5s ease; }
+.space-sort-enter-active { transition: transform .5s ease, opacity .5s ease; }
+.space-sort-enter-from { transform: translateY(-16px); opacity: 0; }
+.space-list { overflow-x: clip; }
+.join-toast-enter-active, .join-toast-leave-active { transition: transform .5s ease; }
+.join-toast-enter-from, .join-toast-leave-to { transform: translate(-50%, 24px); }
 .sort-grip { display: grid; place-items: center; width: 32px; min-height: 24px; cursor: grab; touch-action: none; }
-@media (prefers-reduced-motion: reduce) { .space-sort-move { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .space-sort-move, .space-sort-enter-active, .join-toast-enter-active, .join-toast-leave-active { transition: none; } }
 .space-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 .space-name { flex: 1; overflow-wrap: anywhere; }
 .add-space-link {
@@ -296,10 +301,10 @@ h2:has(+ .section-description) { margin-bottom: t.$space-8; }
 .created-message { display: flex; align-items: center; gap: 10px; img { width: 22px; height: 22px; flex-shrink: 0; } }
 .exit-space-toast { width: max-content; justify-content: center; }
 .exit-space-toast i { color: t.$primary-green; font-size: 20px; flex-shrink: 0; }
-.created-success-toast-enter-active, .created-success-toast-leave-active { transition: opacity .3s ease; }
+.created-success-toast-enter-active, .created-success-toast-leave-active { transition: opacity .5s ease; }
 .created-success-toast-enter-from, .created-success-toast-leave-to { opacity: 0; }
-.created-toast-leave-active { transition: opacity .8s ease; }
-.created-toast-enter-active { transition: opacity .8s ease; }
+.created-toast-leave-active { transition: opacity .5s ease; }
+.created-toast-enter-active { transition: opacity .5s ease; }
 .created-toast-enter-from { opacity: 0; }
 .created-toast-leave-to { opacity: 0; }
 .member-count { color: t.$text-main; white-space: nowrap; }

@@ -74,7 +74,7 @@ function revealColor(event, animateScroll = true) {
   }
   const startedAt = performance.now()
   function animate(now) {
-    const progress = Math.min((now - startedAt) / 800, 1)
+    const progress = Math.min((now - startedAt) / 500, 1)
     const eased = 1 - Math.pow(1 - progress, 3)
     container.scrollLeft = start + (target - start) * eased
     if (progress < 1) scrollFrame = requestAnimationFrame(animate)
