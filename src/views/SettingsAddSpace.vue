@@ -23,8 +23,15 @@ const nameCountHint = computed(() => {
   return `${count}/${asciiOnly ? 16 : 8}`
 })
 function updateNameInput(event) {
-  // 保留組字與超限內容，只在儲存時檢查。
-  name.value = event.target.value
+  // 組字期間保留輸入法內容，選字完成後移除所有空白。
+  if (event.isComposing) return
+  const input = event.target
+  const cursor = input.selectionStart
+  const value = input.value.replace(/\s/g, '')
+  const nextCursor = input.value.slice(0, cursor).replace(/\s/g, '').length
+  input.value = value
+  name.value = value
+  input.setSelectionRange(nextCursor, nextCursor)
 }
 
 function addSpace() {
@@ -38,7 +45,7 @@ function addSpace() {
     return
   }
   const space = itemsStore.addSpace({ name: spaceName, shared: shared.value, color: color.value })
-  router.push({ name: 'spaces', query: { spaceCreated: space.name } })
+  router.push({ name: 'spaces', query: { spaceCreated: space.name, createdSpaceId: space.id } })
 }
 </script>
 
@@ -59,21 +66,21 @@ function addSpace() {
           <label for="space-name">空間名稱</label>
           <div class="name-field">
           <input :class="{ 'limit-exceeded': nameLimitExceeded }" @focus="nameFocused = true" @blur="nameFocused = false" id="space-name" v-model="name" placeholder="輸入名稱" required
-            :aria-invalid="!!error || nameLimitExceeded" :aria-describedby="error ? 'space-error' : undefined" @input="error = ''; updateNameInput($event)" @compositionend="updateNameInput" />
-          <p v-if="nameFocused || nameLimitExceeded" class="name-count">字數提醒：{{ nameCountHint }}</p>
+            :aria-invalid="!!error || nameLimitExceeded" :aria-describedby="error ? 'space-error' : undefined" @input="error = ''; updateNameInput($event)" @compositionend="updateNameInput" @keydown.space="!$event.isComposing && $event.keyCode !== 229 && $event.preventDefault()" />
+          <span v-if="nameFocused || nameLimitExceeded" class="name-count">{{ nameCountHint }}</span>
           <p v-if="nameLimitExceeded" class="name-length-error">名稱過長，請縮短。</p>
           </div>
         </div>
-        <div class="space-row">
+        <div class="space-row sharing-row">
           <span id="space-usage-label">多人共享</span>
           <button type="button" class="space-switch" role="switch" :aria-checked="shared"
             aria-labelledby="space-usage-label" @click="shared = !shared">
             <SwitchTrack :checked="shared" />
           </button>
-        </div>
-        <div class="sharing-hint-wrapper" :class="{ expanded: shared }" :aria-hidden="!shared">
+          <div class="sharing-hint-wrapper" :class="{ expanded: shared }" :aria-hidden="!shared">
           <div class="sharing-hint-content">
             <p class="sharing-hint">開啟後可邀請成員加入，最多 10 人。</p>
+          </div>
           </div>
         </div>
         <fieldset class="color-field">
@@ -122,18 +129,18 @@ function addSpace() {
 h2 { margin: 0 0 t.$space-16; font: 700 16px / 22px t.$font-family; }
 .space-fields {
   padding: t.$space-16;
-  border: 1px solid rgba(237, 234, 227, .55);
+  border: 1px solid rgba(237, 234, 227, .4);
   border-radius: 20px;
   background: #fbfaf6;
-  box-shadow: t.$shadow-inset;
+  box-shadow: t.$shadow-card;
   overflow: hidden;
 }
 .space-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: t.$space-8 t.$space-16;
+  min-height: 60px;
+  padding: t.$space-12 t.$space-16;
   position: relative;
   color: t.$text-body;
   font-size: 14px;
@@ -144,7 +151,7 @@ h2 { margin: 0 0 t.$space-16; font: 700 16px / 22px t.$font-family; }
     max-width: 100%;
     width: 100%;
     height: 36px;
-    padding: 0 12px;
+    padding: 0 52px 0 12px;
     border: 0;
     border-radius: t.$radius-input;
     background: t.$input-bg;
@@ -154,9 +161,9 @@ h2 { margin: 0 0 t.$space-16; font: 700 16px / 22px t.$font-family; }
     &::placeholder { color: t.$text-disabled; }
   }
 }
-.name-field { width: 196px; max-width: 60%; }
+.name-field { position: relative; width: 196px; max-width: 65%; min-width: 0; }
 .name-length-error { margin: 4px 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }
-.name-count { margin: 6px 0 0; color: t.$text-disabled; font-size: t.$font-size-caption; }
+.name-count { position: absolute; right: t.$space-12; top: 18px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; white-space: nowrap; pointer-events: none; }
 .space-row input:focus { outline: 2px solid t.$primary-green; outline-offset: 2px; }
 .space-row input.limit-exceeded { outline: 2px solid t.$accent-text; outline-offset: 2px; }
 .space-switch {
@@ -172,17 +179,19 @@ h2 { margin: 0 0 t.$space-16; font: 700 16px / 22px t.$font-family; }
   min-width: 0;
   width: calc(100% + t.$space-16);
   padding: t.$space-12 0 0 t.$space-16;
-  margin: t.$space-12 calc(-1 * t.$space-16) 0 0;
+  margin: 0 calc(-1 * t.$space-16) 0 0;
   border: 0;
   legend { float: left; width: 100%; margin: 0 0 t.$space-8; font: 400 14px / 20px t.$font-family; color: t.$text-body; }
 }
 .space-hint { margin: 16px 0 0; font-size: 12px; line-height: 18px; color: t.$text-sub; }
-.sharing-hint { margin: t.$space-8 t.$space-16 0; color: t.$text-sub; font-size: t.$font-size-caption; line-height: t.$line-height-body; }
+.sharing-row { flex-wrap: wrap; row-gap: 0; }
+.sharing-hint { margin: t.$space-8 0 0; color: t.$text-sub; font-size: t.$font-size-caption; line-height: t.$line-height-body; }
 .sharing-hint-wrapper {
+  flex-basis: 100%;
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
-  transition: grid-template-rows .3s ease, opacity .3s ease;
+  transition: grid-template-rows .5s ease, opacity .5s ease;
   &.expanded { grid-template-rows: 1fr; opacity: 1; }
 }
 .sharing-hint-content { min-height: 0; overflow: hidden; }

@@ -160,7 +160,18 @@ export const useItemsStore = defineStore('items', () => {
     return { ok: true, space, message: '已加入家庭空間' }
   }
 
+  const sharedSpaces = computed(() => spaces.value.filter(space => space.shared))
+  function moveSpace(spaceId, targetId) {
+    const from = spaces.value.findIndex(space => space.id === spaceId)
+    const to = spaces.value.findIndex(space => space.id === targetId)
+    if (from < 0 || to < 0 || from === to) return
+    const [space] = spaces.value.splice(from, 1)
+    spaces.value.splice(to, 0, space)
+  }
+
   return {
+    sharedSpaces,
+    moveSpace,
     items,
     spaces,
     itemsWithStatus,

@@ -1,15 +1,22 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { SPACE_COLORS } from '../models/space'
 const color = defineModel({ type: String, default: 'green' })
 const dragging = ref(false)
+const colorOptions = ref(null)
 let dragStartX = 0
 let dragStartScroll = 0
 let dragPointerId = null
 let movedDuringDrag = false
+let scrollFrame
+function stopAutoScroll() {
+  cancelAnimationFrame(scrollFrame)
+}
+onBeforeUnmount(stopAutoScroll)
 
 // 手機保留原生滑動；電腦另外支援按住滑鼠左右拖曳。
 function startColorDrag(event) {
+  stopAutoScroll()
   if (event.pointerType !== 'mouse' || event.button !== 0) return
   dragPointerId = event.pointerId
   dragStartX = event.clientX
@@ -45,17 +52,55 @@ function handleColorClick(event) {
   }
 }
 
+function revealColor(event, animateScroll = true) {
+  const option = event.currentTarget.closest('.color-option')
+  const container = option?.parentElement
+  if (!container) return
+  const optionBounds = option.getBoundingClientRect()
+  const containerBounds = container.getBoundingClientRect()
+  const styles = getComputedStyle(container)
+  const left = containerBounds.left + container.clientLeft + parseFloat(styles.paddingLeft)
+  const right = containerBounds.left + container.clientLeft + container.clientWidth - parseFloat(styles.paddingRight)
+  const distance = optionBounds.right > right
+    ? optionBounds.right - right
+    : optionBounds.left < left ? optionBounds.left - left : 0
+  stopAutoScroll()
+  if (!distance) return
+  const start = container.scrollLeft
+  const target = Math.max(0, Math.min(container.scrollWidth - container.clientWidth, start + distance))
+  if (!animateScroll || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    container.scrollLeft = target
+    return
+  }
+  const startedAt = performance.now()
+  function animate(now) {
+    const progress = Math.min((now - startedAt) / 800, 1)
+    const eased = 1 - Math.pow(1 - progress, 3)
+    container.scrollLeft = start + (target - start) * eased
+    if (progress < 1) scrollFrame = requestAnimationFrame(animate)
+  }
+  scrollFrame = requestAnimationFrame(animate)
+}
+
+async function revealSavedColor(animateScroll = false) {
+  await nextTick()
+  const selected = colorOptions.value?.querySelector('input:checked')
+  if (selected) revealColor({ currentTarget: selected }, animateScroll)
+}
+onMounted(() => revealSavedColor())
+watch(color, () => revealSavedColor(true))
+
 </script>
 <template>
 <div class="color-picker">
-          <div class="color-options" :class="{ dragging }"
+          <div ref="colorOptions" class="color-options" :class="{ dragging }" @wheel.passive="stopAutoScroll"
             @pointerdown="startColorDrag" @pointermove="moveColorDrag"
             @pointerup="endColorDrag" @pointercancel="endColorDrag" @lostpointercapture="endColorDrag"
             @pointerleave="!dragging && endColorDrag($event)" @click.capture="handleColorClick">
             <label v-for="option in SPACE_COLORS" :key="option.id" class="color-option"
               :class="{ selected: color === option.id }"
               :style="{ '--color-light': option.light, '--color-dark': option.dark }">
-              <input v-model="color" type="radio" name="space-color" :value="option.id" :aria-label="option.label" />
+              <input v-model="color" type="radio" name="space-color" :value="option.id" :aria-label="option.label" @click="revealColor" @change="revealColor" />
               <span class="color-swatch" aria-hidden="true" />
               <span v-if="color === option.id" class="color-check" aria-hidden="true">✓</span>
             </label>

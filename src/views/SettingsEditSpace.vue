@@ -1,8 +1,9 @@
 <script setup>
-import { computed, ref, nextTick, onBeforeUnmount } from 'vue'
+import { computed, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { limitSpaceName } from '../models/space'
 import { useItemsStore } from '../stores/items'
+import InviteMemberSheet from '../components/InviteMemberSheet.vue'
 import SpaceColorPicker from '../components/SpaceColorPicker.vue'
 import chevron from '../assets/settings/chevron.svg'
 import SwitchTrack from '../components/SwitchTrack.vue'
@@ -35,6 +36,19 @@ const draftName = ref('')
 const nameEnterCount = ref(0)
 const originalName = ref('')
 const notice = ref('')
+const inviteSheetOpen = ref(false)
+const enteringForInvite = ref(route.query.invite === '1')
+let inviteEntryTimer
+onMounted(async () => {
+  if (route.query.invite !== '1') return
+  const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 300
+  inviteEntryTimer = setTimeout(() => {
+    enteringForInvite.value = false
+    if (space.value?.shared && memberCount.value < 10) inviteSheetOpen.value = true
+  }, delay)
+  const { invite, ...query } = route.query
+  await router.replace({ path: route.path, query, hash: route.hash })
+})
 const colorToast = ref('')
 let colorToastTimer
 const nameLimitExceeded = computed(() => limitSpaceName(draftName.value.trim()) !== draftName.value.trim())
@@ -46,16 +60,23 @@ const nameCountHint = computed(() => {
   return `${count}/${asciiOnly ? 16 : 8}`
 })
 function updateNameInput(event) {
-  // 保留組字與超限內容，只在儲存時檢查。
-  draftName.value = event.target.value
+  // 組字期間保留輸入法內容，選字完成後移除所有空白。
+  if (event.isComposing) return
+  const input = event.target
+  const cursor = input.selectionStart
+  const value = input.value.replace(/\s/g, '')
+  const nextCursor = input.value.slice(0, cursor).replace(/\s/g, '').length
+  input.value = value
+  draftName.value = value
+  input.setSelectionRange(nextCursor, nextCursor)
 }
 
-function showColorToast() {
+function showColorToast(message = '空間代表色已更新') {
   clearTimeout(colorToastTimer)
-  colorToast.value = '空間代表色已更新'
+  colorToast.value = message
   colorToastTimer = setTimeout(() => { colorToast.value = '' }, 3000)
 }
-onBeforeUnmount(() => clearTimeout(colorToastTimer))
+onBeforeUnmount(() => { clearTimeout(colorToastTimer); clearTimeout(inviteEntryTimer) })
 async function editName() {
   if (!canEditSpace.value) return
   draftName.value = space.value.name
@@ -81,15 +102,15 @@ function toggleShared() {
   if (sharedLocked.value || isDefaultSpace.value) return
   const shared = !space.value.shared
   store.updateSpace(route.params.spaceId, { shared })
-  notice.value = `多人共享已切換為${shared ? '共享' : '私人'}。`
+  showColorToast(shared ? '多人共享已開啟' : '多人共享已關閉')
 }
 function saveName(event) {
   if (!editingName.value || event?.isComposing) return
   if (event?.type === 'focusout' && event.relatedTarget?.closest('.name-input-wrapper')) return
   if (nameLimitExceeded.value) return
-  if (draftName.value.trim()) {
+  if (draftName.value.trim() && draftName.value.trim() !== space.value.name) {
     store.updateSpace(route.params.spaceId, { name: draftName.value })
-    notice.value = '空間名稱已更新。'
+    showColorToast('空間名稱已更新')
   }
   editingName.value = false
 }
@@ -108,7 +129,7 @@ function confirmLeave() {
 </script>
 
 <template>
-  <section class="edit-space-page">
+  <section class="edit-space-page" :class="{ 'entering-for-invite': enteringForInvite }">
     <header class="space-header">
       <RouterLink :to="{ name: 'spaces' }" class="back-button" aria-label="返回空間管理"><img :src="chevron" alt="" /></RouterLink>
       <h1>編輯空間</h1>
@@ -121,17 +142,14 @@ function confirmLeave() {
       <h2>空間資訊</h2>
       <div class="space-card">
         <div class="info-row name-row">
+          <div class="name-main-row">
           <label v-if="editingName" for="space-name-input">空間名稱</label>
           <span v-else>空間名稱</span>
           <div v-if="editingName" class="name-input-wrapper" @focusout="saveName">
             <input id="space-name-input" ref="nameInput" v-model="draftName"
               class="name-input" :aria-invalid="nameLimitExceeded" :class="{ 'limit-exceeded': nameLimitExceeded }" :placeholder="originalName"
-              @input="nameEnterCount = 0; updateNameInput($event)" @compositionend="updateNameInput" @keydown.enter.prevent="handleNameEnter" @keydown.esc.prevent="editingName = false" />
-            <p v-if="space.shared" class="name-count shared-name-hint">
-              <span>此名稱會同步顯示給其他成員</span>
-              <span class="name-count-value">{{ nameCountHint }}</span>
-            </p>
-            <p v-else class="name-count">字數提醒：{{ nameCountHint }}</p>
+              @input="nameEnterCount = 0; updateNameInput($event)" @compositionend="updateNameInput" @keydown.space="!$event.isComposing && $event.keyCode !== 229 && $event.preventDefault()" @keydown.enter.prevent="handleNameEnter" @keydown.esc.prevent="editingName = false" />
+            <span class="name-count-value">{{ nameCountHint }}</span>
             <p v-if="nameLimitExceeded" class="name-length-error">名稱過長，請縮短。</p>
             <button type="button" class="clear-name-button" aria-label="清除空間名稱"
               @mousedown.prevent @click="clearDraftName">
@@ -144,6 +162,12 @@ function confirmLeave() {
               <i class="fa-solid fa-pencil name-edit-icon" aria-hidden="true"></i>
             </button>
           </template>
+          </div>
+          <div class="name-hint-collapse" :class="{ expanded: editingName && space.shared }" :aria-hidden="!(editingName && space.shared)">
+            <div class="name-hint-content">
+              <p class="name-count">此名稱會同步顯示給其他成員</p>
+            </div>
+          </div>
         </div>
         <div class="info-row usage-row">
           <span id="space-usage-label">多人共享</span>
@@ -167,11 +191,13 @@ function confirmLeave() {
           {{ membersExpanded ? '收合成員' : `展開其餘 ${spaceMembers.length - 3} 人` }}
           <i class="fa-solid" :class="membersExpanded ? 'fa-chevron-up' : 'fa-chevron-down'" aria-hidden="true"></i>
         </button>
-        <button type="button" class="invite-button" :disabled="!space.shared || memberCount >= 10" @click="notice = '邀請成員功能尚未串接共享服務。'">邀請成員</button>
+        <button v-if="space.shared" type="button" class="invite-button" :disabled="memberCount >= 10" @click="inviteSheetOpen = true">邀請成員</button>
+        <p v-else class="private-space-hint">此為個人專屬空間，無法邀請其他成員加入</p>
       </div>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     </template>
     <p v-else>找不到此空間，請返回空間管理。</p>
+    <InviteMemberSheet :open="inviteSheetOpen" :space="space" @close="inviteSheetOpen = false" @copied="showColorToast" />
     <Teleport to="body">
       <Transition name="color-toast">
       <p v-if="colorToast" class="color-toast" role="status">
@@ -185,7 +211,7 @@ function confirmLeave() {
         <h2 id="leave-dialog-title">退出空間？</h2>
         <p id="leave-dialog-message">你確定要退出「{{ space.name }}」空間嗎？
           <br />
-          <template v-if="otherMembers.length">退出後你將無法檢視或管理該空間的用品清單。如需再次加入，須由其他成員重新邀請。</template>
+          <template v-if="otherMembers.length">退出後將無法查看此空間內容，需重新受邀才能加入。</template>
           <template v-else>你是唯一成員，退出後此空間與所有資料將永久刪除。</template>
         </p>
         <div class="leave-actions">
@@ -200,26 +226,34 @@ function confirmLeave() {
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
 .members-toggle { width: 100%; display: flex; align-items: center; justify-content: center; gap: t.$space-8; margin-bottom: t.$space-12; padding: t.$space-8; border: 0; background: transparent; color: t.$text-sub; font: 400 t.$font-size-caption t.$font-family; }
-.shared-name-hint { display: flex; justify-content: space-between; align-items: baseline; gap: t.$space-8; }
-.name-count-value { flex-shrink: 0; white-space: nowrap; }
+.name-count-value { position: absolute; right: 36px; top: 18px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; white-space: nowrap; pointer-events: none; }
 .edit-space-page { max-width: 358px; width: 100%; margin-inline: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 16px; text-align: left; color: t.$text-main; font-family: t.$font-family; }
+.entering-for-invite { animation: invite-page-enter .3s ease both; }
+@keyframes invite-page-enter { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .entering-for-invite { animation: none; } }
 .space-header { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; h1 { margin: 0; text-align: center; font: 700 17px / 24px t.$font-family; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; transform: rotate(180deg); } }
 h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
-.space-card { padding: 16px; border: 1px solid rgba(237,234,227,.4); border-radius: 20px; background: #fbfaf6; box-shadow: t.$shadow-card; }
-.info-row { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 48px; padding: 12px 16px; color: t.$text-body; font: 400 14px / 20px t.$font-family; > span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 20px; height: 20px; } }
-.name-row { background: transparent; border: 0; border-bottom: 1px solid t.$border-color; text-align: left; }
-.name-row > label { flex: 1; }
+.space-card { padding: t.$space-16; border: 1px solid rgba(237,234,227,.4); border-radius: 20px; background: #fbfaf6; box-shadow: t.$shadow-card; overflow: hidden; }
+.info-row { display: flex; align-items: center; gap: t.$space-8; width: 100%; min-height: 60px; padding: t.$space-12 t.$space-16; color: t.$text-body; font: 400 14px / 20px t.$font-family; > span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 20px; height: 20px; } }
+.name-row { flex-wrap: wrap; column-gap: t.$space-8; row-gap: 0; background: transparent; border: 0; border-bottom: 1px solid t.$border-color; text-align: left; }
+.name-main-row { display: flex; align-items: flex-start; gap: t.$space-8; width: 100%; min-height: 36px; }
+.name-main-row > label, .name-main-row > span { flex: 1; display: flex; align-items: center; height: 36px; white-space: nowrap; }
+.name-main-row > strong, .name-main-row > .name-edit-button { min-height: 36px; display: flex; align-items: center; }
+.name-hint-collapse { flex-basis: 100%; display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows .5s ease, opacity .5s ease; &.expanded { grid-template-rows: 1fr; opacity: 1; } }
+.name-hint-content { min-height: 0; overflow: hidden; }
+.name-hint-content .name-count { width: 196px; max-width: 65%; margin-left: auto; }
+@media (prefers-reduced-motion: reduce) { .name-hint-collapse { transition: none; } }
 .name-input-wrapper { position: relative; width: 196px; max-width: 65%; min-width: 0; }
 .clear-name-button { position: absolute; right: t.$space-12; top: 18px; transform: translateY(-50%); padding: 0; border: 0; background: transparent; color: t.$text-disabled; font-size: 16px; line-height: 1; }
-.name-input { width: 100%; max-width: 100%; min-width: 0; height: 36px; padding: 0 36px 0 12px; border: 0; border-radius: t.$radius-input; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-main; font: 400 15px / 21px t.$font-family; &::placeholder { color: t.$text-disabled; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; } }
+.name-input { width: 100%; max-width: 100%; min-width: 0; height: 36px; padding: 0 76px 0 12px; border: 0; border-radius: t.$radius-input; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-main; font: 400 15px / 21px t.$font-family; &::placeholder { color: t.$text-disabled; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; } }
 .name-length-error { margin: 4px 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }
 .name-count { margin: 6px 0 0; color: t.$text-disabled; font-size: t.$font-size-caption; }
 .name-input.limit-exceeded { outline: 2px solid t.$accent-text; outline-offset: 2px; }
 .name-edit-button { padding: 0; border: 0; background: transparent; display: grid; place-items: center; }
 .name-edit-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; color: t.$text-disabled; font-size: 16px; flex-shrink: 0; }
 .info-row strong.disabled-value { color: t.$text-disabled; }
-.usage-row { padding-block: 8px; gap: 8px; border-bottom: 1px solid t.$border-color; }
+.usage-row { gap: 8px; border-bottom: 1px solid t.$border-color; }
 .usage-switch {
   &:disabled { cursor: not-allowed; }
   flex: 0 0 t.$switch-width;
@@ -236,7 +270,7 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
   // 延伸到卡片右側，讓第五個灰色選項露出一部分作為滑動提示。
   width: calc(100% + 16px);
   margin: 0 -16px 0 0;
-  padding: 24px 0 0 16px;
+  padding: t.$space-12 0 0 t.$space-16;
   border: 0;
   // 選色區延伸寬度，但分隔線仍與空間名稱列的左右邊界一致。
   &::before {
@@ -248,9 +282,11 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
     height: 1px;
     background: t.$border-color;
   }
-  legend { float: left; width: 100%; margin-bottom: 7px; font: 400 14px / 20px t.$font-family; color: t.$text-body; }
+  legend { float: left; width: 100%; margin: 0 0 t.$space-8; font: 400 14px / 20px t.$font-family; color: t.$text-body; }
 }
-.members-card { padding-block: 10px; .info-row { border-bottom: 1px solid t.$border-color; margin-bottom: 12px; } }
+.members-card { .info-row { border-bottom: 1px solid t.$border-color; } }
+.members-card .info-row + .invite-button { margin-top: t.$space-16; }
+.private-space-hint { margin: t.$space-16 0 0; color: t.$text-sub; font-size: t.$font-size-caption; line-height: t.$line-height-body; font-family: t.$font-family; font-weight: 400; }
 .invite-button { width: 100%; min-height: 48px; border: 0; border-radius: t.$radius-pill; background: #ecf4ea; color: #3c763c; font: 700 16px / 22px t.$font-family; }
 .invite-button:disabled {
   background: t.$border-color;
@@ -297,7 +333,7 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
   pointer-events: none;
   i { color: t.$primary-green; flex-shrink: 0; }
 }
-.color-toast-leave-active { transition: opacity .5s ease; }
+.color-toast-leave-active { transition: opacity .8s ease; }
 .color-toast-leave-to { opacity: 0; }
 .leave-button { width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: t.$text-sub; font-size: 20px; display: grid; place-items: center; }
 .leave-dialog:focus { outline: none; }
