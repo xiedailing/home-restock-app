@@ -100,11 +100,21 @@ $switch-radius: $radius-pill;
 
 /* Toast 訊息框 */
 $toast-max-width: 358px;
-$toast-min-height: 48px;
+$toast-min-height: 52px;
 $toast-inset-inline: $space-16;
-$toast-padding-block: $space-12;
-$toast-padding-inline: $space-24;
+$toast-padding-block: 8px;
+$toast-padding-inline: 22px;
 $toast-bottom: 132px;
+
+/* Toast 顏色（深色底，對應 Figma Feedback / Toast） */
+$toast-background: #302e29;
+$toast-text: #fcf9f1;
+$toast-success-accent: #c7e7a2; // 成功：勾勾圖示與「復原」「查看」文字
+$toast-error-accent: #ffb8a6;   // 失敗：「重試」文字
+$toast-shadow: 0 6px 8px rgba(0, 0, 0, 0.22);
+
+/* 失敗提示圖示的淡紅底（驚嘆號用 $danger） */
+$feedback-error-subtle: #fce9e4;
 
 
 /* 卡片陰影 */
