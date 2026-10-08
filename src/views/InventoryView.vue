@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import ItemListRow from '../components/items/ItemListRow.vue'
 import { useItemsStore } from '../stores/items'
@@ -19,7 +19,8 @@ import emptyItemIcon from '../assets/household-icons-by-state/common/generic-ite
 // Figma 原始搜尋 SVG；嵌入資料網址，避免依賴會過期的素材 URL。
 const searchIcon = 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiB2aWV3Qm94PSIwIDAgMjAgMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIGlkPSJJY29uIC8gU2VhcmNoIj4KPGNpcmNsZSBpZD0iRWxsaXBzZSIgY3g9IjgiIGN5PSI4IiByPSI1IiBzdHJva2U9IiM4Qjg4ODAiIHN0cm9rZS13aWR0aD0iMiIvPgo8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTMgMTNMMTcgMTciIHN0cm9rZT0iIzhCODg4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9nPgo8L3N2Zz4K'
 
-const { items, itemsWithStatus, spaces } = storeToRefs(useItemsStore())
+const itemsStore = useItemsStore()
+const { items, itemsWithStatus, spaces } = storeToRefs(itemsStore)
 
 // 搜尋字串與空間選擇僅留在頁面層，不進 store、不持久化。
 const searchQuery = ref('')
@@ -73,8 +74,95 @@ watch(statusMenuOpen, (open, _previous, onCleanup) => {
   })
 })
 
-onMounted(() => document.addEventListener('pointerdown', closeStatusMenuOutside))
-onUnmounted(() => document.removeEventListener('pointerdown', closeStatusMenuOutside))
+// 左滑刪除的 UI state 僅留在頁面層，不進 store。
+const revealedItemId = ref(null) // 同一時間只允許一列展開
+const pendingDeleteItem = ref(null)
+const isDeleteDialogOpen = ref(false)
+const deleteDialog = ref(null)
+
+const pendingDeleteSpaceName = computed(
+  () => spaces.value.find((space) => space.id === pendingDeleteItem.value?.spaceId)?.name ?? '未指定空間',
+)
+
+// 點擊已展開列以外的區域（含其他列）時收回；展開列本身由列元件自行處理。
+function closeRevealedOutside(event) {
+  if (revealedItemId.value === null) return
+  const row = event.target.closest?.('[data-item-id]')
+  if (row?.dataset.itemId !== revealedItemId.value) revealedItemId.value = null
+}
+
+function openDeleteDialog(item) {
+  pendingDeleteItem.value = item
+  revealedItemId.value = null
+  isDeleteDialogOpen.value = true
+  deleteDialog.value?.showModal()
+}
+
+// close 事件涵蓋取消、刪除與 Esc，統一清除待刪除狀態。
+function onDeleteDialogClose() {
+  isDeleteDialogOpen.value = false
+  pendingDeleteItem.value = null
+}
+
+// 只保留最近一次刪除的 Undo（不做 stack）；Toast 與 timer 僅留在頁面層。
+const TOAST_DURATION_MS = 5000
+const lastDeletedItem = ref(null)
+const lastDeletedSpaceName = ref('')
+const toastVisible = ref(false)
+let toastTimer = null
+
+function hideToast() {
+  clearTimeout(toastTimer)
+  toastTimer = null
+  toastVisible.value = false
+}
+
+function showToast() {
+  clearTimeout(toastTimer) // 新刪除取代舊 Toast，避免舊 timer 提早關閉
+  toastVisible.value = true
+  toastTimer = setTimeout(() => {
+    toastTimer = null
+    toastVisible.value = false
+    lastDeletedItem.value = null // Toast 消失後刪除即定案，不再保留 snapshot
+  }, TOAST_DURATION_MS)
+}
+
+function confirmDelete() {
+  const target = pendingDeleteItem.value
+  if (!target) return
+  // 先建立與 store 脫鉤的完整 snapshot，再刪除。
+  // 從 store 取原始 item（不含計算出的 status），toRaw 才能讓巢狀陣列也是非 Proxy，structuredClone 才不會失敗。
+  const source = itemsStore.getItem(target.id)
+  if (!source) {
+    deleteDialog.value?.close()
+    return
+  }
+  lastDeletedItem.value = structuredClone(toRaw(source))
+  lastDeletedSpaceName.value = pendingDeleteSpaceName.value
+  itemsStore.removeItem(target.id)
+  revealedItemId.value = null
+  deleteDialog.value?.close() // close 事件會清除 pendingDeleteItem
+  showToast()
+}
+
+function undoDelete() {
+  if (!lastDeletedItem.value) return
+  // 保留原 id、spaceId、restockRecords、timestamps。
+  // 傳入乾淨的複本，避免把 reactive Proxy 存進 store（否則之後再刪除時 structuredClone 會失敗）。
+  itemsStore.addItem(structuredClone(toRaw(lastDeletedItem.value)))
+  lastDeletedItem.value = null
+  hideToast()
+}
+
+onUnmounted(() => clearTimeout(toastTimer))
+
+function onDocumentPointerDown(event) {
+  closeStatusMenuOutside(event)
+  closeRevealedOutside(event)
+}
+
+onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
+onUnmounted(() => document.removeEventListener('pointerdown', onDocumentPointerDown))
 
 const selectedSpaceName = computed(
   () => spaces.value.find((space) => space.id === selectedSpaceId.value)?.name ?? '所有用品',
@@ -102,7 +190,27 @@ function filterByName(list, query) {
   return list.filter((item) => item.name.toLocaleLowerCase().includes(keyword))
 }
 
-const spaceItems = computed(() => filterBySpace(itemsWithStatus.value, selectedSpaceId.value))
+// 預設排序：越緊急越上面。同狀態維持原本順序（Array.prototype.sort 為穩定排序）。
+const STATUS_PRIORITY = [
+  STATUS.OVERDUE,
+  STATUS.DUE_SOON,
+  STATUS.IN_SHOPPING_LIST,
+  STATUS.NOT_NEEDED,
+  STATUS.REMINDER_OFF,
+]
+
+function statusRank(status) {
+  const index = STATUS_PRIORITY.indexOf(status)
+  return index === -1 ? STATUS_PRIORITY.length : index
+}
+
+function sortByUrgency(list) {
+  return [...list].sort((a, b) => statusRank(a.status) - statusRank(b.status))
+}
+
+const spaceItems = computed(() =>
+  sortByUrgency(filterBySpace(itemsWithStatus.value, selectedSpaceId.value)),
+)
 const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、不持久化
 
 function filterByCategory(list, category) {
@@ -119,6 +227,12 @@ const categoryFilteredItems = computed(() =>
 )
 const visibleItems = computed(() =>
   filterByStatus(categoryFilteredItems.value, selectedStatuses.value),
+)
+
+// 列表因篩選而不再包含展開列時，重置展開狀態。
+watch(
+  () => visibleItems.value.some((item) => item.id === revealedItemId.value),
+  (stillVisible) => { if (!stillVisible) revealedItemId.value = null },
 )
 
 // 搜尋、分類、狀態屬於 filter；目前空間是 browsing context，不算 active filter。
@@ -348,7 +462,16 @@ watch(categoryPills, (element, _previous, onCleanup) => {
     </div>
 
     <ul v-else-if="emptyState === null" class="item-list" aria-label="我的用品列表">
-      <ItemListRow v-for="item in visibleItems" :key="item.id" :item="item" :spaces="spaces" />
+      <ItemListRow
+        v-for="item in visibleItems"
+        :key="item.id"
+        :item="item"
+        :spaces="spaces"
+        :revealed="revealedItemId === item.id"
+        @reveal="revealedItemId = item.id"
+        @close="revealedItemId = null"
+        @delete="openDeleteDialog"
+      />
     </ul>
 
     <!-- 完全沒有任何用品 -->
@@ -365,6 +488,34 @@ watch(categoryPills, (element, _previous, onCleanup) => {
         <span class="add-symbol" aria-hidden="true">＋</span>
         新增用品
       </button>
+    </div>
+
+    <!-- 刪除確認；沿用設定頁的原生 dialog pattern（無 backdrop 關閉）。 -->
+    <dialog
+      ref="deleteDialog"
+      class="delete-dialog"
+      aria-labelledby="delete-dialog-title"
+      aria-describedby="delete-dialog-desc"
+      @close="onDeleteDialogClose"
+    >
+      <template v-if="pendingDeleteItem">
+        <h2 id="delete-dialog-title">刪除「{{ pendingDeleteItem.name }}」？</h2>
+        <p id="delete-dialog-desc">刪除後，這項用品會從「{{ pendingDeleteSpaceName }}」空間移除。</p>
+        <div class="delete-dialog-actions">
+          <button type="button" class="delete-dialog-cancel" @click="deleteDialog.close()">取消</button>
+          <button type="button" class="delete-dialog-confirm" @click="confirmDelete">刪除</button>
+        </div>
+      </template>
+    </dialog>
+
+    <!-- 刪除成功 Toast：Bottom Nav 上方水平置中。 -->
+    <div v-if="toastVisible && lastDeletedItem" class="delete-toast" role="status" aria-live="polite">
+      <svg class="toast-icon" viewBox="0 0 20 20" aria-hidden="true">
+        <circle cx="10" cy="10" r="10" fill="currentColor" />
+        <path d="M5.8 10.3l2.8 2.8 5.6-5.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span class="toast-message">已從「{{ lastDeletedSpaceName }}」移除 {{ lastDeletedItem.name }}</span>
+      <button type="button" class="toast-undo" @click="undoDelete">復原</button>
     </div>
   </section>
 </template>
@@ -785,6 +936,97 @@ h1 {
 }
 
 .add-symbol { font-size: 20px; line-height: 1; }
+
+// Figma Confirm Dialog：300 寬、圓角 28、左取消右刪除。
+.delete-dialog {
+  width: min(300px, calc(100% - 32px));
+  margin: auto;
+  padding: t.$space-24 18px;
+  border: 0;
+  border-radius: t.$radius-card;
+  background: t.$card-bg;
+  color: t.$text-main;
+  box-shadow: 0 14px 16px rgba(140, 136, 127, .2);
+  text-align: center;
+  &::backdrop { background: rgba(29, 29, 31, .35); }
+
+  h2 { margin: 0 0 t.$space-8; font: t.$font-weight-bold 18px / 1.45 t.$font-family; overflow-wrap: anywhere; }
+  p { margin: 0; color: t.$text-sub; font: t.$font-weight-regular 15px / 1.45 t.$font-family; overflow-wrap: anywhere; }
+}
+
+.delete-dialog-actions { display: flex; gap: t.$space-12; margin-top: 32px; }
+
+.delete-dialog-cancel,
+.delete-dialog-confirm {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 0 t.$space-24;
+  border: 0;
+  border-radius: t.$radius-pill;
+  font: t.$font-weight-medium 15px / normal t.$font-family;
+  cursor: pointer;
+}
+
+// 僅限本 Dialog：移除預設藍色 outline，鍵盤聚焦（:focus-visible）改用主綠色 ring。
+.delete-dialog:focus,
+.delete-dialog-cancel:focus,
+.delete-dialog-confirm:focus { outline: none; }
+
+.delete-dialog-cancel:focus-visible,
+.delete-dialog-confirm:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+
+// Figma Toast / Success；固定在 Bottom Nav（約 106px 區域）上方。
+.delete-toast {
+  position: fixed;
+  left: 50%;
+  // Bottom Nav 頂端在 116px（bottom 34 + 高 82）；再留 16px 間距。寬度同 Bottom Nav（358px，窄螢幕兩側各 16px）。
+  bottom: 132px;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: t.$space-8;
+  box-sizing: border-box;
+  width: min(358px, calc(100vw - 32px));
+  padding: t.$space-12 10px t.$space-12 14px;
+  border: 1px solid t.$border-color;
+  border-radius: t.$radius-pill;
+  background: t.$card-bg;
+  box-shadow: 0 -2px 8px rgba(255, 255, 255, .8), 0 8px 24px rgba(140, 136, 127, .36), 0 2px 6px rgba(107, 102, 92, .2);
+  transform: translateX(-50%);
+}
+
+.toast-icon { flex: 0 0 20px; width: 20px; height: 20px; color: t.$primary-green; }
+
+.toast-message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: t.$text-main;
+  font: t.$font-weight-medium 14px / 20px t.$font-family;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toast-undo {
+  flex-shrink: 0;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: t.$primary-green;
+  font: t.$font-weight-medium 14px / 20px t.$font-family;
+  cursor: pointer;
+  &:focus { outline: none; }
+  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; border-radius: t.$radius-pill; }
+}
+
+.delete-dialog-cancel { background: #f6f5f1; box-shadow: t.$shadow-raised; color: #636c65; }
+
+.delete-dialog-confirm {
+  background: t.$danger;
+  box-shadow: -3px -3px 6px rgba(249, 249, 249, .4), 4px 5px 10px rgba(42, 74, 39, .4), inset 1.5px 2px 3px rgba(31, 58, 29, .35), inset -1.5px -1.5px 3px rgba(255, 255, 255, .15);
+  color: t.$text-inverse;
+}
 
 @media (max-height: 600px) {
   .inventory-page { padding-top: t.$space-16; padding-bottom: t.$space-12; }
