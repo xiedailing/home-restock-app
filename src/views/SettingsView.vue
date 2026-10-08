@@ -128,6 +128,8 @@ function openManagement(type) {
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+// 頁面靜止時保留卡片陰影，切頁動畫期間沿用 App 的裁切。
+:global(.app-container .app-content:has(.settings-page):not(:has(.page-forward-enter-active, .page-forward-leave-active, .page-back-enter-active, .page-back-leave-active))) { overflow: visible; }
 
 .settings-page {
   width: 100%;
