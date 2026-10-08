@@ -1,9 +1,9 @@
 <script setup>
-defineProps({ checked: Boolean })
+defineProps({ checked: Boolean, disabled: Boolean })
 </script>
 
 <template>
-  <span class="switch-track" :class="{ checked }" aria-hidden="true"><span class="switch-thumb" /></span>
+  <span class="switch-track" :class="{ checked, disabled }" aria-hidden="true"><span class="switch-thumb" /></span>
 </template>
 
 <style scoped lang="scss">
@@ -18,9 +18,15 @@ defineProps({ checked: Boolean })
   border-radius: t.$switch-radius;
   background: t.$switch-bg-off;
   box-shadow: t.$switch-track-shadow-off;
+  transition: background-color .5s ease, box-shadow .5s ease;
   &.checked {
     background: t.$switch-bg-on;
     box-shadow: t.$switch-track-shadow-on;
+  }
+  &.disabled {
+    background: t.$switch-bg-off;
+    box-shadow: t.$switch-track-shadow-off;
+    opacity: .65;
   }
 }
 .switch-thumb {
@@ -30,9 +36,13 @@ defineProps({ checked: Boolean })
   border-radius: t.$switch-radius;
   background: t.$switch-thumb-bg;
   box-shadow: t.$switch-thumb-shadow-off;
+  transition: transform .5s ease, box-shadow .5s ease;
   .checked & {
     transform: translateX(t.$switch-width - t.$switch-padding * 2 - t.$switch-thumb-size);
     box-shadow: t.$switch-thumb-shadow-on;
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-track, .switch-thumb { transition: none; }
 }
 </style>

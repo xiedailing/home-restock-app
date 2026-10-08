@@ -10,7 +10,7 @@ import chevron from '../assets/settings/chevron.svg'
 import switchOn from '../assets/settings/switch-on.svg'
 
 // 先使用畫面範例資料，之後可改由帳號／設定 store 提供。
-const emit = defineEmits(['open-spaces', 'open-categories', 'logout'])
+const emit = defineEmits(['open-categories', 'logout'])
 const notifications = ref(true)
 const restockDays = ref(5)
 const shoppingDays = ref(5)
@@ -39,8 +39,8 @@ function saveChanges() {
 }
 
 function openManagement(type) {
-  emit(type === 'spaces' ? 'open-spaces' : 'open-categories')
-  notice.value = `${type === 'spaces' ? '空間' : '分類'}管理頁面尚未建立。`
+  emit('open-categories')
+  notice.value = '分類管理頁面尚未建立。'
 }
 </script>
 
@@ -89,9 +89,9 @@ function openManagement(type) {
     <section class="settings-section" aria-labelledby="spaces-title">
       <h2 id="spaces-title"><img :src="spacesIcon" alt="" />空間管理</h2>
       <div class="card settings-card settings-card-pill">
-        <button type="button" class="settings-row" @click="openManagement('spaces')">
+        <RouterLink :to="{ name: 'spaces' }" class="settings-row">
           <span>查看空間</span><img class="chevron" :src="chevron" alt="" />
-        </button>
+        </RouterLink>
       </div>
     </section>
 
@@ -242,6 +242,7 @@ function openManagement(type) {
   background: transparent;
   text-align: left;
   color: t.$text-body;
+  text-decoration: none;
   font: 400 14px / 20px t.$font-family;
 
   > span:first-child { flex: 1; }

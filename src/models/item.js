@@ -11,9 +11,6 @@ export const DEFAULT_UNIT = '件'
 export const DEFAULT_SPACE_ID = 'personal'
 export const DEFAULT_SPACES = [
   { id: 'personal', name: '個人', shared: false, color: 'green' },
-  { id: 'family', name: '家庭', shared: true, color: 'blue' },
-  { id: 'company', name: '公司', shared: true, color: 'orange' },
-  { id: 'travel', name: '旅行', shared: true, color: 'red' },
 ]
 
 export const MIN_CYCLE_DAYS = 7
@@ -121,11 +118,11 @@ export function getStatus(item, today = toDateString()) {
 // 示範資料：取自「我的用品」設計稿，日期相對今天計算。
 export function createSampleItems(today = toDateString()) {
   return [
-    createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: 'family', nextRestockDate: addDays(today, -2), cycleDays: 30 }),
-    createItem({ name: '洗衣精', iconKey: 'laundry-detergent', category: '洗衣', unit: '瓶', spaceId: 'family', nextRestockDate: addDays(today, 5), cycleDays: 45 }),
-    createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: 'family', nextRestockDate: addDays(today, 3), cycleDays: 21, inShoppingList: true }),
-    createItem({ name: '洗碗精', iconKey: 'dish-soap', category: '廚房', unit: '瓶', spaceId: 'company', nextRestockDate: addDays(today, 20), cycleDays: 40 }),
-    createItem({ name: '狗狗糧食', iconKey: 'dog-food', category: '寵物用品', unit: '包', spaceId: 'family', reminderEnabled: false }),
+    createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, nextRestockDate: addDays(today, -2), cycleDays: 30 }),
+    createItem({ name: '洗衣精', iconKey: 'laundry-detergent', category: '洗衣', unit: '瓶', spaceId: DEFAULT_SPACE_ID, nextRestockDate: addDays(today, 5), cycleDays: 45 }),
+    createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, nextRestockDate: addDays(today, 3), cycleDays: 21, inShoppingList: true }),
+    createItem({ name: '洗碗精', iconKey: 'dish-soap', category: '廚房', unit: '瓶', spaceId: DEFAULT_SPACE_ID, nextRestockDate: addDays(today, 20), cycleDays: 40 }),
+    createItem({ name: '狗狗糧食', iconKey: 'dog-food', category: '寵物用品', unit: '包', spaceId: DEFAULT_SPACE_ID, reminderEnabled: false }),
   ]
 }
 
