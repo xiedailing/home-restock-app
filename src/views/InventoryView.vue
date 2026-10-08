@@ -985,24 +985,33 @@ h1 {
   z-index: 1001;
   display: flex;
   align-items: center;
-  gap: t.$space-8;
+  gap: 10px;
   box-sizing: border-box;
-  width: min(358px, calc(100vw - 32px));
-  padding: t.$space-12 10px t.$space-12 14px;
-  border: 1px solid t.$border-color;
+  // 寬度跟內容走（同 Figma），最寬 358px，窄螢幕兩側各留 16px。
+  width: max-content;
+  max-width: min(t.$toast-max-width, calc(100vw - t.$toast-inset-inline * 2));
+  min-height: t.$toast-min-height;
+  padding: t.$toast-padding-block t.$toast-padding-inline;
   border-radius: t.$radius-pill;
-  background: t.$card-bg;
-  box-shadow: 0 -2px 8px rgba(255, 255, 255, .8), 0 8px 24px rgba(140, 136, 127, .36), 0 2px 6px rgba(107, 102, 92, .2);
+  background: t.$toast-background;
+  box-shadow: t.$toast-shadow;
   transform: translateX(-50%);
 }
 
-.toast-icon { flex: 0 0 20px; width: 20px; height: 20px; color: t.$primary-green; }
+// 圓形用成功色，勾勾用 Toast 底色，讓勾勾在深色底上「挖空」顯現。
+.toast-icon {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  color: t.$toast-success-accent;
+  path { stroke: t.$toast-background; }
+}
 
 .toast-message {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  color: t.$text-main;
+  color: t.$toast-text;
   font: t.$font-weight-medium 14px / 20px t.$font-family;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1010,14 +1019,15 @@ h1 {
 
 .toast-undo {
   flex-shrink: 0;
-  padding: 0 10px;
+  padding: 0;
   border: 0;
   background: transparent;
-  color: t.$primary-green;
-  font: t.$font-weight-medium 14px / 20px t.$font-family;
+  color: t.$toast-success-accent;
+  font: t.$font-weight-bold 14px / 20px t.$font-family;
   cursor: pointer;
   &:focus { outline: none; }
-  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; border-radius: t.$radius-pill; }
+  // 深色底上主綠色看不清楚，focus ring 改用同色系的成功色。
+  &:focus-visible { outline: 2px solid t.$toast-success-accent; outline-offset: 2px; border-radius: t.$radius-pill; }
 }
 
 .delete-dialog-cancel { background: #f6f5f1; box-shadow: t.$shadow-raised; color: #636c65; }
