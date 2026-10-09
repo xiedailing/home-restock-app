@@ -8,11 +8,14 @@ import HelloWorld from './components/HelloWorld.vue'
 
 <!-- src/App.vue -->
 <script setup>
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ref, watch } from 'vue'
 import BottomNav from './components/BottomNav.vue'
+import { useItemsStore } from './stores/items'
 
 const route = useRoute()
+const router = useRouter()
+const itemsStore = useItemsStore()
 const pageTransition = ref('page-forward')
 const animateSettingsPages = ref(false)
 const isSettingsPage = path => path === '/settings' || path.startsWith('/settings/')
@@ -24,8 +27,10 @@ watch(() => route.path, (to, from) => {
   pageTransition.value = goingBack ? 'page-back' : 'page-forward'
 }, { flush: 'sync' })
 
+// 在「我的用品」篩選某個空間時預帶該空間；其他頁面由新增頁預設為「個人」。
 const handlePlusClick = () => {
-  alert('點擊了中央新增按鈕！')
+  const spaceId = route.name === 'inventory' ? itemsStore.inventorySpaceId : null
+  router.push({ name: 'add-item', query: spaceId ? { space: spaceId } : {} })
 }
 </script>
 

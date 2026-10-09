@@ -3,15 +3,79 @@
 
 import { generateId } from '../utils/id.js'
 
-export const CATEGORIES = ['生活日用品', '洗浴清潔', '洗衣', '廚房', '個人護理', '寵物用品']
+export const CATEGORIES = ['生活日用品', '清潔', '洗衣', '廚房', '個人護理', '寵物用品']
+// Figma 預設分類（我的用品篩選 834:5231、用品詳情 902:9485；「洗浴清潔」已改名為「清潔」）；我的用品一律顯示，其他分類有用品時才顯示。
+export const DEFAULT_CATEGORIES = ['生活日用品', '清潔', '洗衣', '廚房', '個人護理']
 
-export const UNITS = ['件', '瓶', '包', '串', '條']
+export const UNITS = ['件', '瓶', '包', '串', '條', '捲', '個']
 export const DEFAULT_UNIT = '件'
 
 export const DEFAULT_SPACE_ID = 'personal'
 export const DEFAULT_SPACES = [
   { id: 'personal', name: '個人', shared: false, color: 'green' },
 ]
+
+// 新增用品頁的常用用品：依現有用品插畫挑選，分組即帶入的分類（specs/002 附錄 A）。
+export const COMMON_ITEM_GROUPS = [
+  { category: '生活日用品', items: [
+    { name: '衛生紙', unit: '包' },
+    { name: '化妝棉', unit: '包' },
+    { name: '垃圾袋', unit: '捲' },
+    { name: '衛生棉', unit: '包' },
+  ] },
+  { category: '洗衣', items: [
+    { name: '洗衣精', unit: '瓶' },
+    { name: '洗衣膠囊', unit: '包' },
+    { name: '香氛豆', unit: '瓶' },
+  ] },
+  { category: '廚房', items: [
+    { name: '洗碗精', unit: '瓶' },
+    { name: '海綿', unit: '個' },
+    { name: '保鮮膜', unit: '條' },
+  ] },
+  { category: '個人護理', items: [
+    { name: '牙膏', unit: '條' },
+    { name: '沐浴乳', unit: '瓶' },
+    { name: '洗髮精', unit: '瓶' },
+  ] },
+  { category: '清潔', items: [
+    { name: '酒精', unit: '瓶' },
+    { name: '馬桶清潔劑', unit: '瓶' },
+  ] },
+  { category: '寵物用品', items: [
+    { name: '飼料', unit: '包' },
+    { name: '尿墊', unit: '包' },
+    { name: '貓砂', unit: '包' },
+  ] },
+]
+
+// 名稱包含關鍵字即使用對應插畫；多個符合時取最長的關鍵字。
+export const ITEM_ICON_KEYWORDS = {
+  'laundry-detergent': ['洗衣精'],
+  tissues: ['衛生紙', '面紙'],
+  'dish-soap': ['洗碗精'],
+  'trash-bags': ['垃圾袋'],
+  'rubbing-alcohol': ['酒精'],
+  sponge: ['海綿', '菜瓜布'],
+  'cotton-pads': ['化妝棉'],
+  'sanitary-pads': ['衛生棉'],
+  'light-bulb': ['燈泡'],
+  'dog-food': ['狗糧', '飼料', '狗狗糧食'],
+}
+
+export function matchItemIconKey(name = '') {
+  let match = null
+  let matchLength = 0
+  for (const [iconKey, keywords] of Object.entries(ITEM_ICON_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (keyword.length > matchLength && name.includes(keyword)) {
+        match = iconKey
+        matchLength = keyword.length
+      }
+    }
+  }
+  return match
+}
 
 export const MIN_CYCLE_DAYS = 7
 // 剩餘天數 <= 此值時顯示「該補貨了」
@@ -69,6 +133,13 @@ export function addDays(dateString, days) {
   return toDateString(new Date(y, m - 1, d + days))
 }
 
+// 下個月同一天；該月沒有這天時取月底。
+export function addMonths(dateString, months) {
+  const [y, m, d] = dateString.split('-').map(Number)
+  const lastDay = new Date(y, m - 1 + months + 1, 0).getDate()
+  return toDateString(new Date(y, m - 1 + months, Math.min(d, lastDay)))
+}
+
 // dateString 距離 today 還有幾天；已過期為負數。
 export function daysUntil(dateString, today = toDateString()) {
   const [y1, m1, d1] = today.split('-').map(Number)
@@ -89,6 +160,10 @@ export function createItem(input = {}) {
     reminderEnabled: input.reminderEnabled ?? true,
     nextRestockDate: input.nextRestockDate ?? null,
     cycleDays: input.cycleDays ?? null,
+    // 計算基準（001 FR-002）：開啟提醒時為（設定日，庫存量），補貨後更新。
+    reminderBaseDate: input.reminderBaseDate ?? null,
+    reminderBaseQuantity: input.reminderBaseQuantity ?? null,
+    daysPerUnit: input.daysPerUnit ?? null,
     lastRestockDate: input.lastRestockDate ?? null,
     inShoppingList: input.inShoppingList ?? false,
     restockRecords: input.restockRecords ?? [],

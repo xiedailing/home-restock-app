@@ -21,6 +21,8 @@ export const useItemsStore = defineStore('items', () => {
   const spaces = ref(DEFAULT_SPACES.map((space) => ({ ...space, ownerId: 'self', members: [] })))
   // 模擬其他成員仍持有的空間資料，不提供目前使用者的列表存取。
   const departedSpaces = ref([])
+  // 我的用品目前的空間篩選（null ＝ 所有用品）；新增用品頁依此預帶空間，不持久化。
+  const inventorySpaceId = ref(null)
 
   const itemsWithStatus = computed(() =>
     items.value.map((item) => ({ ...item, status: getStatus(item) })),
@@ -174,6 +176,7 @@ export const useItemsStore = defineStore('items', () => {
     moveSpace,
     items,
     spaces,
+    inventorySpaceId,
     itemsWithStatus,
     shoppingList,
     getItem,

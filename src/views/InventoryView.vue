@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRoute, useRouter } from 'vue-router'
 import ItemListRow from '../components/items/ItemListRow.vue'
 import { useItemsStore } from '../stores/items'
-import { CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
+import { CATEGORIES, DEFAULT_CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
 import statusCheckedIcon from '../assets/items/status-filter/checked.svg'
 import statusPanel from '../assets/items/status-filter/panel.svg'
 import overdueDot from '../assets/items/status-filter/overdue.svg'
@@ -14,17 +15,22 @@ import notNeededDot from '../assets/items/status-filter/not-needed.svg'
 import { profile } from '../stores/profile'
 import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
 import chevronIcon from '../assets/settings/chevron.svg'
+import toastCheck from '../assets/settings/toast-check.svg'
 import emptyItemIcon from '../assets/household-icons-by-state/common/generic-item-in-shopping-list-plain.svg'
 
 // Figma 原始搜尋 SVG；嵌入資料網址，避免依賴會過期的素材 URL。
 const searchIcon = 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiB2aWV3Qm94PSIwIDAgMjAgMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIGlkPSJJY29uIC8gU2VhcmNoIj4KPGNpcmNsZSBpZD0iRWxsaXBzZSIgY3g9IjgiIGN5PSI4IiByPSI1IiBzdHJva2U9IiM4Qjg4ODAiIHN0cm9rZS13aWR0aD0iMiIvPgo8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTMgMTNMMTcgMTciIHN0cm9rZT0iIzhCODg4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9nPgo8L3N2Zz4K'
 
 const itemsStore = useItemsStore()
-const { items, itemsWithStatus, spaces } = storeToRefs(itemsStore)
+// 空間選擇存在 store，讓 Bottom Nav【＋】可預帶目前空間；仍不持久化。
+const { items, itemsWithStatus, spaces, inventorySpaceId: selectedSpaceId } = storeToRefs(itemsStore)
 
-// 搜尋字串與空間選擇僅留在頁面層，不進 store、不持久化。
+// 搜尋字串僅留在頁面層，不進 store、不持久化。
 const searchQuery = ref('')
-const selectedSpaceId = ref(null) // null = 所有用品
+// 記住的空間已被退出時，回到所有用品。
+watch(spaces, (list) => {
+  if (selectedSpaceId.value !== null && !list.some((space) => space.id === selectedSpaceId.value)) selectedSpaceId.value = null
+}, { immediate: true, deep: true })
 const spaceMenuOpen = ref(false)
 const statusMenuOpen = ref(false)
 const selectedStatuses = ref([])
@@ -156,6 +162,23 @@ function undoDelete() {
 
 onUnmounted(() => clearTimeout(toastTimer))
 
+// 新增用品後由新增頁帶 ?itemCreated 回來；顯示一次 Toast 後移除 query，避免重新整理再出現。
+const route = useRoute()
+const router = useRouter()
+const createdToastVisible = ref(false)
+let createdToastTimer = null
+onMounted(() => {
+  if (!route.query.itemCreated) return
+  router.replace({ query: { ...route.query, itemCreated: undefined } })
+  createdToastVisible.value = true
+  createdToastTimer = setTimeout(() => { createdToastVisible.value = false }, TOAST_DURATION_MS)
+})
+onUnmounted(() => clearTimeout(createdToastTimer))
+
+function openAddItem() {
+  router.push({ name: 'add-item', query: selectedSpaceId.value ? { space: selectedSpaceId.value } : {} })
+}
+
 function onDocumentPointerDown(event) {
   closeStatusMenuOutside(event)
   closeRevealedOutside(event)
@@ -212,6 +235,16 @@ const spaceItems = computed(() =>
   sortByUrgency(filterBySpace(itemsWithStatus.value, selectedSpaceId.value)),
 )
 const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、不持久化
+
+// 預設分類一律顯示；其他分類（寵物用品）只在目前空間有用品時顯示。搜尋與狀態不影響，避免輸入時 pills 跳動。
+const availableCategories = computed(() =>
+  CATEGORIES.filter((category) =>
+    DEFAULT_CATEGORIES.includes(category) || spaceItems.value.some((item) => item.category === category)),
+)
+watch(availableCategories, (categories) => {
+  if (selectedCategory.value !== null && !categories.includes(selectedCategory.value)) selectedCategory.value = null
+  updateCategoryFade()
+}, { flush: 'post' })
 
 function filterByCategory(list, category) {
   return category === null ? list : list.filter((item) => item.category === category)
@@ -425,7 +458,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
                 @click="selectedCategory = null"
               >全部</button>
             </li>
-            <li v-for="category in CATEGORIES" :key="category">
+            <li v-for="category in availableCategories" :key="category">
               <button
                 type="button"
                 class="category-pill"
@@ -483,8 +516,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
         <h2>目前沒有用品</h2>
         <p>新增第一項用品，開始追蹤補貨提醒</p>
       </div>
-      <!-- 視覺入口；本階段尚未提供新增流程。 -->
-      <button type="button" class="btn btn-primary empty-add" aria-disabled="true">
+      <button type="button" class="btn btn-primary empty-add" @click="openAddItem">
         <span class="add-symbol" aria-hidden="true">＋</span>
         新增用品
       </button>
@@ -517,6 +549,15 @@ watch(categoryPills, (element, _previous, onCleanup) => {
       <span class="toast-message">已從「{{ lastDeletedSpaceName }}」移除 {{ lastDeletedItem.name }}</span>
       <button type="button" class="toast-undo" @click="undoDelete">復原</button>
     </div>
+
+    <!-- 新增成功 Toast：與設定頁「已成功新增空間」同款淺色樣式。 -->
+    <Teleport to="body">
+      <Transition name="created-toast">
+        <div v-if="createdToastVisible" class="created-toast" role="status">
+          <img :src="toastCheck" alt="" />已新增用品
+        </div>
+      </Transition>
+    </Teleport>
   </section>
 </template>
 
@@ -1037,6 +1078,31 @@ h1 {
   box-shadow: -3px -3px 6px rgba(249, 249, 249, .4), 4px 5px 10px rgba(42, 74, 39, .4), inset 1.5px 2px 3px rgba(31, 58, 29, .35), inset -1.5px -1.5px 3px rgba(255, 255, 255, .15);
   color: t.$text-inverse;
 }
+
+// 樣式同設定頁 .created-space-toast（SettingsSpacesView）。
+.created-toast {
+  position: fixed;
+  bottom: t.$toast-bottom;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  width: max-content;
+  max-width: calc(100% - t.$toast-inset-inline * 2);
+  min-height: t.$toast-min-height;
+  padding: 8px 22px 8px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #d4cbbe;
+  border-radius: t.$radius-pill;
+  background: t.$card-bg;
+  box-shadow: 0 -2px 8px rgba(255, 255, 255, .8), 0 8px 24px rgba(140, 136, 127, .36), 0 2px 6px rgba(107, 102, 92, .2);
+  color: t.$text-main;
+  font: t.$font-weight-medium 14px t.$font-family;
+  img { width: 22px; height: 22px; flex-shrink: 0; }
+}
+.created-toast-enter-active, .created-toast-leave-active { transition: opacity .5s ease; }
+.created-toast-enter-from, .created-toast-leave-to { opacity: 0; }
 
 @media (max-height: 600px) {
   .inventory-page { padding-top: t.$space-16; padding-bottom: t.$space-12; }

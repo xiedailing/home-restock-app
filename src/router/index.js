@@ -15,6 +15,12 @@ export const routes = [
     meta: { title: '我的用品' },
   },
   {
+    path: '/items/new',
+    name: 'add-item',
+    component: () => import('../views/AddItemView.vue'),
+    meta: { title: '新增用品', hideBottomNav: true },
+  },
+  {
     path: '/shopping',
     name: 'shopping',
     component: () => import('../views/ShoppingView.vue'),
@@ -61,7 +67,9 @@ const router = createRouter({
   },
 })
 
-router.afterEach((to) => {
+router.afterEach((to, _from, failure) => {
+  // 被取消的導覽（例如新增用品的放棄確認）不更新標題。
+  if (failure) return
   document.title = `${to.meta.title ?? '首頁'}｜補補`
 })
 
