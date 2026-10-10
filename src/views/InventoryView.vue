@@ -1,7 +1,7 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import ItemListRow from '../components/items/ItemListRow.vue'
 import { useItemsStore } from '../stores/items'
 import { CATEGORIES, DEFAULT_CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
@@ -15,7 +15,6 @@ import notNeededDot from '../assets/items/status-filter/not-needed.svg'
 import { profile } from '../stores/profile'
 import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
 import chevronIcon from '../assets/settings/chevron.svg'
-import toastCheck from '../assets/settings/toast-check.svg'
 import emptyItemIcon from '../assets/household-icons-by-state/common/generic-item-in-shopping-list-plain.svg'
 
 // Figma 原始搜尋 SVG；嵌入資料網址，避免依賴會過期的素材 URL。
@@ -23,7 +22,7 @@ const searchIcon = 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPS
 
 const itemsStore = useItemsStore()
 // 空間選擇存在 store，讓 Bottom Nav【＋】可預帶目前空間；仍不持久化。
-const { items, itemsWithStatus, spaces, inventorySpaceId: selectedSpaceId } = storeToRefs(itemsStore)
+const { items, itemsWithStatus, spaces, inventorySpaceId: selectedSpaceId, recentlyRemoved } = storeToRefs(itemsStore)
 
 // 搜尋字串僅留在頁面層，不進 store、不持久化。
 const searchQuery = ref('')
@@ -110,70 +109,36 @@ function onDeleteDialogClose() {
   pendingDeleteItem.value = null
 }
 
-// 只保留最近一次刪除的 Undo（不做 stack）；Toast 與 timer 僅留在頁面層。
-const TOAST_DURATION_MS = 5000
-const lastDeletedItem = ref(null)
-const lastDeletedSpaceName = ref('')
-const toastVisible = ref(false)
+// 最近一次刪除存在 store（不做 stack），讓用品詳情刪除後回到這裡仍可復原（specs/003 DET-20）。
+// 這裡只負責 Toast 顯示到期後清除；store 記錄到期時間，回到此頁時只顯示剩餘時間。
 let toastTimer = null
-
-function hideToast() {
-  clearTimeout(toastTimer)
-  toastTimer = null
-  toastVisible.value = false
-}
-
-function showToast() {
+watch(recentlyRemoved, (removed) => {
   clearTimeout(toastTimer) // 新刪除取代舊 Toast，避免舊 timer 提早關閉
-  toastVisible.value = true
-  toastTimer = setTimeout(() => {
-    toastTimer = null
-    toastVisible.value = false
-    lastDeletedItem.value = null // Toast 消失後刪除即定案，不再保留 snapshot
-  }, TOAST_DURATION_MS)
-}
+  if (!removed) return
+  const remaining = removed.expiresAt - Date.now()
+  if (remaining <= 0) itemsStore.clearRecentlyRemoved()
+  else toastTimer = setTimeout(() => itemsStore.clearRecentlyRemoved(), remaining)
+}, { immediate: true })
+onUnmounted(() => clearTimeout(toastTimer))
 
 function confirmDelete() {
   const target = pendingDeleteItem.value
   if (!target) return
-  // 先建立與 store 脫鉤的完整 snapshot，再刪除。
-  // 從 store 取原始 item（不含計算出的 status），toRaw 才能讓巢狀陣列也是非 Proxy，structuredClone 才不會失敗。
-  const source = itemsStore.getItem(target.id)
-  if (!source) {
-    deleteDialog.value?.close()
-    return
-  }
-  lastDeletedItem.value = structuredClone(toRaw(source))
-  lastDeletedSpaceName.value = pendingDeleteSpaceName.value
   itemsStore.removeItem(target.id)
   revealedItemId.value = null
   deleteDialog.value?.close() // close 事件會清除 pendingDeleteItem
-  showToast()
 }
 
+// 放回原本的位置，保留原 id、spaceId、restockRecords、timestamps。
 function undoDelete() {
-  if (!lastDeletedItem.value) return
-  // 保留原 id、spaceId、restockRecords、timestamps。
-  // 傳入乾淨的複本，避免把 reactive Proxy 存進 store（否則之後再刪除時 structuredClone 會失敗）。
-  itemsStore.addItem(structuredClone(toRaw(lastDeletedItem.value)))
-  lastDeletedItem.value = null
-  hideToast()
+  itemsStore.undoRemoveItem()
 }
 
-onUnmounted(() => clearTimeout(toastTimer))
-
-// 新增用品後由新增頁帶 ?itemCreated 回來；顯示一次 Toast 後移除 query，避免重新整理再出現。
-const route = useRoute()
 const router = useRouter()
-const createdToastVisible = ref(false)
-let createdToastTimer = null
-onMounted(() => {
-  if (!route.query.itemCreated) return
-  router.replace({ query: { ...route.query, itemCreated: undefined } })
-  createdToastVisible.value = true
-  createdToastTimer = setTimeout(() => { createdToastVisible.value = false }, TOAST_DURATION_MS)
-})
-onUnmounted(() => clearTimeout(createdToastTimer))
+
+function openItemDetail(item) {
+  router.push({ name: 'item-detail', params: { id: item.id } })
+}
 
 function openAddItem() {
   router.push({ name: 'add-item', query: selectedSpaceId.value ? { space: selectedSpaceId.value } : {} })
@@ -504,6 +469,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
         @reveal="revealedItemId = item.id"
         @close="revealedItemId = null"
         @delete="openDeleteDialog"
+        @open="openItemDetail"
       />
     </ul>
 
@@ -541,23 +507,15 @@ watch(categoryPills, (element, _previous, onCleanup) => {
     </dialog>
 
     <!-- 刪除成功 Toast：Bottom Nav 上方水平置中。 -->
-    <div v-if="toastVisible && lastDeletedItem" class="delete-toast" role="status" aria-live="polite">
+    <div v-if="recentlyRemoved" class="delete-toast" role="status" aria-live="polite">
       <svg class="toast-icon" viewBox="0 0 20 20" aria-hidden="true">
         <circle cx="10" cy="10" r="10" fill="currentColor" />
         <path d="M5.8 10.3l2.8 2.8 5.6-5.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <span class="toast-message">已從「{{ lastDeletedSpaceName }}」移除 {{ lastDeletedItem.name }}</span>
+      <span class="toast-message">已從「{{ recentlyRemoved.spaceName }}」移除 {{ recentlyRemoved.item.name }}</span>
       <button type="button" class="toast-undo" @click="undoDelete">復原</button>
     </div>
 
-    <!-- 新增成功 Toast：與設定頁「已成功新增空間」同款淺色樣式。 -->
-    <Teleport to="body">
-      <Transition name="created-toast">
-        <div v-if="createdToastVisible" class="created-toast" role="status">
-          <img :src="toastCheck" alt="" />已新增用品
-        </div>
-      </Transition>
-    </Teleport>
   </section>
 </template>
 
@@ -1078,31 +1036,6 @@ h1 {
   box-shadow: -3px -3px 6px rgba(249, 249, 249, .4), 4px 5px 10px rgba(42, 74, 39, .4), inset 1.5px 2px 3px rgba(31, 58, 29, .35), inset -1.5px -1.5px 3px rgba(255, 255, 255, .15);
   color: t.$text-inverse;
 }
-
-// 樣式同設定頁 .created-space-toast（SettingsSpacesView）。
-.created-toast {
-  position: fixed;
-  bottom: t.$toast-bottom;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1100;
-  width: max-content;
-  max-width: calc(100% - t.$toast-inset-inline * 2);
-  min-height: t.$toast-min-height;
-  padding: 8px 22px 8px 18px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid #d4cbbe;
-  border-radius: t.$radius-pill;
-  background: t.$card-bg;
-  box-shadow: 0 -2px 8px rgba(255, 255, 255, .8), 0 8px 24px rgba(140, 136, 127, .36), 0 2px 6px rgba(107, 102, 92, .2);
-  color: t.$text-main;
-  font: t.$font-weight-medium 14px t.$font-family;
-  img { width: 22px; height: 22px; flex-shrink: 0; }
-}
-.created-toast-enter-active, .created-toast-leave-active { transition: opacity .5s ease; }
-.created-toast-enter-from, .created-toast-leave-to { opacity: 0; }
 
 @media (max-height: 600px) {
   .inventory-page { padding-top: t.$space-16; padding-bottom: t.$space-12; }

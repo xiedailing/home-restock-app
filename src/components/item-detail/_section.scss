@@ -1,0 +1,24 @@
+// 用品詳情的區塊與列表卡片（Figma Draft A：Section Header＋List Card）。
+@use '../../assets/scss/tokens' as t;
+
+button { cursor: pointer; font-family: t.$font-family; }
+button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+
+.detail-section { display: flex; flex-direction: column; gap: t.$space-8; }
+.section-title { margin: 0; padding: 0 t.$space-4; font: t.$font-weight-bold 16px / 22px t.$font-family; }
+.list-card {
+  padding: t.$space-4 0;
+  border-radius: t.$space-24;
+  background: t.$card-bg;
+  box-shadow: t.$shadow-card;
+  overflow: hidden;
+}
+// 列與列之間的分隔線，左右各留 16px。
+.list-row + .list-row { position: relative; }
+.list-row + .list-row::before {
+  content: '';
+  position: absolute;
+  inset: 0 t.$space-16 auto;
+  height: 1px;
+  background: t.$border-color;
+}

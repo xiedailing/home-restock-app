@@ -77,7 +77,6 @@ export function matchItemIconKey(name = '') {
   return match
 }
 
-export const MIN_CYCLE_DAYS = 7
 // 剩餘天數 <= 此值時顯示「該補貨了」
 export const REMIND_WITHIN_DAYS = 5
 
@@ -164,8 +163,14 @@ export function createItem(input = {}) {
     reminderBaseDate: input.reminderBaseDate ?? null,
     reminderBaseQuantity: input.reminderBaseQuantity ?? null,
     daysPerUnit: input.daysPerUnit ?? null,
+    // 最近一次開啟提醒的日期；補貨後不變。早於此日的紀錄不作為重算依據（specs/003 DET-03）。
+    reminderEnabledDate: input.reminderEnabledDate ?? null,
     lastRestockDate: input.lastRestockDate ?? null,
     inShoppingList: input.inShoppingList ?? false,
+    // 待買數量（不是庫存量）；加入購買清單時為 1，移出時清除（specs/003 DET-11）。
+    quantity: input.quantity ?? null,
+    addedToShoppingListDate: input.addedToShoppingListDate ?? null,
+    // 依新增順序排列；同一天多筆時，較晚新增者為最新一筆。
     restockRecords: input.restockRecords ?? [],
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now,
@@ -180,6 +185,21 @@ export function createRestockRecord(input = {}) {
   }
 }
 
+// 001 FR-002：每單位可撐天數 ＝（預計補貨日 − 基準日）÷ 基準數量，保留小數。
+export function calcDaysPerUnit(nextRestockDate, baseDate, baseQuantity) {
+  return daysUntil(nextRestockDate, baseDate) / baseQuantity
+}
+
+// 001 FR-003：下次預計補貨日 ＝ 補貨日 ＋ 數量 × 每單位可撐天數，四捨五入到整天。
+export function calcNextRestockDate(date, quantity, daysPerUnit) {
+  return addDays(date, Math.round(quantity * daysPerUnit))
+}
+
+// 最新一筆：日期最晚者；同一天時取較晚新增者（specs/003 DET-04）。
+export function getLatestRecord(records) {
+  return records.reduce((latest, record) => (!latest || record.date >= latest.date ? record : latest), null)
+}
+
 // 狀態由資料推算，不存進 item。
 export function getStatus(item, today = toDateString()) {
   if (item.inShoppingList) return STATUS.IN_SHOPPING_LIST
@@ -191,12 +211,25 @@ export function getStatus(item, today = toDateString()) {
 }
 
 // 示範資料：取自「我的用品」設計稿，日期相對今天計算。
+// 計算基準以（預計補貨日 − 週期，數量 1）補上，每單位可撐天數即為週期（specs/003 DET-02）。
+function sampleReminder(today, daysLeft, cycleDays) {
+  const baseDate = addDays(today, daysLeft - cycleDays)
+  return {
+    nextRestockDate: addDays(today, daysLeft),
+    cycleDays,
+    reminderBaseDate: baseDate,
+    reminderBaseQuantity: 1,
+    daysPerUnit: cycleDays,
+    reminderEnabledDate: baseDate,
+  }
+}
+
 export function createSampleItems(today = toDateString()) {
   return [
-    createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, nextRestockDate: addDays(today, -2), cycleDays: 30 }),
-    createItem({ name: '洗衣精', iconKey: 'laundry-detergent', category: '洗衣', unit: '瓶', spaceId: DEFAULT_SPACE_ID, nextRestockDate: addDays(today, 5), cycleDays: 45 }),
-    createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, nextRestockDate: addDays(today, 3), cycleDays: 21, inShoppingList: true }),
-    createItem({ name: '洗碗精', iconKey: 'dish-soap', category: '廚房', unit: '瓶', spaceId: DEFAULT_SPACE_ID, nextRestockDate: addDays(today, 20), cycleDays: 40 }),
+    createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, ...sampleReminder(today, -2, 30) }),
+    createItem({ name: '洗衣精', iconKey: 'laundry-detergent', category: '洗衣', unit: '瓶', spaceId: DEFAULT_SPACE_ID, ...sampleReminder(today, 5, 45) }),
+    createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, ...sampleReminder(today, 3, 21), inShoppingList: true, quantity: 1, addedToShoppingListDate: today }),
+    createItem({ name: '洗碗精', iconKey: 'dish-soap', category: '廚房', unit: '瓶', spaceId: DEFAULT_SPACE_ID, ...sampleReminder(today, 20, 40) }),
     createItem({ name: '狗狗糧食', iconKey: 'dog-food', category: '寵物用品', unit: '包', spaceId: DEFAULT_SPACE_ID, reminderEnabled: false }),
   ]
 }

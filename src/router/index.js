@@ -21,6 +21,12 @@ export const routes = [
     meta: { title: '新增用品', hideBottomNav: true },
   },
   {
+    path: '/items/:id',
+    name: 'item-detail',
+    component: () => import('../views/ItemDetailView.vue'),
+    meta: { title: '用品詳情', hideBottomNav: true },
+  },
+  {
     path: '/shopping',
     name: 'shopping',
     component: () => import('../views/ShoppingView.vue'),

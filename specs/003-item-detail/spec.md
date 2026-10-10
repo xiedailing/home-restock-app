@@ -129,8 +129,9 @@
 | 檔案 | 改動 |
 |---|---|
 | `src/views/ItemDetailView.vue`、`src/views/ItemRecordsView.vue`（新增） | 詳情、紀錄列表 |
-| `src/components/add-item/*` → 視需要抽出共用的 inline 選擇與 Sheet | 新增與詳情共用 |
-| `src/components/item-detail/*`（新增） | 狀態卡、設定提醒 Sheet、記錄補貨 Sheet、編輯紀錄 Sheet |
+| `src/components/add-item/DatePickerSheet.vue` | 新增 `maxDate`（補貨日期最晚今天） |
+| `src/components/item-detail/*`（新增） | 狀態卡、基本資訊、設定提醒 Sheet（兼編輯下次預計補貨日）、記錄補貨 Sheet；003-B 加編輯紀錄 Sheet |
+| `src/components/AppToast.vue`、`src/composables/useToast.js`（新增） | 單一 Toast＋復原（DET-07） |
 | `src/router/index.js` | 兩個路由 |
 | `src/views/InventoryView.vue`、`src/components/items/ItemListRow.vue` | 點列進詳情；刪除 Undo 改用 store |
 | `src/views/AddItemView.vue` | 建立後進詳情 |

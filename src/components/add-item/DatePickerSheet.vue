@@ -1,5 +1,6 @@
 <script setup>
-// Figma Soft Date Picker Sheet（1204:10901）。minDate 以前的日期不可選（001 D1-c：最早明天）。
+// Figma Soft Date Picker Sheet（1204:10901）。minDate 以前、maxDate 以後的日期不可選
+//（預計補貨日最早明天，001 D1-c；補貨日期最晚今天，specs/003 DET-12）。
 import { computed, ref, watch } from 'vue'
 import BottomSheet from '../BottomSheet.vue'
 import { toDateString } from '../../models/item'
@@ -9,7 +10,8 @@ import monthNextIcon from '../../assets/add-item/month-next.svg'
 const props = defineProps({
   open: Boolean,
   modelValue: { type: String, default: null },
-  minDate: { type: String, required: true },
+  minDate: { type: String, default: null },
+  maxDate: { type: String, default: null },
   title: { type: String, default: '選擇預計補貨日' },
 })
 const emit = defineEmits(['update:modelValue', 'close'])
@@ -26,17 +28,19 @@ watch(() => props.open, (open) => {
   if (!open) return
   today.value = toDateString()
   selected.value = props.modelValue
-  const [y, m] = (props.modelValue ?? props.minDate).split('-').map(Number)
+  const [y, m] = (props.modelValue ?? props.minDate ?? props.maxDate ?? today.value).split('-').map(Number)
   viewYear.value = y
   viewMonth.value = m - 1
 }, { immediate: true })
 
 const monthLabel = computed(() => `${viewYear.value}年${viewMonth.value + 1}月`)
-const minMonthIndex = computed(() => {
-  const [y, m] = props.minDate.split('-').map(Number)
+function monthIndex(date) {
+  const [y, m] = date.split('-').map(Number)
   return y * 12 + m - 1
-})
-const canGoPrev = computed(() => viewYear.value * 12 + viewMonth.value > minMonthIndex.value)
+}
+const viewMonthIndex = computed(() => viewYear.value * 12 + viewMonth.value)
+const canGoPrev = computed(() => !props.minDate || viewMonthIndex.value > monthIndex(props.minDate))
+const canGoNext = computed(() => !props.maxDate || viewMonthIndex.value < monthIndex(props.maxDate))
 
 function shiftMonth(delta) {
   const index = viewYear.value * 12 + viewMonth.value + delta
@@ -51,7 +55,8 @@ const weeks = computed(() => {
   const cells = Array.from({ length: firstWeekday }, () => null)
   for (let day = 1; day <= dayCount; day += 1) {
     const date = toDateString(new Date(viewYear.value, viewMonth.value, day))
-    cells.push({ day, date, disabled: date < props.minDate, today: date === today.value })
+    const disabled = (props.minDate && date < props.minDate) || (props.maxDate && date > props.maxDate)
+    cells.push({ day, date, disabled: !!disabled, today: date === today.value })
   }
   while (cells.length % 7) cells.push(null)
   return Array.from({ length: cells.length / 7 }, (_, index) => cells.slice(index * 7, index * 7 + 7))
@@ -74,7 +79,7 @@ function confirm(close) {
             <img :src="monthPrevIcon" alt="" />
           </button>
           <p aria-live="polite">{{ monthLabel }}</p>
-          <button type="button" class="month-button" aria-label="下個月" @click="shiftMonth(1)">
+          <button type="button" class="month-button" aria-label="下個月" :disabled="!canGoNext" @click="shiftMonth(1)">
             <img :src="monthNextIcon" alt="" />
           </button>
         </div>

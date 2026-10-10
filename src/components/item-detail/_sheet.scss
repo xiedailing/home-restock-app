@@ -1,0 +1,55 @@
+// 用品詳情的 Sheet 共用樣式：標題、數量 Stepper、主要按鈕（同新增用品頁）。
+@use '../../assets/scss/tokens' as t;
+
+button { cursor: pointer; font-family: t.$font-family; }
+button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+
+.sheet-heading {
+  display: flex;
+  flex-direction: column;
+  gap: t.$space-4;
+  h2 { margin: 0; font: t.$font-weight-bold 18px / normal t.$font-family; }
+  p { margin: 0; color: t.$text-sub; font: t.$font-weight-regular 13px / normal t.$font-family; }
+}
+
+.stepper {
+  height: 64px;
+  padding: t.$space-12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: t.$radius-popover;
+  background: t.$input-bg;
+  box-shadow: t.$shadow-inset;
+}
+.stepper-button {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: t.$radius-pill;
+  background: t.$input-bg;
+  box-shadow: t.$shadow-raised;
+  &:disabled { opacity: .4; cursor: default; .stepper-h { opacity: .2; } }
+}
+// Figma Icon / Minus、Plus：16px 內 H 與 V 兩條 2px 線。
+.stepper-h, .stepper-v { position: absolute; border-radius: 1px; background: t.$primary-green; }
+.stepper-h { left: 14px; right: 14px; top: 19px; height: 2px; }
+.stepper-v { top: 14px; bottom: 14px; left: 19px; width: 2px; }
+.stepper-value {
+  margin: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: t.$space-4;
+  strong { font: t.$font-weight-bold 28px / normal t.$font-family; }
+  span { color: #8b8880; font: t.$font-weight-medium 15px / normal t.$font-family; padding-bottom: 3px; }
+}
+
+.sheet-done {
+  width: 100%;
+  min-height: t.$button-height;
+  border-radius: t.$radius-pill;
+  font: t.$font-weight-bold t.$font-size-button / normal t.$font-family;
+  &:disabled { opacity: .5; }
+}

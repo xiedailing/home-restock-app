@@ -12,7 +12,7 @@ import {
   UNITS,
   addDays,
   addMonths,
-  daysUntil,
+  calcDaysPerUnit,
   matchItemIconKey,
   toDateString,
 } from '../models/item'
@@ -196,13 +196,15 @@ async function createItem() {
     // 001 FR-002：每單位可撐天數 ＝（預計補貨日 − 基準日）÷ 庫存量，保留小數。
     reminderBaseDate: reminder ? today : null,
     reminderBaseQuantity: reminder ? quantity.value : null,
-    daysPerUnit: reminder ? daysUntil(nextRestockDate.value, today) / quantity.value : null,
+    daysPerUnit: reminder ? calcDaysPerUnit(nextRestockDate.value, today, quantity.value) : null,
+    reminderEnabledDate: reminder ? today : null,
   })
 
   // 我的用品篩選其他空間時切到新用品的空間；「所有用品」維持。
   if (inventorySpaceId.value !== null && inventorySpaceId.value !== item.spaceId) inventorySpaceId.value = item.spaceId
   allowLeave = true
-  router.replace({ name: 'inventory', query: { itemCreated: '1' } })
+  // 建立後進入用品詳情（Figma Flow 01；取代暫行的 ADD-06）。用 replace，返回時不回到新增頁。
+  router.replace({ name: 'item-detail', params: { id: item.id }, query: { created: '1' } })
 }
 </script>
 

@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef, toRaw } from 'vue'
 import { defineStore } from 'pinia'
 import { generateId } from '../utils/id.js'
 import { profile } from './profile'
@@ -6,15 +6,18 @@ import { SPACE_COLORS, limitSpaceName } from '../models/space'
 import {
   DEFAULT_SPACES,
   DEFAULT_SPACE_ID,
-  MIN_CYCLE_DAYS,
-  addDays,
+  calcDaysPerUnit,
+  calcNextRestockDate,
   createItem,
   createRestockRecord,
   createSampleItems,
-  daysUntil,
+  getLatestRecord,
   getStatus,
   toDateString,
 } from '../models/item'
+
+// 刪除後可復原的時間，與 Toast 顯示時間相同。
+export const UNDO_DURATION_MS = 5000
 
 export const useItemsStore = defineStore('items', () => {
   const items = ref(createSampleItems())
@@ -23,6 +26,9 @@ export const useItemsStore = defineStore('items', () => {
   const departedSpaces = ref([])
   // 我的用品目前的空間篩選（null ＝ 所有用品）；新增用品頁依此預帶空間，不持久化。
   const inventorySpaceId = ref(null)
+  // 最近一次刪除（不做 stack）：我的用品與用品詳情共用，讓詳情刪除後回到我的用品仍可復原（specs/003 DET-20）。
+  // shallowRef：snapshot 保持非 Proxy，復原時 structuredClone 才不會失敗。
+  const recentlyRemoved = shallowRef(null) // { item, index, spaceName, expiresAt }
 
   const itemsWithStatus = computed(() =>
     items.value.map((item) => ({ ...item, status: getStatus(item) })),
@@ -45,32 +51,105 @@ export const useItemsStore = defineStore('items', () => {
     Object.assign(item, changes, { updatedAt: new Date().toISOString() })
   }
 
-  function removeItem(id) {
-    items.value = items.value.filter((item) => item.id !== id)
+  // 與 store 脫鉤的完整複本；toRaw 讓巢狀陣列也不是 Proxy，structuredClone 才不會失敗。
+  function snapshotItem(id) {
+    const item = getItem(id)
+    return item ? structuredClone(toRaw(item)) : null
   }
 
+  // 以 snapshotItem 的結果還原整筆用品（各種「復原」共用）。
+  function restoreItem(snapshot) {
+    const item = getItem(snapshot.id)
+    if (item) Object.assign(item, structuredClone(snapshot))
+  }
+
+  function removeItem(id) {
+    const index = items.value.findIndex((item) => item.id === id)
+    if (index < 0) return
+    const snapshot = snapshotItem(id)
+    recentlyRemoved.value = {
+      item: snapshot,
+      index,
+      spaceName: getSpace(snapshot.spaceId)?.name ?? '未指定空間',
+      expiresAt: Date.now() + UNDO_DURATION_MS,
+    }
+    items.value.splice(index, 1)
+  }
+
+  // 放回原本的位置，保留 id、紀錄與時間戳記。
+  function undoRemoveItem() {
+    const removed = recentlyRemoved.value
+    if (!removed) return
+    recentlyRemoved.value = null
+    if (getItem(removed.item.id)) return
+    items.value.splice(Math.min(removed.index, items.value.length), 0, structuredClone(removed.item))
+  }
+
+  function clearRecentlyRemoved() {
+    recentlyRemoved.value = null
+  }
+
+  // 001 FR-006：加入時待買數量 1；移出時清除。
   function addToShoppingList(id) {
-    updateItem(id, { inShoppingList: true })
+    updateItem(id, { inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString() })
   }
 
   function removeFromShoppingList(id) {
-    updateItem(id, { inShoppingList: false })
+    updateItem(id, { inShoppingList: false, quantity: null, addedToShoppingListDate: null })
   }
 
-  // 完成補貨：新增紀錄、更新上次補貨日與預計補貨日，並移出購買清單。
-  // 補貨週期只在尚未有值時推算（上次補貨日，或建立日，到這次補貨日的天數，最少 7 天）。
+  // 001 FR-005：關閉提醒只改開關，保留日期與計算基準，Toast 復原時直接還原。
+  function disableReminder(id) {
+    updateItem(id, { reminderEnabled: false })
+  }
+
+  // 001 FR-005：開啟提醒時以（今天，庫存量）重新建立計算基準。
+  function enableReminder(id, { quantity, nextRestockDate }) {
+    const today = toDateString()
+    updateItem(id, {
+      reminderEnabled: true,
+      nextRestockDate,
+      reminderBaseDate: today,
+      reminderBaseQuantity: quantity,
+      daysPerUnit: calcDaysPerUnit(nextRestockDate, today, quantity),
+      reminderEnabledDate: today,
+    })
+  }
+
+  // 001 FR-002（D1-a）：只改日期；以原基準日與基準數量重算每單位可撐天數。
+  function updateNextRestockDate(id, nextRestockDate) {
+    const item = getItem(id)
+    if (!item) return
+    updateItem(id, {
+      nextRestockDate,
+      daysPerUnit: calcDaysPerUnit(nextRestockDate, item.reminderBaseDate, item.reminderBaseQuantity),
+    })
+  }
+
+  // 001 FR-003：新增紀錄、更新上次補貨日、移出購買清單。
+  // 提醒開啟且新紀錄成為重算依據時，才更新下次預計補貨日與計算基準（specs/003 DET-03、DET-04）。
   function completeRestock(id, { date = toDateString(), quantity = 1 } = {}) {
     const item = getItem(id)
     if (!item) return
-    const baseline = item.lastRestockDate ?? toDateString(new Date(item.createdAt))
-    const cycleDays = item.cycleDays ?? Math.max(MIN_CYCLE_DAYS, -daysUntil(baseline, date))
-    updateItem(id, {
-      restockRecords: [createRestockRecord({ date, quantity }), ...item.restockRecords],
-      lastRestockDate: date,
-      cycleDays,
-      nextRestockDate: item.reminderEnabled ? addDays(date, cycleDays) : item.nextRestockDate,
+    const record = createRestockRecord({ date, quantity })
+    const restockRecords = [...item.restockRecords, record]
+    const changes = {
+      restockRecords,
+      lastRestockDate: getLatestRecord(restockRecords).date,
       inShoppingList: false,
-    })
+      quantity: null,
+      addedToShoppingListDate: null,
+    }
+    const isBasis = getLatestRecord(restockRecords) === record
+      && (!item.reminderEnabledDate || date >= item.reminderEnabledDate)
+    if (item.reminderEnabled && item.daysPerUnit !== null && isBasis) {
+      Object.assign(changes, {
+        nextRestockDate: calcNextRestockDate(date, quantity, item.daysPerUnit),
+        reminderBaseDate: date,
+        reminderBaseQuantity: quantity,
+      })
+    }
+    updateItem(id, changes)
   }
 
   function addSpace({ name, shared = false, color = 'green' }) {
@@ -177,14 +256,22 @@ export const useItemsStore = defineStore('items', () => {
     items,
     spaces,
     inventorySpaceId,
+    recentlyRemoved,
     itemsWithStatus,
     shoppingList,
     getItem,
     addItem,
     updateItem,
+    snapshotItem,
+    restoreItem,
     removeItem,
+    undoRemoveItem,
+    clearRecentlyRemoved,
     addToShoppingList,
     removeFromShoppingList,
+    disableReminder,
+    enableReminder,
+    updateNextRestockDate,
     completeRestock,
     addSpace,
     getSpace,
