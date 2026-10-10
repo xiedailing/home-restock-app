@@ -11,8 +11,8 @@ const props = defineProps({
   revealed: { type: Boolean, default: false },
 })
 
-// reveal / close 只通知頁面更新狀態；delete 僅表示「點了刪除 action」，不刪資料。
-const emit = defineEmits(['reveal', 'close', 'delete'])
+// reveal / close 只通知頁面更新狀態；delete 僅表示「點了刪除 action」，不刪資料；open 表示點列進入詳情。
+const emit = defineEmits(['reveal', 'close', 'delete', 'open'])
 
 const spaceName = computed(() =>
   props.spaces.find((space) => space.id === props.item.spaceId)?.name ?? '未指定空間',
@@ -72,13 +72,14 @@ function endGesture(event, cancelled) {
   }
 }
 
-// 拖曳結束後瀏覽器仍可能補發 click，忽略一次；展開時點列其他位置則收回。
+// 拖曳結束後瀏覽器仍可能補發 click，忽略一次；展開時點列其他位置只收回，收合時進入詳情。
 function onContentClick() {
   if (justDragged) {
     justDragged = false
     return
   }
   if (props.revealed) emit('close')
+  else emit('open', props.item)
 }
 </script>
 

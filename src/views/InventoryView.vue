@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
 import ItemListRow from '../components/items/ItemListRow.vue'
 import { useItemsStore } from '../stores/items'
-import { CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
+import { CATEGORIES, DEFAULT_CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
 import statusCheckedIcon from '../assets/items/status-filter/checked.svg'
 import statusPanel from '../assets/items/status-filter/panel.svg'
 import overdueDot from '../assets/items/status-filter/overdue.svg'
@@ -20,11 +21,15 @@ import emptyItemIcon from '../assets/household-icons-by-state/common/generic-ite
 const searchIcon = 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIiBvdmVyZmxvdz0idmlzaWJsZSIgc3R5bGU9ImRpc3BsYXk6IGJsb2NrOyIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiB2aWV3Qm94PSIwIDAgMjAgMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxnIGlkPSJJY29uIC8gU2VhcmNoIj4KPGNpcmNsZSBpZD0iRWxsaXBzZSIgY3g9IjgiIGN5PSI4IiByPSI1IiBzdHJva2U9IiM4Qjg4ODAiIHN0cm9rZS13aWR0aD0iMiIvPgo8cGF0aCBpZD0iVmVjdG9yIiBkPSJNMTMgMTNMMTcgMTciIHN0cm9rZT0iIzhCODg4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9nPgo8L3N2Zz4K'
 
 const itemsStore = useItemsStore()
-const { items, itemsWithStatus, spaces } = storeToRefs(itemsStore)
+// 空間選擇存在 store，讓 Bottom Nav【＋】可預帶目前空間；仍不持久化。
+const { items, itemsWithStatus, spaces, inventorySpaceId: selectedSpaceId, recentlyRemoved } = storeToRefs(itemsStore)
 
-// 搜尋字串與空間選擇僅留在頁面層，不進 store、不持久化。
+// 搜尋字串僅留在頁面層，不進 store、不持久化。
 const searchQuery = ref('')
-const selectedSpaceId = ref(null) // null = 所有用品
+// 記住的空間已被退出時，回到所有用品。
+watch(spaces, (list) => {
+  if (selectedSpaceId.value !== null && !list.some((space) => space.id === selectedSpaceId.value)) selectedSpaceId.value = null
+}, { immediate: true, deep: true })
 const spaceMenuOpen = ref(false)
 const statusMenuOpen = ref(false)
 const selectedStatuses = ref([])
@@ -104,57 +109,40 @@ function onDeleteDialogClose() {
   pendingDeleteItem.value = null
 }
 
-// 只保留最近一次刪除的 Undo（不做 stack）；Toast 與 timer 僅留在頁面層。
-const TOAST_DURATION_MS = 5000
-const lastDeletedItem = ref(null)
-const lastDeletedSpaceName = ref('')
-const toastVisible = ref(false)
+// 最近一次刪除存在 store（不做 stack），讓用品詳情刪除後回到這裡仍可復原（specs/003 DET-20）。
+// 這裡只負責 Toast 顯示到期後清除；store 記錄到期時間，回到此頁時只顯示剩餘時間。
 let toastTimer = null
-
-function hideToast() {
-  clearTimeout(toastTimer)
-  toastTimer = null
-  toastVisible.value = false
-}
-
-function showToast() {
+watch(recentlyRemoved, (removed) => {
   clearTimeout(toastTimer) // 新刪除取代舊 Toast，避免舊 timer 提早關閉
-  toastVisible.value = true
-  toastTimer = setTimeout(() => {
-    toastTimer = null
-    toastVisible.value = false
-    lastDeletedItem.value = null // Toast 消失後刪除即定案，不再保留 snapshot
-  }, TOAST_DURATION_MS)
-}
+  if (!removed) return
+  const remaining = removed.expiresAt - Date.now()
+  if (remaining <= 0) itemsStore.clearRecentlyRemoved()
+  else toastTimer = setTimeout(() => itemsStore.clearRecentlyRemoved(), remaining)
+}, { immediate: true })
+onUnmounted(() => clearTimeout(toastTimer))
 
 function confirmDelete() {
   const target = pendingDeleteItem.value
   if (!target) return
-  // 先建立與 store 脫鉤的完整 snapshot，再刪除。
-  // 從 store 取原始 item（不含計算出的 status），toRaw 才能讓巢狀陣列也是非 Proxy，structuredClone 才不會失敗。
-  const source = itemsStore.getItem(target.id)
-  if (!source) {
-    deleteDialog.value?.close()
-    return
-  }
-  lastDeletedItem.value = structuredClone(toRaw(source))
-  lastDeletedSpaceName.value = pendingDeleteSpaceName.value
   itemsStore.removeItem(target.id)
   revealedItemId.value = null
   deleteDialog.value?.close() // close 事件會清除 pendingDeleteItem
-  showToast()
 }
 
+// 放回原本的位置，保留原 id、spaceId、restockRecords、timestamps。
 function undoDelete() {
-  if (!lastDeletedItem.value) return
-  // 保留原 id、spaceId、restockRecords、timestamps。
-  // 傳入乾淨的複本，避免把 reactive Proxy 存進 store（否則之後再刪除時 structuredClone 會失敗）。
-  itemsStore.addItem(structuredClone(toRaw(lastDeletedItem.value)))
-  lastDeletedItem.value = null
-  hideToast()
+  itemsStore.undoRemoveItem()
 }
 
-onUnmounted(() => clearTimeout(toastTimer))
+const router = useRouter()
+
+function openItemDetail(item) {
+  router.push({ name: 'item-detail', params: { id: item.id } })
+}
+
+function openAddItem() {
+  router.push({ name: 'add-item', query: selectedSpaceId.value ? { space: selectedSpaceId.value } : {} })
+}
 
 function onDocumentPointerDown(event) {
   closeStatusMenuOutside(event)
@@ -212,6 +200,16 @@ const spaceItems = computed(() =>
   sortByUrgency(filterBySpace(itemsWithStatus.value, selectedSpaceId.value)),
 )
 const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、不持久化
+
+// 預設分類一律顯示；其他分類（寵物用品）只在目前空間有用品時顯示。搜尋與狀態不影響，避免輸入時 pills 跳動。
+const availableCategories = computed(() =>
+  CATEGORIES.filter((category) =>
+    DEFAULT_CATEGORIES.includes(category) || spaceItems.value.some((item) => item.category === category)),
+)
+watch(availableCategories, (categories) => {
+  if (selectedCategory.value !== null && !categories.includes(selectedCategory.value)) selectedCategory.value = null
+  updateCategoryFade()
+}, { flush: 'post' })
 
 function filterByCategory(list, category) {
   return category === null ? list : list.filter((item) => item.category === category)
@@ -425,7 +423,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
                 @click="selectedCategory = null"
               >全部</button>
             </li>
-            <li v-for="category in CATEGORIES" :key="category">
+            <li v-for="category in availableCategories" :key="category">
               <button
                 type="button"
                 class="category-pill"
@@ -471,6 +469,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
         @reveal="revealedItemId = item.id"
         @close="revealedItemId = null"
         @delete="openDeleteDialog"
+        @open="openItemDetail"
       />
     </ul>
 
@@ -483,8 +482,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
         <h2>目前沒有用品</h2>
         <p>新增第一項用品，開始追蹤補貨提醒</p>
       </div>
-      <!-- 視覺入口；本階段尚未提供新增流程。 -->
-      <button type="button" class="btn btn-primary empty-add" aria-disabled="true">
+      <button type="button" class="btn btn-primary empty-add" @click="openAddItem">
         <span class="add-symbol" aria-hidden="true">＋</span>
         新增用品
       </button>
@@ -509,21 +507,20 @@ watch(categoryPills, (element, _previous, onCleanup) => {
     </dialog>
 
     <!-- 刪除成功 Toast：Bottom Nav 上方水平置中。 -->
-    <div v-if="toastVisible && lastDeletedItem" class="delete-toast" role="status" aria-live="polite">
+    <div v-if="recentlyRemoved" class="delete-toast" role="status" aria-live="polite">
       <svg class="toast-icon" viewBox="0 0 20 20" aria-hidden="true">
         <circle cx="10" cy="10" r="10" fill="currentColor" />
         <path d="M5.8 10.3l2.8 2.8 5.6-5.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
-      <span class="toast-message">已從「{{ lastDeletedSpaceName }}」移除 {{ lastDeletedItem.name }}</span>
+      <span class="toast-message">已從「{{ recentlyRemoved.spaceName }}」移除 {{ recentlyRemoved.item.name }}</span>
       <button type="button" class="toast-undo" @click="undoDelete">復原</button>
     </div>
+
   </section>
 </template>
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
-// 頁面靜止時保留卡片陰影，切頁動畫期間沿用 App 的裁切。
-:global(.app-container .app-content:has(.inventory-page):not(:has(.page-forward-enter-active, .page-forward-leave-active, .page-back-enter-active, .page-back-leave-active))) { overflow: visible; }
 
 .inventory-page {
   // App.vue 已預留 34px 底部距離＋106px 導覽區，避免重複撐高整頁。
