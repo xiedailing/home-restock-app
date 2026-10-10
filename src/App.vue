@@ -64,6 +64,9 @@ const handlePlusClick = () => {
   /* 導覽列高 82px，加上內容與導覽列間距 24px。 */
   padding-bottom: 106px;
   display: grid;
+}
+/* 只在切頁動畫期間裁切滑出畫面的頁面；靜止時不裁切，各頁卡片陰影才不會被切掉。 */
+.app-content:has(> .page-forward-enter-active, > .page-forward-leave-active, > .page-back-enter-active, > .page-back-leave-active) {
   overflow-x: clip;
 }
 .page-view { grid-area: 1 / 1; min-width: 0; }
