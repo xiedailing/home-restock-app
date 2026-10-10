@@ -38,10 +38,6 @@ function saveChanges() {
   dialog.value.close()
 }
 
-function openManagement(type) {
-  emit('open-categories')
-  notice.value = '分類管理頁面尚未建立。'
-}
 </script>
 
 <template>
@@ -98,9 +94,9 @@ function openManagement(type) {
     <section class="settings-section" aria-labelledby="categories-title">
       <h2 id="categories-title"><img :src="categoriesIcon" alt="" />用品管理</h2>
       <div class="card settings-card settings-card-pill">
-        <button type="button" class="settings-row" @click="openManagement('categories')">
+        <RouterLink :to="{ name: 'item-management' }" class="settings-row item-management-link">
           <span>查看分類</span><img class="chevron" :src="chevron" alt="" />
-        </button>
+        </RouterLink>
       </div>
     </section>
 
@@ -232,6 +228,7 @@ function openManagement(type) {
 }
 .settings-card-pill { border-radius: t.$radius-pill; }
 
+.item-management-link { cursor: pointer; }
 .settings-row {
   display: flex;
   align-items: center;

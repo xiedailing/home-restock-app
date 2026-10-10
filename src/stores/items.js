@@ -2,6 +2,7 @@ import { computed, ref, shallowRef, toRaw } from 'vue'
 import { defineStore } from 'pinia'
 import { generateId } from '../utils/id.js'
 import { profile } from './profile'
+import { SYSTEM_CATEGORIES, PRESET_ITEMS, getItemCategory } from '../models/itemCategories'
 import { SPACE_COLORS, limitSpaceName } from '../models/space'
 import {
   DEFAULT_SPACES,
@@ -21,7 +22,39 @@ export const UNDO_DURATION_MS = 5000
 
 export const useItemsStore = defineStore('items', () => {
   const items = ref(createSampleItems())
+  const customCategories = ref([])
+  const systemCategoryCounts = computed(() => SYSTEM_CATEGORIES.map(name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length })))
+  const customCategoryCounts = computed(() => {
+    const names = new Set([...customCategories.value, ...items.value.map(getItemCategory).filter(name => name && !SYSTEM_CATEGORIES.includes(name))])
+    return Array.from(names, name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length }))
+  })
+  function addCategory(value) {
+    const name = value.trim()
+    if (!name || limitSpaceName(name) !== name) return { ok: false, message: '請輸入最多 8 個中文字或 16 個英文字母的分類名稱。' }
+    if ([...SYSTEM_CATEGORIES, ...customCategoryCounts.value.map(category => category.name)].includes(name)) return { ok: false, message: '已有重複分類名稱' }
+    customCategories.value.push(name)
+    return { ok: true }
+  }
+  function removeCategories(names) {
+    const selected = new Set(names.filter(name => !SYSTEM_CATEGORIES.includes(name)))
+    customCategories.value = customCategories.value.filter(name => !selected.has(name))
+    items.value = items.value.filter(item => !selected.has(getItemCategory(item)))
+  }
   const spaces = ref(DEFAULT_SPACES.map((space) => ({ ...space, ownerId: 'self', members: [] })))
+  // 展示生活日用品中，同名用品分屬不同空間的標籤效果。
+  const previewSpaces = [
+    { id: 'preview-family', name: '家庭', shared: true, color: 'blue' },
+    { id: 'preview-company', name: '公司', shared: true, color: 'orange' },
+    { id: 'preview-travel', name: '旅行', shared: false, color: 'red' },
+  ]
+  spaces.value.push(...previewSpaces.map(space => ({ ...space, ownerId: 'self', members: [] })))
+  for (const space of previewSpaces) {
+    items.value.push(
+      createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: space.id, reminderEnabled: false }),
+      createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: space.id, reminderEnabled: false }),
+    )
+  }
+
   // 模擬其他成員仍持有的空間資料，不提供目前使用者的列表存取。
   const departedSpaces = ref([])
   // 我的用品目前的空間篩選（null ＝ 所有用品）；新增用品頁依此預帶空間，不持久化。
@@ -40,7 +73,8 @@ export const useItemsStore = defineStore('items', () => {
   }
 
   function addItem(input) {
-    const item = createItem(input)
+    const preset = PRESET_ITEMS.find(option => option.iconKey === input.iconKey)
+    const item = createItem({ ...input, category: input.category ?? preset?.category })
     items.value.push(item)
     return item
   }
@@ -278,6 +312,11 @@ export const useItemsStore = defineStore('items', () => {
   }
 
   return {
+    customCategories,
+    systemCategoryCounts,
+    customCategoryCounts,
+    addCategory,
+    removeCategories,
     sharedSpaces,
     moveSpace,
     items,
