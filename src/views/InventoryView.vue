@@ -521,6 +521,8 @@ watch(categoryPills, (element, _previous, onCleanup) => {
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+// 頁面靜止時保留卡片陰影，切頁動畫期間沿用 App 的裁切。
+:global(.app-container .app-content:has(.inventory-page):not(:has(.page-forward-enter-active, .page-forward-leave-active, .page-back-enter-active, .page-back-leave-active))) { overflow: visible; }
 
 .inventory-page {
   // App.vue 已預留 34px 底部距離＋106px 導覽區，避免重複撐高整頁。
