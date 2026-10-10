@@ -198,6 +198,7 @@ async function createItem() {
     reminderBaseQuantity: reminder ? quantity.value : null,
     daysPerUnit: reminder ? calcDaysPerUnit(nextRestockDate.value, today, quantity.value) : null,
     reminderEnabledDate: reminder ? today : null,
+    reminderEnabledQuantity: reminder ? quantity.value : null,
   })
 
   // 我的用品篩選其他空間時切到新用品的空間；「所有用品」維持。

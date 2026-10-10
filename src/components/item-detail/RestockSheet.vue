@@ -1,5 +1,6 @@
 <script setup>
-// Figma 記錄補貨 Sheet（959:7879）：補貨日期預設今天、最晚今天（specs/003 DET-12）；數量預設 1、最小 1。
+// Figma 記錄補貨 Sheet（959:7879）；傳入 record 時為編輯補貨紀錄 Sheet（1246:13995）。
+// 補貨日期最晚今天（specs/003 DET-12）；數量最小 1。
 import { computed, ref, watch } from 'vue'
 import BottomSheet from '../BottomSheet.vue'
 import DatePickerSheet from '../add-item/DatePickerSheet.vue'
@@ -10,28 +11,40 @@ const props = defineProps({
   open: Boolean,
   unit: { type: String, default: '' },
   reminderEnabled: Boolean,
+  record: { type: Object, default: null }, // 編輯時傳入的紀錄
 })
-const emit = defineEmits(['confirm', 'close'])
+// confirm：({ date, quantity })；delete：刪除此筆紀錄（不另跳確認，Toast 可復原）。
+const emit = defineEmits(['confirm', 'delete', 'close'])
 
 const today = ref(toDateString())
 const date = ref(today.value)
 const quantity = ref(1)
 const datePickerOpen = ref(false)
+const editing = computed(() => !!props.record)
 
 const formattedDate = computed(() => {
   const formatted = date.value.replaceAll('-', '/')
   return date.value === today.value ? `今天・${formatted}` : formatted
 })
+const description = computed(() => {
+  if (!props.reminderEnabled) return editing.value ? '修改後會更新這筆補貨紀錄。' : '確認後會新增一筆補貨紀錄。'
+  return editing.value ? '修改後會重新計算下次補貨提醒時間。' : '確認後會更新下次補貨提醒時間。'
+})
 
 watch(() => props.open, (open) => {
   if (!open) return
   today.value = toDateString()
-  date.value = today.value
-  quantity.value = 1
+  date.value = props.record?.date ?? today.value
+  quantity.value = props.record?.quantity ?? 1
 })
 
 function confirm(close) {
   emit('confirm', { date: date.value, quantity: quantity.value })
+  close()
+}
+
+function remove(close) {
+  emit('delete')
   close()
 }
 </script>
@@ -41,8 +54,8 @@ function confirm(close) {
     <template #default="{ close }">
       <div class="restock-sheet">
         <div class="sheet-heading">
-          <h2 id="restock-sheet-title">記錄補貨</h2>
-          <p>{{ reminderEnabled ? '確認後會更新下次補貨提醒時間。' : '確認後會新增一筆補貨紀錄。' }}</p>
+          <h2 id="restock-sheet-title">{{ editing ? '編輯補貨紀錄' : '記錄補貨' }}</h2>
+          <p>{{ description }}</p>
         </div>
 
         <div class="restock-fields">
@@ -65,7 +78,10 @@ function confirm(close) {
           </div>
         </div>
 
-        <button type="button" class="btn btn-primary sheet-done" @click="confirm(close)">確認補貨</button>
+        <div class="sheet-actions">
+          <button type="button" class="btn btn-primary sheet-done" @click="confirm(close)">{{ editing ? '儲存變更' : '確認補貨' }}</button>
+          <button v-if="editing" type="button" class="delete-record" @click="remove(close)">刪除此筆紀錄</button>
+        </div>
       </div>
       <DatePickerSheet v-model="date" :open="datePickerOpen" :max-date="today" title="選擇補貨日期" @close="datePickerOpen = false" />
     </template>
@@ -99,4 +115,13 @@ function confirm(close) {
 .field-value { color: t.$text-main; font: t.$font-weight-medium 15px / normal t.$font-family; }
 .compact-stepper { display: flex; align-items: center; gap: t.$space-12; }
 .compact-stepper .stepper-value strong { font-size: 22px; }
+.sheet-actions { display: flex; flex-direction: column; gap: t.$space-8; }
+// Figma：危險色文字按鈕。
+.delete-record {
+  min-height: t.$button-height-compact;
+  border: 0;
+  background: transparent;
+  color: t.$danger;
+  font: t.$font-weight-bold 15px / normal t.$font-family;
+}
 </style>

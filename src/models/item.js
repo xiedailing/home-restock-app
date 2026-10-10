@@ -165,6 +165,8 @@ export function createItem(input = {}) {
     daysPerUnit: input.daysPerUnit ?? null,
     // 最近一次開啟提醒的日期；補貨後不變。早於此日的紀錄不作為重算依據（specs/003 DET-03）。
     reminderEnabledDate: input.reminderEnabledDate ?? null,
+    // 開啟提醒時填的庫存量；與開啟日一起顯示為補貨紀錄的「開始追蹤」起點（specs/003 DET-21）。
+    reminderEnabledQuantity: input.reminderEnabledQuantity ?? null,
     lastRestockDate: input.lastRestockDate ?? null,
     inShoppingList: input.inShoppingList ?? false,
     // 待買數量（不是庫存量）；加入購買清單時為 1，移出時清除（specs/003 DET-11）。
@@ -200,6 +202,14 @@ export function getLatestRecord(records) {
   return records.reduce((latest, record) => (!latest || record.date >= latest.date ? record : latest), null)
 }
 
+// 依日期新到舊；同一天時較晚新增者在前，與 getLatestRecord 一致。
+export function sortRecordsNewestFirst(records) {
+  return records
+    .map((record, index) => ({ record, index }))
+    .sort((a, b) => b.record.date.localeCompare(a.record.date) || b.index - a.index)
+    .map(({ record }) => record)
+}
+
 // 狀態由資料推算，不存進 item。
 export function getStatus(item, today = toDateString()) {
   if (item.inShoppingList) return STATUS.IN_SHOPPING_LIST
@@ -221,6 +231,7 @@ function sampleReminder(today, daysLeft, cycleDays) {
     reminderBaseQuantity: 1,
     daysPerUnit: cycleDays,
     reminderEnabledDate: baseDate,
+    reminderEnabledQuantity: 1,
   }
 }
 

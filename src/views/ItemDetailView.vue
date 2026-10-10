@@ -14,6 +14,7 @@ import StatusCard from '../components/item-detail/StatusCard.vue'
 import BasicInfoSection from '../components/item-detail/BasicInfoSection.vue'
 import ReminderSetupSheet from '../components/item-detail/ReminderSetupSheet.vue'
 import RestockSheet from '../components/item-detail/RestockSheet.vue'
+import RestockRecordList from '../components/item-detail/RestockRecordList.vue'
 import backIcon from '../assets/add-item/back-chevron.svg'
 import selectorChevron from '../assets/add-item/selector-chevron.svg'
 
@@ -131,6 +132,13 @@ function addToShoppingList() {
   changeWithUndo('已加入購買清單', () => itemsStore.addToShoppingList(itemId))
 }
 
+// ---------- 補貨紀錄（FR-307）----------
+// 最多顯示 5 筆，超過 5 筆才顯示「查看全部」（specs/003 DET-09）。
+const RECORD_PREVIEW_LIMIT = 5
+function onRecordEdited({ message, snapshot }) {
+  showToast(message, () => itemsStore.restoreItem(snapshot))
+}
+
 // ---------- 刪除（FR-309）----------
 const deleteDialog = ref(null)
 
@@ -230,6 +238,14 @@ function confirmDelete() {
           <span class="info-value">{{ formatDate(item.lastRestockDate) }}</span>
         </div>
       </div>
+    </section>
+
+    <section class="detail-section" aria-labelledby="records-title">
+      <div class="section-header">
+        <h2 id="records-title" class="section-title">補貨紀錄</h2>
+        <RouterLink v-if="item.restockRecords.length > RECORD_PREVIEW_LIMIT" class="see-all" :to="{ name: 'item-records', params: { id: item.id } }">查看全部 ›</RouterLink>
+      </div>
+      <RestockRecordList :item="item" :limit="RECORD_PREVIEW_LIMIT" @edited="onRecordEdited" />
     </section>
 
     <ReminderSetupSheet
@@ -403,6 +419,15 @@ function confirmDelete() {
   border: 0;
   border-radius: t.$switch-radius;
   background: transparent;
+}
+
+// ---------- 補貨紀錄 ----------
+.section-header { display: flex; align-items: baseline; justify-content: space-between; padding-right: t.$space-4; }
+.see-all {
+  color: t.$text-sub;
+  font: t.$font-weight-regular 13px / 22px t.$font-family;
+  text-decoration: none;
+  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; border-radius: t.$radius-sm; }
 }
 
 // ---------- 刪除確認（同 InventoryView .delete-dialog）----------

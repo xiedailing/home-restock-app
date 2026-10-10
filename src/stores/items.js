@@ -113,6 +113,7 @@ export const useItemsStore = defineStore('items', () => {
       reminderBaseQuantity: quantity,
       daysPerUnit: calcDaysPerUnit(nextRestockDate, today, quantity),
       reminderEnabledDate: today,
+      reminderEnabledQuantity: quantity,
     })
   }
 
@@ -126,30 +127,56 @@ export const useItemsStore = defineStore('items', () => {
     })
   }
 
-  // 001 FR-003：新增紀錄、更新上次補貨日、移出購買清單。
-  // 提醒開啟且新紀錄成為重算依據時，才更新下次預計補貨日與計算基準（specs/003 DET-03、DET-04）。
-  function completeRestock(id, { date = toDateString(), quantity = 1 } = {}) {
+  // 重算依據：最新一筆，且不早於最近一次開啟提醒的日期（specs/003 DET-03）。
+  function getBasisRecord(item, records) {
+    const latest = getLatestRecord(records)
+    if (!latest || (item.reminderEnabledDate && latest.date < item.reminderEnabledDate)) return null
+    return latest
+  }
+
+  // 套用新的紀錄清單：上次補貨日一律等於最新一筆；重算依據改變或被修改時，提醒開啟才重算
+  //（001 FR-003、FR-004）。修改較舊紀錄、補登較早日期、沒有重算依據時，保留目前日期。
+  function applyRestockRecords(id, records, extraChanges = {}) {
     const item = getItem(id)
     if (!item) return
-    const record = createRestockRecord({ date, quantity })
-    const restockRecords = [...item.restockRecords, record]
-    const changes = {
-      restockRecords,
-      lastRestockDate: getLatestRecord(restockRecords).date,
-      inShoppingList: false,
-      quantity: null,
-      addedToShoppingListDate: null,
-    }
-    const isBasis = getLatestRecord(restockRecords) === record
-      && (!item.reminderEnabledDate || date >= item.reminderEnabledDate)
-    if (item.reminderEnabled && item.daysPerUnit !== null && isBasis) {
+    // 從 reactive 陣列取出的紀錄是 Proxy；存成原始物件，snapshotItem 的 structuredClone 才不會失敗。
+    const restockRecords = records.map((record) => ({ ...toRaw(record) }))
+    const changes = { restockRecords, lastRestockDate: getLatestRecord(restockRecords)?.date ?? null, ...extraChanges }
+    const before = getBasisRecord(item, item.restockRecords)
+    const after = getBasisRecord(item, restockRecords)
+    const basisChanged = after && (after.id !== before?.id || after.date !== before.date || after.quantity !== before.quantity)
+    if (item.reminderEnabled && item.daysPerUnit !== null && basisChanged) {
       Object.assign(changes, {
-        nextRestockDate: calcNextRestockDate(date, quantity, item.daysPerUnit),
-        reminderBaseDate: date,
-        reminderBaseQuantity: quantity,
+        nextRestockDate: calcNextRestockDate(after.date, after.quantity, item.daysPerUnit),
+        reminderBaseDate: after.date,
+        reminderBaseQuantity: after.quantity,
       })
     }
     updateItem(id, changes)
+  }
+
+  // 001 FR-003：新增紀錄、移出購買清單並清除待買數量。
+  function completeRestock(id, { date = toDateString(), quantity = 1 } = {}) {
+    const item = getItem(id)
+    if (!item) return
+    applyRestockRecords(id, [...item.restockRecords, createRestockRecord({ date, quantity })], {
+      inShoppingList: false,
+      quantity: null,
+      addedToShoppingListDate: null,
+    })
+  }
+
+  // 001 FR-004：修改一筆紀錄的日期與數量；保留新增順序。
+  function updateRestockRecord(id, recordId, { date, quantity }) {
+    const item = getItem(id)
+    if (!item) return
+    applyRestockRecords(id, item.restockRecords.map((record) => (record.id === recordId ? { ...record, date, quantity } : record)))
+  }
+
+  function removeRestockRecord(id, recordId) {
+    const item = getItem(id)
+    if (!item) return
+    applyRestockRecords(id, item.restockRecords.filter((record) => record.id !== recordId))
   }
 
   function addSpace({ name, shared = false, color = 'green' }) {
@@ -273,6 +300,8 @@ export const useItemsStore = defineStore('items', () => {
     enableReminder,
     updateNextRestockDate,
     completeRestock,
+    updateRestockRecord,
+    removeRestockRecord,
     addSpace,
     getSpace,
     updateSpace,
