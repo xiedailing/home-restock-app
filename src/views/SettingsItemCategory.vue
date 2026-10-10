@@ -26,7 +26,12 @@ function toggleSelectionMode() { selecting.value = !selecting.value; selectedIds
 function requestBulkDeletion() { if (!selectedIds.value.length) return; bulkPending.value = true; deleteDialog.value.showModal() }
 const deleteTitle = computed(() => bulkPending.value ? `刪除 ${selectedIds.value.length} 項用品？` : `刪除${pendingItem.value?.name || '用品'}？`)
 const deleteMessage = computed(() => {
-  if (bulkPending.value) return `即將刪除所選${selectedIds.value.length}項用品，補貨提醒與紀錄也會一併刪除。${selectedIds.value.some(id => store.getSpace(store.getItem(id)?.spaceId)?.shared) ? '共享空間的刪除將同步所有成員。' : ''}`
+  if (bulkPending.value) {
+    const includesSharedItems = selectedIds.value.some(id => store.getSpace(store.getItem(id)?.spaceId)?.shared)
+    return includesSharedItems
+      ? '相關補貨提醒與紀錄將一併刪除，共享用品也會從所有成員的清單刪除。'
+      : '相關補貨提醒與紀錄將一併刪除。'
+  }
   const item = pendingItem.value
   if (!item) return ''
   const space = store.getSpace(item.spaceId)
@@ -102,8 +107,8 @@ function confirmDeletion() {
 }
 </script>
 <template>
-  <section class="category-page">
-    <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理"><img :src="backIcon" alt="" /></RouterLink><h1>{{ category }}</h1><div v-if="selecting" class="bulk-actions"><button type="button" class="btn btn-secondary" @click="toggleSelectionMode">取消</button><button type="button" class="btn btn-danger" :disabled="!selectedIds.length" @click="requestBulkDeletion">刪除 {{ selectedIds.length }}</button></div><button v-else-if="items.length" type="button" class="category-trash" :aria-pressed="selecting" aria-label="批次刪除用品" @click="toggleSelectionMode"><svg viewBox="0 0 20 20" aria-hidden="true">
+  <section class="category-page" :class="{ selecting }">
+    <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理"><img :src="backIcon" alt="" /></RouterLink><h1>{{ category }}</h1><div v-if="selecting" class="bulk-actions"><button type="button" class="btn btn-secondary" @click="toggleSelectionMode">取消</button></div><button v-else-if="items.length" type="button" class="category-trash" :aria-pressed="selecting" aria-label="批次刪除用品" @click="toggleSelectionMode"><svg viewBox="0 0 20 20" aria-hidden="true">
           <path d="M3.5 5.5h13M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5 5.5l.8 10.1a1.5 1.5 0 0 0 1.5 1.4h5.4a1.5 1.5 0 0 0 1.5-1.4L15 5.5M8.5 8.5v5M11.5 8.5v5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
         </svg></button><span v-else /></header>
     <div v-if="!items.length" class="category-empty" role="status">
@@ -119,6 +124,7 @@ function confirmDeletion() {
       </div>
     </div>
     <Teleport to="body">
+      <div v-if="selecting" class="selection-bar"><span role="status">已選取 {{ selectedIds.length }} 項</span><button type="button" class="btn btn-danger" :disabled="!selectedIds.length" @click="requestBulkDeletion">刪除</button></div>
       <dialog ref="deleteDialog" class="item-delete-dialog" aria-labelledby="item-delete-title" aria-describedby="item-delete-message" @click="event => { if (event.target === deleteDialog) deleteDialog.close() }">
         <form @submit.prevent="confirmDeletion">
           <h2 id="item-delete-title">{{ deleteTitle }}</h2>
@@ -132,8 +138,11 @@ function confirmDeletion() {
 </template>
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/space-layout' as layout;
 .category-trash { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; color: t.$text-sub; cursor: pointer; svg { width: 20px; height: 20px; } }
 .bulk-actions { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: t.$space-8; .btn { min-height: 36px; padding: 8px 10px; font-size: t.$font-size-caption; line-height: 20px; } }
+.category-page.selecting { padding-bottom: 80px; }
+.selection-bar { position: fixed; bottom: 132px; left: 50%; transform: translateX(-50%); z-index: 1000; box-sizing: border-box; width: min(358px, calc(100% - 32px)); padding: t.$space-12 t.$space-16; display: flex; align-items: center; justify-content: space-between; gap: t.$space-12; border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; color: t.$text-body; font-family: t.$font-family; font-size: t.$font-size-body-sm; font-weight: 400; line-height: t.$line-height-body; .btn { min-height: 36px; padding: 8px 20px; font-size: t.$font-size-body-sm; } }
 .item-checkbox { position: relative; display: block; width: 24px; height: 24px; flex: 0 0 24px; margin-right: 6px; border-radius: 6px; overflow: hidden; }
 .item-checkbox input { appearance: none; box-sizing: border-box; display: block; width: 24px; height: 24px; margin: 0; border: 1.5px solid #a9a59b; border-radius: 6px; background: t.$surface-bg; box-shadow: t.$shadow-raised; cursor: pointer; &:checked { border: 0; background: t.$primary-green; box-shadow: none; } }
 .item-row .item-checkbox img { position: absolute; inset: 0; width: 24px; height: 24px; pointer-events: none; }
@@ -142,19 +151,21 @@ function confirmDeletion() {
 header { position: relative; min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin-bottom: 16px; h1 { margin: 0; font-size: 17px; text-align: center; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; } }
 .category-card { overflow: hidden; border: 1px solid rgba(237,234,227,.4); border-radius: 20px; background: #fbfaf6; box-shadow: t.$shadow-card; }
-.item-row { cursor: pointer; display: flex; align-items: center; gap: 4px; min-height: 48px; margin: 0; padding: 12px 16px; background: #fbfaf6; position: relative; transition: transform .5s ease; user-select: none; &.dragging { transition: none; } color: t.$text-body; font: 400 14px / 20px t.$font-family; .item-labels { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; } .item-name { min-width: 0; overflow-wrap: anywhere; } :deep(.space-tag) { flex: 0 0 auto; font-size: t.$font-size-caption; } img { width: 16px; height: 16px; flex-shrink: 0; } &:last-child { border-bottom: 0; } }
+.item-row { cursor: pointer; display: flex; align-items: center; gap: 4px; @include layout.row(48px, t.$space-16); margin: 0; background: #fbfaf6; position: relative; transition: transform .5s ease; user-select: none; &.dragging { transition: none; } color: t.$text-body; font: 400 14px / 20px t.$font-family; .item-labels { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; } .item-name { min-width: 0; overflow-wrap: anywhere; } :deep(.space-tag) { flex: 0 0 auto; font-size: t.$font-size-caption; } img { width: 16px; height: 16px; flex-shrink: 0; } &:last-child { border-bottom: 0; } }
 .category-empty { display: flex; flex-direction: column; align-items: center; padding-top: max(64px, calc(36dvh - 76px)); text-align: center; }
 .empty-disc { display: grid; place-items: center; width: 88px; height: 88px; margin-bottom: 19px; border-radius: 50%; background: t.$active-green; box-shadow: t.$shadow-added; img { display: block; width: 57px; height: 57px; } }
 .category-empty h2 { margin: 0 0 t.$space-4; color: t.$text-main; font-family: t.$font-family; font-weight: t.$font-weight-bold; font-size: t.$font-size-heading; line-height: 30px; }
 .category-empty p { max-width: 318px; margin: 0; color: t.$text-sub; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; }
-.swipe-item { position: relative; overflow: hidden; touch-action: pan-y; border-bottom: 1px solid t.$border-color; &:last-child { border-bottom: 0; } }
+.swipe-item { position: relative; overflow: hidden; touch-action: pan-y; &:not(:last-child) { @include layout.divider; } }
 .swipe-delete { position: absolute; inset: 0 0 0 auto; width: 88px; border: 0; background: t.$danger; color: t.$text-inverse; font: 500 14px / 20px t.$font-family; cursor: pointer; }
 .item-row:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) { .item-row { transition: none; } }
 .item-delete-dialog { box-sizing: border-box; width: min(300px, calc(100% - 48px)); max-height: calc(100dvh - 48px); padding: t.$space-24 18px; border: 0; border-radius: t.$radius-card; background: t.$card-bg; color: t.$text-main; font-family: t.$font-family; text-align: center; box-shadow: 0 -2px 8px rgba(255,255,255,.18), 0 16px 36px rgba(43,42,38,.28); h2 { margin: 0; font-size: 18px; line-height: 1.45; } p { margin: t.$space-8 0 t.$space-24; color: t.$text-sub; font-size: t.$font-size-body; line-height: 1.45; } &::backdrop { background: rgba(29,29,31,.5); } &:focus { outline: none; } }
 .item-delete-actions { display: flex; gap: t.$space-12; .btn { flex: 1; min-width: 0; min-height: 48px; font-size: t.$font-size-body; } .btn-secondary, .btn-secondary:focus, .btn-secondary:focus-visible { outline: none; } }
-.item-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; margin: 0; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; justify-content: center; gap: t.$space-8; border: 0; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-weight: t.$font-weight-bold; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; font-family: t.$font-family; i { color: t.$toast-success-accent; } }
-.item-toast-undo { padding: 4px; border: 0; background: transparent; color: t.$toast-success-accent; font: inherit; cursor: pointer; }
+.item-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; box-sizing: border-box; width: t.$toast-max-width; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; margin: 0; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; border: 0; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-weight: t.$font-weight-bold; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; font-family: t.$font-family; i { color: t.$toast-success-accent; } }
+.item-toast > i { flex-shrink: 0; }
+.item-toast > span { flex: 1; }
+.item-toast-undo { flex-shrink: 0; padding: 4px; border: 0; background: transparent; color: t.$toast-success-accent; font: inherit; cursor: pointer; }
 .item-toast-enter-active, .item-toast-leave-active { transition: opacity .5s ease; }
 .item-toast-enter-from, .item-toast-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .item-toast-enter-active, .item-toast-leave-active { transition: none; } }

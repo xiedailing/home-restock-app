@@ -7,6 +7,8 @@ import chevron from '../assets/settings/category-chevron.svg'
 const store = useItemsStore()
 const categoryName = ref('')
 const error = ref('')
+const duplicateName = computed(() => [...store.systemCategoryCounts, ...store.customCategoryCounts].some(category => category.name === categoryName.value.trim()))
+const nameError = computed(() => duplicateName.value ? '已有重複分類名稱' : error.value)
 const nameFocused = ref(false)
 const nameLimitExceeded = computed(() => limitSpaceName(categoryName.value.trim()) !== categoryName.value.trim())
 const nameCount = computed(() => {
@@ -137,7 +139,7 @@ const toast = ref('')
 let toastTimer
 onBeforeUnmount(() => clearTimeout(toastTimer))
 function addCategory() {
-  if (nameLimitExceeded.value) return
+  if (nameLimitExceeded.value || duplicateName.value) return
   const result = store.addCategory(categoryName.value)
   error.value = result.ok ? '' : result.message
   if (result.ok) {
@@ -178,13 +180,13 @@ function addCategory() {
       <form class="category-form" @submit.prevent="addCategory">
         <label class="visually-hidden" for="category-name">分類名稱</label>
         <div class="category-input-wrapper">
-          <input id="category-name" v-model="categoryName" placeholder="輸入分類名稱 例如：文具" :class="{ 'limit-exceeded': nameLimitExceeded || !!error }" :aria-invalid="nameLimitExceeded || !!error" :aria-describedby="error ? 'category-error' : nameLimitExceeded ? 'category-length-error' : undefined" @focus="nameFocused = true" @blur="nameFocused = false" @input="error = ''" />
+          <input id="category-name" v-model="categoryName" placeholder="輸入分類名稱 例如：文具" :class="{ 'limit-exceeded': nameLimitExceeded || !!nameError }" :aria-invalid="nameLimitExceeded || !!nameError" :aria-describedby="nameError ? 'category-error' : nameLimitExceeded ? 'category-length-error' : undefined" @focus="nameFocused = true" @blur="nameFocused = false" @input="error = ''" />
           <span v-if="nameFocused || nameLimitExceeded" class="category-name-count">{{ nameCount }}</span>
           <p v-if="nameLimitExceeded" id="category-length-error" class="category-length-error">名稱過長，請縮短。</p>
         </div>
-        <button type="submit" :disabled="!categoryName.trim() || nameLimitExceeded">新增</button>
+        <button type="submit" :disabled="!categoryName.trim() || nameLimitExceeded || duplicateName">新增</button>
       </form>
-      <p v-if="error" id="category-error" class="category-error" role="alert">{{ error }}</p>
+      <p v-if="nameError" id="category-error" class="category-error" role="alert">{{ nameError }}</p>
     </div>
     <Teleport to="body">
       <dialog ref="deleteDialog" class="category-delete-dialog" aria-labelledby="category-delete-title" aria-describedby="category-delete-message" @click="event => { if (event.target === deleteDialog) deleteDialog.close() }">
@@ -203,16 +205,17 @@ function addCategory() {
 </template>
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/space-layout' as layout;
 .management-page { width: 100%; max-width: 358px; margin-inline: auto; padding-top: 16px; display: flex; flex-direction: column; gap: t.$space-16; color: t.$text-main; font-family: t.$font-family; text-align: left; }
 .management-header { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; h1 { margin: 0; text-align: center; font: 700 17px / 24px t.$font-family; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; } }
 h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
 .category-card { overflow: hidden; border: 1px solid rgba(237,234,227,.4); border-radius: 20px; background: #fbfaf6; box-shadow: t.$shadow-card; }
-.category-row { cursor: pointer; display: flex; align-items: center; gap: 4px; min-height: 48px; margin-left: 16px; padding: 12px 16px 12px 0; border-bottom: 1px solid t.$border-color; text-decoration: none; color: t.$text-body; font: 400 14px / 20px t.$font-family; span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 16px; height: 16px; } &:last-child { border-bottom: 0; } }
+.category-row { cursor: pointer; display: flex; align-items: center; gap: 4px; @include layout.row; margin-left: 16px; padding-right: t.$space-16; border-bottom: 0; text-decoration: none; color: t.$text-body; font: 400 14px / 20px t.$font-family; span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 16px; height: 16px; } &:last-child { border-bottom: 0; } }
 .system-category-card .category-row { position: relative; border-bottom: 0; &:not(:last-child)::after { content: ""; position: absolute; bottom: 0; left: 0; right: t.$space-16; height: 1px; background: t.$border-color; } }
 .custom-card { padding-inline: t.$space-16; .category-row { margin-left: 0; padding-right: 0; } }
-.empty-category { margin: 0; min-height: 48px; display: flex; align-items: center; border-bottom: 1px solid t.$border-color; color: t.$text-disabled; font-size: 14px; }
-.category-form { display: flex; align-items: flex-start; gap: 8px; padding-block: 12px; input { width: 100%; min-width: 0; height: 48px; padding: 4px 52px 4px 14px; border: 0; border-radius: t.$radius-pill; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-main; font: 400 14px / 20px t.$font-family; &::placeholder { color: t.$text-disabled; } } button { flex: 0 0 64px; margin-top: 6px; height: 36px; border: 0; border-radius: t.$radius-pill; background: t.$primary-green; color: white; font: 700 14px / 20px t.$font-family; box-shadow: -2px -2px 5px rgba(255,255,255,.9), 3px 4px 7px rgba(42,74,39,.35), inset 1px 1.5px 2px rgba(31,58,29,.28), inset -1px -1px 2px rgba(255,255,255,.22); cursor: pointer; &:disabled { background: #e0e0e0; color: #a6a6a6; box-shadow: none; cursor: default; } } }
+.empty-category { margin: 0; @include layout.row; display: flex; align-items: center; @include layout.divider; color: t.$text-disabled; font-size: 14px; }
+.category-form { display: flex; align-items: flex-start; gap: 8px; padding-block: t.$space-16; input { width: 100%; min-width: 0; height: 48px; padding: 4px 52px 4px 14px; border: 0; border-radius: t.$radius-pill; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-main; font: 400 14px / 20px t.$font-family; &::placeholder { color: t.$text-disabled; } } button { flex: 0 0 64px; margin-top: 6px; height: 36px; border: 0; border-radius: t.$radius-pill; background: t.$primary-green; color: white; font: 700 14px / 20px t.$font-family; box-shadow: -2px -2px 5px rgba(255,255,255,.9), 3px 4px 7px rgba(42,74,39,.35), inset 1px 1.5px 2px rgba(31,58,29,.28), inset -1px -1px 2px rgba(255,255,255,.22); cursor: pointer; &:disabled { background: #e0e0e0; color: #a6a6a6; box-shadow: none; cursor: default; } } }
 .category-input-wrapper { position: relative; flex: 1; min-width: 0; }
 .category-name-count { position: absolute; top: 24px; right: 14px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; pointer-events: none; }
 .category-form input.limit-exceeded { outline: 2px solid t.$accent-text; outline-offset: 2px; }
@@ -220,13 +223,14 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
 .management-hint { margin: 0; color: t.$text-sub; font-size: 12px; }
 .custom-heading { display: flex; flex-direction: column; gap: t.$space-8; }
 .custom-title { position: relative; height: 24px; display: flex; align-items: center; justify-content: space-between; min-height: 24px; i { display: inline-grid; place-items: center; width: 20px; height: 20px; color: t.$text-sub; font-size: 16px; flex-shrink: 0; } }
-.swipe-category { margin-inline: -16px; position: relative; overflow: hidden; border-bottom: 1px solid t.$border-color; touch-action: pan-y; }
+.swipe-category { margin-inline: -16px; position: relative; overflow: hidden; @include layout.divider; touch-action: pan-y; }
+.swipe-category::after { z-index: 2; }
 .swipe-content { position: relative; z-index: 1; background: #fbfaf6; border-bottom: 0; transition: transform .5s ease; user-select: none; &.dragging { transition: none; } }
 .custom-card .swipe-content { padding-inline: t.$space-16; }
 .category-sort-move { transition: transform .5s ease; }
 @media (prefers-reduced-motion: reduce) { .category-sort-move { transition: none; } }
 .swipe-category.sorting { touch-action: none; cursor: grab; }
-.swipe-category.sort-dragging .swipe-content { background: t.$active-green; cursor: grabbing; }
+.swipe-category.sort-dragging .swipe-content { background: t.$input-bg; cursor: grabbing; }
 .sort-grip { margin-right: t.$space-8; color: t.$text-sub; font-size: 16px; }
 .swipe-delete { position: absolute; inset: 0 0 0 auto; width: 88px; border: 0; background: t.$danger; color: t.$text-inverse; font: 500 14px / 20px t.$font-family; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .swipe-content { transition: none; } }
