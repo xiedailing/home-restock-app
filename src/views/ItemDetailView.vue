@@ -340,8 +340,8 @@ function confirmDelete() {
   background: t.$card-bg;
   box-shadow: t.$shadow-card;
   &--dueSoon { --badge-bg: #ffebd7; --badge-text: #{t.$accent-text}; --icon-bg: #ffdec0; }
-  // 補貨時間已過：明顯徽章，但不用紅色（001 D6）。
-  &--overdue { --badge-bg: #{t.$accent-text}; --badge-text: #{t.$text-inverse}; --icon-bg: #ffdec0; }
+  // 補貨時間已過：紅色明顯徽章（001 D6-1），圖示底色同我的用品。
+  &--overdue { --badge-bg: #{t.$danger}; --badge-text: #{t.$text-inverse}; --icon-bg: #f6c4bc; }
   &--inShoppingList { --badge-bg: #{t.$primary-subtle}; --badge-text: #{t.$primary-green}; --icon-bg: #{t.$primary-subtle}; }
   &--reminderOff { --badge-bg: #f0eee8; --badge-text: #{t.$text-body}; --icon-bg: #f5f5f6; }
 }

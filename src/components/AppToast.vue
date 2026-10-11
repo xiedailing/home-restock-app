@@ -1,19 +1,22 @@
 <script setup>
 // Figma Toast / 已更新用品名稱（966:8254）：淺色底、綠色勾勾，可附「復原」。
 // 樣式同我的用品「已新增用品」Toast；搭配 composables/useToast 使用。
+import { useBottomNavHidden } from '../composables/useBottomNav'
 import toastCheck from '../assets/settings/toast-check.svg'
 
 defineProps({ toast: { type: Object, default: null } })
 const emit = defineEmits(['undo'])
+// 有 Bottom Nav 時改放在 Nav 上方（specs/004 HOME-07）。
+const hideBottomNav = useBottomNavHidden()
 </script>
 
 <template>
   <Teleport to="body">
     <Transition name="app-toast">
-      <div v-if="toast" :key="toast.message" class="app-toast" role="status" aria-live="polite">
+      <div v-if="toast" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav }" role="status" aria-live="polite">
         <img :src="toastCheck" alt="" />
         <span class="app-toast-message">{{ toast.message }}</span>
-        <button v-if="toast.undo" type="button" class="app-toast-undo" @click="emit('undo')">復原</button>
+        <button v-if="toast.undo" type="button" class="app-toast-undo" @click="emit('undo')">{{ toast.actionLabel ?? '復原' }}</button>
       </div>
     </Transition>
   </Teleport>
@@ -43,6 +46,8 @@ const emit = defineEmits(['undo'])
   color: t.$text-main;
   font: t.$font-weight-medium 14px t.$font-family;
   img { width: 22px; height: 22px; flex-shrink: 0; }
+  // Bottom Nav 頂端在 116px（bottom 34 + 高 82），再留 16px，同我的用品刪除 Toast。
+  &--above-nav { bottom: t.$toast-bottom; }
 }
 .app-toast-message { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-toast-undo {

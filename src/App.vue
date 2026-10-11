@@ -11,11 +11,13 @@ import HelloWorld from './components/HelloWorld.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ref, watch } from 'vue'
 import BottomNav from './components/BottomNav.vue'
+import { useBottomNavHidden } from './composables/useBottomNav'
 import { useItemsStore } from './stores/items'
 
 const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
+const hideBottomNav = useBottomNavHidden()
 const pageTransition = ref('page-forward')
 const animateSettingsPages = ref(false)
 const animateItemsPages = ref(route.path === '/settings/items' || route.path.startsWith('/settings/items/'))
@@ -40,7 +42,7 @@ const handlePlusClick = () => {
 <template>
   <div class="app-container">
     <!-- 主內容呈現區 -->
-    <main class="app-content" :class="{ 'without-nav': route.meta.hideBottomNav, 'items-page-transition': animateSettingsPages && animateItemsPages }">
+    <main class="app-content" :class="{ 'without-nav': hideBottomNav, 'items-page-transition': animateSettingsPages && animateItemsPages }">
       <RouterView v-slot="{ Component, route: pageRoute }">
         <Transition :name="pageTransition" :css="animateSettingsPages">
           <div :key="pageRoute.path" class="page-view">
@@ -52,7 +54,7 @@ const handlePlusClick = () => {
 
     <!-- 共用底部導覽列 -->
     <BottomNav 
-      v-if="!route.meta.hideBottomNav"
+      v-if="!hideBottomNav"
       @click-plus="handlePlusClick" 
     />
   </div>
