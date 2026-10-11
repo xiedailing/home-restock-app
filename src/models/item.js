@@ -80,6 +80,9 @@ export function matchItemIconKey(name = '') {
 // 剩餘天數 <= 此值時顯示「該補貨了」
 export const REMIND_WITHIN_DAYS = 5
 
+// 「暫時不用補貨」延後的天數（specs/005 SNZ-01）。
+export const SNOOZE_DAYS = 7
+
 export const STATUS = {
   OVERDUE: 'overdue',
   DUE_SOON: 'dueSoon',
@@ -172,6 +175,8 @@ export function createItem(input = {}) {
     // 待買數量（不是庫存量）；加入購買清單時為 1，移出時清除（specs/003 DET-11）。
     quantity: input.quantity ?? null,
     addedToShoppingListDate: input.addedToShoppingListDate ?? null,
+    // 「暫時不用補貨」的延後到期日；當天起重新出現在首頁補貨提醒（specs/005 SNZ-02）。
+    snoozedUntil: input.snoozedUntil ?? null,
     // 依新增順序排列；同一天多筆時，較晚新增者為最新一筆。
     restockRecords: input.restockRecords ?? [],
     createdAt: input.createdAt ?? now,
@@ -218,6 +223,11 @@ export function getStatus(item, today = toDateString()) {
   if (days < 0) return STATUS.OVERDUE
   if (days <= REMIND_WITHIN_DAYS) return STATUS.DUE_SOON
   return STATUS.NOT_NEEDED
+}
+
+// 延後中：今天早於延後到期日。不影響狀態，只用於首頁補貨提醒與詳情提示（specs/005 SNZ-03）。
+export function isSnoozed(item, today = toDateString()) {
+  return !!item.snoozedUntil && today < item.snoozedUntil
 }
 
 // 示範資料：取自「我的用品」設計稿，日期相對今天計算。

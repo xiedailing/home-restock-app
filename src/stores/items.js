@@ -15,7 +15,10 @@ import {
   daysUntil,
   getLatestRecord,
   getStatus,
+  isSnoozed,
+  SNOOZE_DAYS,
   STATUS,
+  addDays,
   toDateString,
 } from '../models/item'
 
@@ -70,10 +73,11 @@ export const useItemsStore = defineStore('items', () => {
   )
   const shoppingList = computed(() => items.value.filter((item) => item.inShoppingList))
   // 首頁補貨提醒（specs/004 FR-401）：補貨時間已過在前、過期越久越前，接著該補貨了、剩餘天數越少越前。
+  // 延後中的用品不列出（specs/005 FR-503）。
   // daysLeft 已過期為負數，遞增排序即可；sort 為穩定排序，同天數維持新增順序。
   const restockReminders = computed(() =>
     itemsWithStatus.value
-      .filter((item) => item.status === STATUS.OVERDUE || item.status === STATUS.DUE_SOON)
+      .filter((item) => (item.status === STATUS.OVERDUE || item.status === STATUS.DUE_SOON) && !isSnoozed(item))
       .map((item) => ({ ...item, daysLeft: daysUntil(item.nextRestockDate) }))
       .sort((a, b) => a.daysLeft - b.daysLeft),
   )
@@ -133,9 +137,9 @@ export const useItemsStore = defineStore('items', () => {
     recentlyRemoved.value = null
   }
 
-  // 001 FR-006：加入時待買數量 1；移出時清除。
+  // 001 FR-006：加入時待買數量 1；移出時清除。加入時一併取消延後（specs/005 SNZ-04）。
   function addToShoppingList(id) {
-    updateItem(id, { inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString() })
+    updateItem(id, { inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), snoozedUntil: null })
   }
 
   // 首頁多選批次加入（specs/004 FR-405）。
@@ -148,8 +152,14 @@ export const useItemsStore = defineStore('items', () => {
   }
 
   // 001 FR-005：關閉提醒只改開關，保留日期與計算基準，Toast 復原時直接還原。
+  // 同時取消「暫時不用補貨」的延後（001 D5-4）。
   function disableReminder(id) {
-    updateItem(id, { reminderEnabled: false })
+    updateItem(id, { reminderEnabled: false, snoozedUntil: null })
+  }
+
+  // specs/005 FR-502：只記錄延後到期日，預計補貨日與計算基準不變。
+  function snoozeReminder(id) {
+    updateItem(id, { snoozedUntil: addDays(toDateString(), SNOOZE_DAYS) })
   }
 
   // 001 FR-005：開啟提醒時以（今天，庫存量）重新建立計算基準。
@@ -163,6 +173,7 @@ export const useItemsStore = defineStore('items', () => {
       daysPerUnit: calcDaysPerUnit(nextRestockDate, today, quantity),
       reminderEnabledDate: today,
       reminderEnabledQuantity: quantity,
+      snoozedUntil: null,
     })
   }
 
@@ -173,6 +184,7 @@ export const useItemsStore = defineStore('items', () => {
     updateItem(id, {
       nextRestockDate,
       daysPerUnit: calcDaysPerUnit(nextRestockDate, item.reminderBaseDate, item.reminderBaseQuantity),
+      snoozedUntil: null,
     })
   }
 
@@ -199,6 +211,8 @@ export const useItemsStore = defineStore('items', () => {
         nextRestockDate: calcNextRestockDate(after.date, after.quantity, item.daysPerUnit),
         reminderBaseDate: after.date,
         reminderBaseQuantity: after.quantity,
+        // 預計補貨日已重算，舊的延後沒有意義（specs/005 SNZ-04）。
+        snoozedUntil: null,
       })
     }
     updateItem(id, changes)
@@ -212,6 +226,7 @@ export const useItemsStore = defineStore('items', () => {
       inShoppingList: false,
       quantity: null,
       addedToShoppingListDate: null,
+      snoozedUntil: null,
     })
   }
 
@@ -353,6 +368,7 @@ export const useItemsStore = defineStore('items', () => {
     addManyToShoppingList,
     removeFromShoppingList,
     disableReminder,
+    snoozeReminder,
     enableReminder,
     updateNextRestockDate,
     completeRestock,

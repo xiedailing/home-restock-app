@@ -5,6 +5,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
+import { SNOOZE_DAYS } from '../models/item'
 import { useToast } from '../composables/useToast'
 import { bottomNavHiddenByPage } from '../composables/useBottomNav'
 import { profile } from '../stores/profile'
@@ -37,6 +38,13 @@ function toggleMenu(item) {
 function addToShoppingList(item) {
   itemsStore.addToShoppingList(item.id)
   showToast('已加入購買清單', () => router.push({ name: 'shopping' }), '查看')
+}
+
+// specs/005 FR-502：延後 7 天，卡片移除；復原還原整筆用品，卡片依排序回到原位置。
+function snooze(item) {
+  const snapshot = itemsStore.snapshotItem(item.id)
+  itemsStore.snoozeReminder(item.id)
+  showToast(`已延後提醒，${SNOOZE_DAYS} 天後再提醒`, () => itemsStore.restoreItem(snapshot))
 }
 
 // FR-404：記錄補貨同 003 FR-306；復原還原整筆用品，卡片依排序回到原位置。
@@ -117,6 +125,7 @@ function onRestockConfirm(restock) {
             @toggle-menu="toggleMenu(item)"
             @close-menu="menuItemId = null"
             @restock="restockItem = item"
+            @snooze="snooze(item)"
             @toggle-select="toggleSelected(item)"
           />
         </li>

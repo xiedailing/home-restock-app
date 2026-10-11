@@ -1,6 +1,6 @@
 <script setup>
 // 首頁補貨提醒卡片（specs/004 FR-402～FR-404）。Figma：Suggestion Card / Homepage V2（687:5070）、Suggestion Popover（693:4712）。
-// 狀態列顏色對應狀態、不用驚嘆號（HOME-10）；Popover 只有【已補貨】（HOME-05）。
+// 狀態列顏色對應狀態、不用驚嘆號（HOME-10）；Popover 為【已補貨】【暫時不用補貨】（specs/005 FR-501）。
 // 多選模式（FR-405，Figma 693:3838）：點卡片改為勾選，隱藏「⋯」與【加入清單】。
 import { computed, onUnmounted, watch } from 'vue'
 import { STATUS } from '../../models/item'
@@ -14,8 +14,8 @@ const props = defineProps({
   selecting: Boolean,
   selected: Boolean,
 })
-// open：進入用品詳情；toggle-menu / close-menu：「⋯」選單開關；restock：選單內【已補貨】；toggle-select：多選時勾選。
-const emit = defineEmits(['open', 'add-to-list', 'toggle-menu', 'close-menu', 'restock', 'toggle-select'])
+// open：進入用品詳情；toggle-menu / close-menu：「⋯」選單開關；restock／snooze：選單內【已補貨】【暫時不用補貨】；toggle-select：多選時勾選。
+const emit = defineEmits(['open', 'add-to-list', 'toggle-menu', 'close-menu', 'restock', 'snooze', 'toggle-select'])
 
 const isOverdue = computed(() => props.item.status === STATUS.OVERDUE)
 // 沒有補貨紀錄時只顯示空間（HOME-04）。
@@ -45,9 +45,9 @@ function activate() {
   emit(props.selecting ? 'toggle-select' : 'open')
 }
 
-function restock() {
+function chooseMenuOption(event) {
   emit('close-menu')
-  emit('restock')
+  emit(event)
 }
 </script>
 
@@ -94,7 +94,8 @@ function restock() {
         <template v-if="menuOpen">
           <div class="popover-backdrop" @click.stop="emit('close-menu')" />
           <div class="reminder-popover" role="menu" @click.stop>
-            <button type="button" class="popover-option" role="menuitem" @click="restock">已補貨</button>
+            <button type="button" class="popover-option" role="menuitem" @click="chooseMenuOption('restock')">已補貨</button>
+            <button type="button" class="popover-option" role="menuitem" @click="chooseMenuOption('snooze')">暫時不用補貨</button>
           </div>
         </template>
       </div>
