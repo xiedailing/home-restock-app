@@ -1,10 +1,10 @@
 # Feature 004｜首頁（修訂版 1）
 
-> 草案日：2026-10-10；修訂日：2026-10-10（決策 HOME-01～HOME-07）、2026-10-11（HOME-08：FR-406 對齊 Figma）。業務規則以 `specs/001-reminder-restock/spec.md`（以下簡稱 001）為準；記錄補貨、加入清單沿用 003 的 store 行為。
+> 草案日：2026-10-10；修訂日：2026-10-10（決策 HOME-01～HOME-07）、2026-10-11（HOME-08：FR-406 對齊 Figma；HOME-09：最近更新卡放空狀態）。業務規則以 `specs/001-reminder-restock/spec.md`（以下簡稱 001）為準；記錄補貨、加入清單沿用 003 的 store 行為。
 > 決策舊值、新值與原因見 `docs/DECISION_LOG.md`〈Feature 004〉。
 
 ## 目標
-首頁讓使用者一眼看到「現在該處理哪些用品」，並直接在卡片上加入購買清單或記錄補貨。取代目前的佔位畫面（`HomeView.vue`）。**不包含「最近更新」卡、「暫時不用補貨」與推播。**
+首頁讓使用者一眼看到「現在該處理哪些用品」，並直接在卡片上加入購買清單或記錄補貨。取代目前的佔位畫面（`HomeView.vue`）。**「最近更新」卡只放空狀態；不包含「暫時不用補貨」與推播。**
 
 ## 來源
 | 來源 | 內容 | 讀取範圍 |
@@ -13,12 +13,13 @@
 | Figma「[Current] 首頁V3 / 補貨提醒操作狀態」(708:5934) | 記錄補貨、已記錄補貨、暫時不用補貨＋開發邏輯註解 708:6294 | 圖層樹與註解 |
 | Figma「[Prototype] Flow 02｜首頁補貨提醒處理」(1497:16262) | 流程畫面與 Caption | 圖層樹與 Caption |
 | Figma「[Current] 首頁 Soft UI V1 Components」(692:5012) | Summary Card、Suggestion Card、Popover、Toast、Empty State | 元件清單 |
+| Figma「Proposal / Soft Recent Update Card」(992:2) | 最近更新卡 Default／Empty（985:2） | 設計細節 |
 | 001、003、DECISION_LOG | 狀態判斷、提醒門檻 T、完成補貨、加入清單、Toast 規則 | 完整 |
 | 本機 repo | `HomeView.vue`（佔位）、`stores/items.js`、`components/item-detail/*` | 完整 |
 
 ## 畫面結構（由上到下，依 693:3575）
 1. **Header**：「補補」＋「所有空間的補貨總覽」、右側個人頭像（同我的用品）。
-2. **待買用品摘要卡**：寬度撐滿；不做「最近更新」卡（HOME-01）。
+2. **摘要區**：待買用品摘要卡＋最近更新卡並排（HOME-09；Figma 705:4342，最近更新 132 寬、間距 14）。
 3. **補貨提醒**：標題＋「N 項該補貨」徽章＋右側【多選】；下方為補貨提醒卡片列表。
 4. Bottom Nav（首頁選中）。
 
@@ -61,6 +62,11 @@
 ### FR-407｜Toast 位置（HOME-07）
 - `AppToast` 依目前頁面是否隱藏 Bottom Nav 決定位置：有 Nav 時在 Nav 上方（同我的用品 132px），沒有時維持 46px。
 
+### FR-408｜最近更新卡（HOME-09）
+- 固定顯示空狀態（Figma State=Empty，985:2）：灰色時鐘圖示、「最近更新」、「尚無更新紀錄」；無箭頭、無陰影、不可點擊。
+- 首頁卡寬 132，不放 Figma 第二行「補貨後會顯示在這裡」。
+- 有成員操作紀錄（001 D8）後再另訂顯示規則。
+
 ## 資料與 store
 - 不新增欄位。
 - `stores/items.js` 新增 computed `restockReminders`（FR-401 的清單與排序）。
@@ -70,7 +76,7 @@
 | 檔案 | 改動 |
 |---|---|
 | `src/views/HomeView.vue` | 改寫 |
-| `src/components/home/*`（新增） | 待買摘要卡、補貨提醒卡片、Popover、多選 Action Bar（004-B） |
+| `src/components/home/*`（新增） | 待買摘要卡、最近更新卡（HOME-09）、補貨提醒卡片、Popover、多選 Action Bar（004-B） |
 | `src/stores/items.js` | `restockReminders`、`addManyToShoppingList`（004-B） |
 | `src/components/AppToast.vue` | 依 Bottom Nav 決定位置 |
 | `src/composables/useBottomNav.js`（新增，004-B） | 頁面暫時隱藏 Bottom Nav（多選），`App.vue`、`AppToast` 共用 |
@@ -82,7 +88,7 @@
 - **004-B**：多選批次加入。
 
 ## 範圍限制
-- 不做「最近更新」卡（HOME-01）、「暫時不用補貨」（HOME-05，另立 005）、推播通知、首頁 RWD（Figma 119:386 標示尚未調整）。
+- 「最近更新」只放空狀態（HOME-09）；不做「暫時不用補貨」（HOME-05，另立 005）、推播通知、首頁 RWD（Figma 119:386 標示尚未調整）。
 - 不修 003 KI-01（跨日狀態更新），但首頁會受影響。
 
 ## 驗收情境
@@ -98,6 +104,7 @@
 | 6 | 沒有補貨紀錄的用品 | meta 只顯示空間 |
 | 7 | 首頁 Toast | 位於 Bottom Nav 上方，不被遮住 |
 | 8 | （004-B）多選勾 2 項 →【加入清單（2 項）】 | 兩項加入清單、從補貨提醒移除、離開多選、Bottom Nav 恢復 |
+| 8a | 開首頁 | 待買卡右側有「最近更新」卡，顯示「尚無更新紀錄」，點擊無反應；待買 0 項與 4 項以上時版面不擠壓 |
 | 9 | 回歸 | 我的用品、新增用品、用品詳情流程正常；`npm run build` 成功 |
 
 ## Figma 與規格的差異
@@ -107,9 +114,9 @@
 | H2 | Toast 用語 | 「已加入購物清單」 | 「已加入購買清單」（全 App 用「購買清單」） |
 | H3 | 多選按鈕 | 「加入待買（N 項）」 | 「加入清單（N 項）」（HOME-06） |
 | H4 | 加入清單後的卡片 | 註解 704:4423：卡片變「已加入清單」 | 從補貨提醒移除（HOME-02，與 Flow 02 Caption 一致） |
-| H5 | 摘要區 | 待買＋最近更新兩張 | 只有待買，寬度撐滿（HOME-01） |
+| H5 | 摘要區 | 待買＋最近更新兩張，最近更新有資料 | 兩張並排；最近更新固定空狀態，只顯示「尚無更新紀錄」（HOME-09） |
 | H6 | Popover | 已補貨、暫時不用補貨 | 只有已補貨（HOME-05） |
 | H7 | 批次加入 Toast（1243:7640） | 「已加入 2 項到待買清單」＋「復原」 | 「已加入 N 項到購買清單」＋「查看」（FR-405，同 FR-403） |
 
 ## 尚需釐清
-- 無。原 Q1～Q7 已定案，見 DECISION_LOG HOME-01～HOME-07。
+- 無。原 Q1～Q7 已定案，見 DECISION_LOG HOME-01～HOME-09。

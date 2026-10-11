@@ -1,6 +1,6 @@
 <script setup>
 // 首頁（specs/004-home）。Figma：[Current] 首頁V3 / Mobile（692:5011）一般狀態 693:3575、多選 693:3838、Empty State 1198:9734。
-// 不做「最近更新」卡（HOME-01）。
+// 「最近更新」卡目前固定為空狀態（HOME-09）。
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
@@ -11,6 +11,7 @@ import { profile } from '../stores/profile'
 import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
 import AppToast from '../components/AppToast.vue'
 import ShoppingSummaryCard from '../components/home/ShoppingSummaryCard.vue'
+import RecentUpdateCard from '../components/home/RecentUpdateCard.vue'
 import ReminderCard from '../components/home/ReminderCard.vue'
 import RestockSheet from '../components/item-detail/RestockSheet.vue'
 import emptyIcon from '../assets/home/reminders-empty.svg'
@@ -89,7 +90,10 @@ function onRestockConfirm(restock) {
         </div>
         <img class="profile-avatar" :src="profile.avatar || defaultAvatar" alt="個人頭像" />
       </header>
-      <ShoppingSummaryCard :items="shoppingList" />
+      <div class="summary-row">
+        <ShoppingSummaryCard :items="shoppingList" />
+        <RecentUpdateCard />
+      </div>
     </div>
 
     <section class="reminder-section" aria-labelledby="reminder-title">
@@ -171,6 +175,8 @@ function onRestockConfirm(restock) {
   text-align: left;
 }
 .home-top { display: flex; flex-direction: column; gap: t.$space-16; }
+// Figma Top Summary Row（705:4342）：待買 212＋最近更新 132，間距 14。
+.summary-row { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 14px; }
 .home-header { display: flex; align-items: center; justify-content: space-between; gap: t.$space-16; min-height: 48px; }
 h1 { margin: 0 0 2px; color: #2b2a26; font: t.$font-weight-bold t.$font-size-heading / normal t.$font-family; }
 .home-subtitle { margin: 0; color: #8b8880; font: t.$font-weight-regular t.$font-size-caption / normal t.$font-family; }

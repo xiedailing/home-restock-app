@@ -1,6 +1,6 @@
 <script setup>
 // 首頁待買用品摘要卡（specs/004 FR-406）。Figma：Soft Summary Card / 待買（630:3249；Items = 0 為 988:2）。
-// 寬度撐滿，不做「最近更新」卡（HOME-01）。整張卡點擊前往購買清單。
+// 與「最近更新」卡並排（HOME-09）。整張卡點擊前往購買清單。
 import { computed } from 'vue'
 import { STATUS } from '../../models/item'
 import { getItemIcon } from '../../assets/household-icons-by-state/index.js'
