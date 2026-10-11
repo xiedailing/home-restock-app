@@ -1,6 +1,6 @@
 # Feature 004｜首頁（修訂版 1）
 
-> 草案日：2026-10-10；修訂日：2026-10-10（決策 HOME-01～HOME-07）。業務規則以 `specs/001-reminder-restock/spec.md`（以下簡稱 001）為準；記錄補貨、加入清單沿用 003 的 store 行為。
+> 草案日：2026-10-10；修訂日：2026-10-10（決策 HOME-01～HOME-07）、2026-10-11（HOME-08：FR-406 對齊 Figma）。業務規則以 `specs/001-reminder-restock/spec.md`（以下簡稱 001）為準；記錄補貨、加入清單沿用 003 的 store 行為。
 > 決策舊值、新值與原因見 `docs/DECISION_LOG.md`〈Feature 004〉。
 
 ## 目標
@@ -53,8 +53,9 @@
 - 確認 → 勾選的用品全部加入購買清單；Toast「已加入 N 項到購買清單」＋「查看」；離開多選。
 
 ### FR-406｜待買用品摘要卡
-- 數字＝購買清單中的用品數（`shoppingList.length`）；0 時顯示「0 項」與空狀態圖示（Figma `Soft Summary Card / 待買` Items = 0）。
-- 圖示最多 3 個，依加入清單日期新到舊。
+- 數字＝購買清單中的用品數（`shoppingList.length`）。
+- 0 項：不顯示數字與圖示，改為「目前沒有待買用品」，卡片無陰影（Figma `Soft Summary Card / 待買` Items = 0，988:2；HOME-08）。
+- 1～3 項：顯示全部用品圖示；4 項以上：顯示 2 個圖示＋「+N」（N ＝ 總數 − 2；Figma Items = 4+，630:3219）。圖示依加入清單日期新到舊。
 - 點擊 → `/shopping`。
 
 ### FR-407｜Toast 位置（HOME-07）
