@@ -2,7 +2,7 @@
 // 用品詳情狀態卡（specs/003 FR-302）。Figma：Draft A／B、948:7773、966:8254。
 // 視覺只分兩種提醒狀態（001 D6）：該補貨了白底＋暖橘外框；補貨時間已過淡紅底＋紅字（D6-1）。不用驚嘆號。
 import { computed } from 'vue'
-import { STATUS, daysUntil, toDateString } from '../../models/item'
+import { STATUS, daysUntil, isSnoozed, toDateString } from '../../models/item'
 
 const props = defineProps({
   item: { type: Object, required: true }, // 含 status
@@ -30,6 +30,12 @@ const counter = computed(() => {
 const digits = computed(() => (counter.value ? String(counter.value.days).padStart(2, '0').split('') : []))
 // 剩 0 天不顯示「00 天」（specs/003 DET-10）。
 const isDueToday = computed(() => props.item.status === STATUS.DUE_SOON && daysLeft.value === 0)
+// 「暫時不用補貨」延後中：只提示，不改變狀態（specs/005 SNZ-03）。
+const snoozeText = computed(() => {
+  if (!isSnoozed(props.item)) return ''
+  const [, month, day] = props.item.snoozedUntil.split('-').map(Number)
+  return `已延後提醒至 ${month}/${day}`
+})
 // 購買清單中且提醒關閉時，不顯示預計補貨日。
 const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextRestockDate && props.item.status !== STATUS.REMINDER_OFF)
 </script>
@@ -44,6 +50,7 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
       <div class="status-text">
         <h2 id="status-card-title">{{ copy.title }}</h2>
         <p>{{ copy.description }}</p>
+        <p v-if="snoozeText" class="snooze-note">{{ snoozeText }}</p>
       </div>
     </div>
 
@@ -121,6 +128,7 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
   p { margin: t.$space-4 0 0; color: t.$text-body; font: t.$font-weight-regular 14px / 22px t.$font-family; }
 }
 h2 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
+.status-text .snooze-note { color: t.$text-sub; font-weight: t.$font-weight-medium; }
 .info-panel {
   padding: t.$space-12 t.$space-16;
   display: flex;
