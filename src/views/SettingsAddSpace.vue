@@ -20,7 +20,7 @@ const nameCountHint = computed(() => {
   const text = name.value
   const asciiOnly = /^[\x00-\x7F]*$/.test(text) && text.length > 0
   const count = asciiOnly ? Array.from(text).length : Array.from(text).reduce((total, char) => total + (char.codePointAt(0) <= 127 ? 0.5 : 1), 0)
-  return `${count}/${asciiOnly ? 16 : 8}`
+  return `${Math.floor(count)}/${asciiOnly ? 16 : 8}`
 })
 function updateNameInput(event) {
   // 組字期間保留輸入法內容，選字完成後移除所有空白。
@@ -96,6 +96,7 @@ function addSpace() {
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/space-layout' as layout;
 
 .add-space-page {
   width: 100%;
@@ -139,14 +140,13 @@ h2 { margin: 0 0 t.$space-16; font: 700 16px / 22px t.$font-family; }
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 60px;
-  padding: t.$space-12 t.$space-16;
+  @include layout.row(60px, t.$space-16);
   position: relative;
   color: t.$text-body;
   font-size: 14px;
   line-height: 20px;
   > :first-child { flex: 1; }
-  &::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: t.$border-color; }
+  @include layout.divider;
   input {
     max-width: 100%;
     width: 100%;

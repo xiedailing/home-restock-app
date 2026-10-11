@@ -1,0 +1,21 @@
+@use './tokens' as t;
+
+// 空間頁共用列規則。列表與資訊列分別容納文字、切換鈕等內容。
+@mixin row($height: 48px, $inset: 0) {
+  box-sizing: border-box;
+  min-height: $height;
+  padding: t.$space-12 $inset;
+}
+
+// 分隔線不占列高，避免進入排序或增加線條時列高改變。
+@mixin divider {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 1px;
+    background: t.$border-color;
+    pointer-events: none;
+  }
+}

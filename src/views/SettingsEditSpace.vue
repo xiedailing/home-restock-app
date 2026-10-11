@@ -62,7 +62,7 @@ const nameCountHint = computed(() => {
   const text = draftName.value
   const asciiOnly = /^[\x00-\x7F]*$/.test(text) && text.length > 0
   const count = asciiOnly ? Array.from(text).length : Array.from(text).reduce((total, char) => total + (char.codePointAt(0) <= 127 ? 0.5 : 1), 0)
-  return `${count}/${asciiOnly ? 16 : 8}`
+  return `${Math.floor(count)}/${asciiOnly ? 16 : 8}`
 })
 function updateNameInput(event) {
   // 組字期間保留輸入法內容，選字完成後移除所有空白。
@@ -233,6 +233,7 @@ function confirmLeave() {
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/space-layout' as layout;
 .members-toggle { width: 100%; display: flex; align-items: center; justify-content: center; gap: t.$space-8; margin-bottom: t.$space-12; padding: t.$space-8; border: 0; background: transparent; color: t.$text-sub; font: 400 t.$font-size-caption t.$font-family; }
 .name-count-value { position: absolute; right: 36px; top: 18px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; white-space: nowrap; pointer-events: none; }
 .edit-space-page { max-width: 358px; width: 100%; margin-inline: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 16px; text-align: left; color: t.$text-main; font-family: t.$font-family; }
@@ -240,8 +241,8 @@ function confirmLeave() {
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; transform: rotate(180deg); } }
 h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
 .space-card { padding: t.$space-16; border: 1px solid rgba(237,234,227,.4); border-radius: 20px; background: #fbfaf6; box-shadow: t.$shadow-card; overflow: hidden; }
-.info-row { display: flex; align-items: center; gap: t.$space-8; width: 100%; min-height: 60px; padding: t.$space-12 t.$space-16; color: t.$text-body; font: 400 14px / 20px t.$font-family; > span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 20px; height: 20px; } }
-.name-row { flex-wrap: wrap; column-gap: t.$space-8; row-gap: 0; background: transparent; border: 0; border-bottom: 1px solid t.$border-color; text-align: left; }
+.info-row { display: flex; align-items: center; gap: t.$space-8; width: 100%; @include layout.row(60px, t.$space-16); color: t.$text-body; font: 400 14px / 20px t.$font-family; > span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 20px; height: 20px; } }
+.name-row { flex-wrap: wrap; column-gap: t.$space-8; row-gap: 0; background: transparent; border: 0; @include layout.divider; text-align: left; }
 .name-main-row { display: flex; align-items: flex-start; gap: t.$space-8; width: 100%; min-height: 36px; }
 .name-main-row > label, .name-main-row > span { flex: 1; display: flex; align-items: center; height: 36px; white-space: nowrap; }
 .name-main-row > strong, .name-main-row > .name-edit-button { min-height: 36px; display: flex; align-items: center; }
@@ -258,7 +259,7 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
 .name-edit-button { padding: 0; border: 0; background: transparent; display: grid; place-items: center; }
 .name-edit-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; color: t.$text-disabled; font-size: 16px; flex-shrink: 0; }
 .info-row strong.disabled-value { color: t.$text-disabled; }
-.usage-row { gap: 8px; border-bottom: 1px solid t.$border-color; }
+.usage-row { gap: 8px; @include layout.divider; }
 .usage-switch {
   &:disabled { cursor: not-allowed; }
   flex: 0 0 t.$switch-width;
@@ -289,7 +290,7 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
   }
   legend { float: left; width: 100%; margin: 0 0 t.$space-8; font: 400 14px / 20px t.$font-family; color: t.$text-body; }
 }
-.members-card { .info-row { border-bottom: 1px solid t.$border-color; } }
+.members-card { .info-row { @include layout.divider; } }
 .member-row { gap: t.$space-12; }
 .member-row .member-avatar { width: 32px; height: 32px; flex-shrink: 0; object-fit: cover; border-radius: 50%; background: t.$active-green; }
 .members-card .info-row + .invite-button { margin-top: t.$space-16; }
@@ -327,18 +328,18 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
   align-items: center;
   justify-content: center;
   gap: t.$space-8;
-  border: 1px solid t.$border-color;
+  border: 0;
   border-radius: t.$radius-pill;
-  background: t.$card-bg;
-  color: t.$text-main;
-  box-shadow: t.$shadow-card;
+  background: t.$toast-background;
+  color: t.$toast-text;
+  box-shadow: t.$toast-shadow;
   font-family: t.$font-family;
   font-weight: t.$font-weight-bold;
   font-size: t.$font-size-body-sm;
   line-height: t.$line-height-body;
   text-align: center;
   pointer-events: none;
-  i { color: t.$primary-green; flex-shrink: 0; }
+  i { color: t.$toast-success-accent; flex-shrink: 0; }
 }
 .color-toast-leave-active { transition: opacity .5s ease; }
 .color-toast-leave-to { opacity: 0; }

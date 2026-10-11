@@ -68,6 +68,8 @@ export const routes = [
     component: () => import('../views/SettingsEditSpace.vue'),
     meta: { title: '編輯空間' },
   },
+  { path: '/settings/items', name: 'item-management', component: () => import('../views/SettingsItemsView.vue'), meta: { title: '用品管理' } },
+  { path: '/settings/items/:category', name: 'item-category', component: () => import('../views/SettingsItemCategory.vue'), meta: { title: '分類用品' } },
   { path: '/:pathMatch(.*)*', redirect: '/home' },
 ]
 

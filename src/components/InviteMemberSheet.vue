@@ -110,18 +110,18 @@ onBeforeUnmount(() => { clearTimeout(copyTimer); clearTimeout(closeTimer); dialo
   align-items: center;
   justify-content: center;
   gap: t.$space-8;
-  border: 1px solid t.$border-color;
+  border: 0;
   border-radius: t.$radius-pill;
-  background: t.$card-bg;
-  color: t.$text-main;
-  box-shadow: t.$shadow-card;
+  background: t.$toast-background;
+  color: t.$toast-text;
+  box-shadow: t.$toast-shadow;
   font-family: t.$font-family;
   font-weight: t.$font-weight-bold;
   font-size: t.$font-size-body-sm;
   line-height: t.$line-height-body;
   text-align: center;
   pointer-events: none;
-  i { color: t.$primary-green; flex-shrink: 0; }
+  i { color: t.$toast-success-accent; flex-shrink: 0; }
 }
 .copy-toast-leave-active { transition: opacity .5s ease; }
 .copy-toast-leave-to { opacity: 0; }

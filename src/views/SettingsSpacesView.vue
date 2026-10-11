@@ -3,7 +3,6 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import { getSpaceColor } from '../models/space'
-import toastCheck from '../assets/settings/toast-check.svg'
 import chevron from '../assets/settings/chevron.svg'
 
 const store = useItemsStore()
@@ -11,7 +10,9 @@ const route = useRoute()
 const router = useRouter()
 const spaceList = ref(null)
 const inviteCode = ref(typeof route.query.invite === 'string' ? route.query.invite : '')
+const validInviteCode = computed(() => /^[A-Za-z]{3}-\d{4}$/.test(inviteCode.value.trim()))
 const notice = ref('')
+const joinSucceeded = ref(false)
 const createdSpace = computed(() => store.getSpace(route.query.createdSpaceId))
 const createdToast = ref(false)
 const exitToast = ref(false)
@@ -115,7 +116,9 @@ onBeforeUnmount(() => {
 })
 let noticeTimer
 function joinSpace() {
+  if (!validInviteCode.value) return
   const result = store.joinSpaceByCode(inviteCode.value)
+  joinSucceeded.value = result.ok
   notice.value = result.message
   clearTimeout(noticeTimer)
   noticeTimer = setTimeout(() => { notice.value = '' }, 3500)
@@ -153,8 +156,8 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
       </div>
       <Teleport to="body">
         <Transition name="created-success-toast">
-          <div v-if="createdToast" class="created-space-toast" role="status">
-            <span class="created-message"><img :src="toastCheck" alt="" />已成功新增空間</span>
+          <div v-if="createdToast" class="created-space-toast" :class="{ 'compact-created-toast': !createdSpace?.shared }" role="status">
+            <span class="created-message"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>已成功新增空間</span>
             <button v-if="createdSpace?.shared" type="button" @click="openCreatedInvite">邀請成員</button>
           </div>
         </Transition>
@@ -174,9 +177,9 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
       <form class="spaces-card join-form" @submit.prevent="joinSpace">
         <label class="visually-hidden" for="invite-code">空間邀請碼</label>
         <input id="invite-code" v-model="inviteCode" placeholder="輸入空間邀請碼" autocomplete="off" />
-        <button type="submit" class="join-button">加入</button>
+        <button type="submit" class="join-button" :disabled="!validInviteCode">加入</button>
       </form>
-      <Teleport to="body"><Transition name="join-toast"><p v-if="notice" class="invite-toast" role="status">{{ notice }}</p></Transition></Teleport>
+      <Teleport to="body"><Transition name="join-toast"><p v-if="notice" class="invite-toast" :class="{ 'is-error': !joinSucceeded }" role="status"><i :class="joinSucceeded ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'" aria-hidden="true"></i>{{ notice }}</p></Transition></Teleport>
     </section>
 
   </section>
@@ -184,8 +187,7 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
-// 頁面靜止時保留卡片陰影，切頁動畫期間沿用 App 的裁切。
-:global(.app-container .app-content:has(.spaces-page):not(:has(.page-forward-enter-active, .page-forward-leave-active, .page-back-enter-active, .page-back-leave-active))) { overflow: visible; }
+@use '../assets/scss/space-layout' as layout;
 
 .spaces-page {
   width: 100%;
@@ -223,14 +225,13 @@ h2 { margin: 0 0 16px; color: #292624; font: 700 16px / 22px t.$font-family; }
   background: #fbfaf6;
   box-shadow: t.$shadow-card;
 }
-.space-list { padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid t.$border-color; }
+.space-list { padding-bottom: 0; margin-bottom: t.$space-16; @include layout.divider; }
 .space-row {
   display: flex;
   align-items: center;
   gap: 11px;
   width: 100%;
-  min-height: 48px;
-  padding: 12px 8px 12px 16px;
+  @include layout.row;
   border: 0;
   background: transparent;
   text-align: left;
@@ -242,8 +243,9 @@ h2 { margin: 0 0 16px; color: #292624; font: 700 16px / 22px t.$font-family; }
   font: 400 14px / 20px t.$font-family;
   img { width: 16px; height: 16px; flex-shrink: 0; }
 }
+.space-row:not(:last-child) { @include layout.divider; }
 .space-list.sorting .space-row { touch-action: none; cursor: grab; user-select: none; }
-.space-row.is-dragging { background: t.$input-bg; border-radius: t.$radius-input; cursor: grabbing; }
+.space-row.is-dragging { background: t.$input-bg; border-radius: 0; cursor: grabbing; }
 .sort-grip { color: t.$text-disabled; flex-shrink: 0; }
 .space-sort-move { transition: transform .5s ease; }
 .space-sort-enter-active { transition: transform .5s ease, opacity .5s ease; }
@@ -251,7 +253,7 @@ h2 { margin: 0 0 16px; color: #292624; font: 700 16px / 22px t.$font-family; }
 .space-list { overflow-x: clip; }
 .join-toast-enter-active, .join-toast-leave-active { transition: transform .5s ease; }
 .join-toast-enter-from, .join-toast-leave-to { transform: translate(-50%, 24px); }
-.sort-grip { display: grid; place-items: center; width: 32px; min-height: 24px; cursor: grab; touch-action: none; }
+.sort-grip { display: grid; place-items: center; width: 32px; height: 20px; cursor: grab; touch-action: none; }
 @media (prefers-reduced-motion: reduce) { .space-sort-move, .space-sort-enter-active, .join-toast-enter-active, .join-toast-leave-active { transition: none; } }
 .space-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
 .space-name { flex: 1; overflow-wrap: anywhere; }
@@ -301,7 +303,7 @@ h2:has(+ .section-description) { margin-bottom: t.$space-8; }
 .invite-toast { position: fixed; bottom: 132px; left: 50%; transform: translateX(-50%); z-index: 1100; max-width: calc(100% - 32px); padding: 14px 24px; border: 1px solid t.$border-color; border-radius: t.$radius-pill; background: t.$card-bg; color: t.$text-main; box-shadow: t.$shadow-card; font: 700 14px / 20px t.$font-family; text-align: center; }
 .created-space-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: t.$toast-max-width; max-width: calc(100% - t.$toast-inset-inline * 2); min-height: 52px; padding: 8px 22px 8px 18px; display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; border: 1px solid #d4cbbe; border-radius: t.$radius-pill; background: t.$card-bg; box-shadow: 0 -2px 8px rgba(255,255,255,.8), 0 8px 24px rgba(140,136,127,.36), 0 2px 6px rgba(107,102,92,.2); color: t.$text-main; font: 500 14px t.$font-family; button { padding: 8px 0; border: 0; background: transparent; color: t.$primary-green; font: 700 14px t.$font-family; white-space: nowrap; } }
 .created-message { display: flex; align-items: center; gap: 10px; img { width: 22px; height: 22px; flex-shrink: 0; } }
-.exit-space-toast { width: max-content; justify-content: center; }
+.exit-space-toast, .compact-created-toast { width: max-content; justify-content: center; }
 .exit-space-toast i { color: t.$primary-green; font-size: 20px; flex-shrink: 0; }
 .created-success-toast-enter-active, .created-success-toast-leave-active { transition: opacity .5s ease; }
 .created-success-toast-enter-from, .created-success-toast-leave-to { opacity: 0; }
@@ -312,4 +314,9 @@ h2:has(+ .section-description) { margin-bottom: t.$space-8; }
 .member-count { color: t.$text-main; white-space: nowrap; }
 button { cursor: pointer; }
 .space-row:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+.join-button { cursor: pointer; &:disabled { background: #e0e0e0; color: #a6a6a6; box-shadow: none; cursor: default; } }
+.invite-toast, .created-space-toast { box-sizing: border-box; min-height: t.$toast-min-height; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); padding: t.$toast-padding-block t.$toast-padding-inline; bottom: t.$toast-bottom; border: 0; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-family: t.$font-family; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; i { color: t.$toast-success-accent; } }
+.invite-toast { display: flex; align-items: center; gap: t.$space-8; margin: 0; &.is-error i { color: t.$toast-error-accent; } }
+.created-space-toast button { color: t.$toast-success-accent; }
+.created-message i { font-size: 20px; flex-shrink: 0; }
 </style>

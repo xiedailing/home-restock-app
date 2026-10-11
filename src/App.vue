@@ -18,9 +18,12 @@ const router = useRouter()
 const itemsStore = useItemsStore()
 const pageTransition = ref('page-forward')
 const animateSettingsPages = ref(false)
+const animateItemsPages = ref(route.path === '/settings/items' || route.path.startsWith('/settings/items/'))
+const isItemsPage = path => path === '/settings/items' || path.startsWith('/settings/items/')
 const isSettingsPage = path => path === '/settings' || path.startsWith('/settings/')
 watch(() => route.path, (to, from) => {
   animateSettingsPages.value = isSettingsPage(to) && isSettingsPage(from)
+  animateItemsPages.value = isItemsPage(to) || isItemsPage(from)
   const toDepth = to.split('/').filter(Boolean).length
   const fromDepth = from.split('/').filter(Boolean).length
   const goingBack = toDepth < fromDepth
@@ -37,7 +40,7 @@ const handlePlusClick = () => {
 <template>
   <div class="app-container">
     <!-- 主內容呈現區 -->
-    <main class="app-content" :class="{ 'without-nav': route.meta.hideBottomNav }">
+    <main class="app-content" :class="{ 'without-nav': route.meta.hideBottomNav, 'items-page-transition': animateSettingsPages && animateItemsPages }">
       <RouterView v-slot="{ Component, route: pageRoute }">
         <Transition :name="pageTransition" :css="animateSettingsPages">
           <div :key="pageRoute.path" class="page-view">
@@ -70,6 +73,17 @@ const handlePlusClick = () => {
   overflow-x: clip;
 }
 .page-view { grid-area: 1 / 1; min-width: 0; }
+
+/* 用品管理的切頁包含左右留白，內容仍維持原本的寬度與位置。 */
+.app-content.items-page-transition {
+  margin-inline: -16px;
+}
+.items-page-transition > .page-view {
+  padding-inline: 16px;
+  background: var(--bs-body-bg);
+}
+.items-page-transition > .page-forward-enter-active,
+.items-page-transition > .page-back-enter-active { position: relative; z-index: 1; }
 
 .app-content.without-nav {
   padding-bottom: 0;
