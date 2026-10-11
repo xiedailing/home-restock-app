@@ -138,6 +138,11 @@ export const useItemsStore = defineStore('items', () => {
     updateItem(id, { inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString() })
   }
 
+  // 首頁多選批次加入（specs/004 FR-405）。
+  function addManyToShoppingList(ids) {
+    ids.forEach(addToShoppingList)
+  }
+
   function removeFromShoppingList(id) {
     updateItem(id, { inShoppingList: false, quantity: null, addedToShoppingListDate: null })
   }
@@ -345,6 +350,7 @@ export const useItemsStore = defineStore('items', () => {
     undoRemoveItem,
     clearRecentlyRemoved,
     addToShoppingList,
+    addManyToShoppingList,
     removeFromShoppingList,
     disableReminder,
     enableReminder,

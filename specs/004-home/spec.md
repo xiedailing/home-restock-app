@@ -73,6 +73,7 @@
 | `src/components/home/*`（新增） | 待買摘要卡、補貨提醒卡片、Popover、多選 Action Bar（004-B） |
 | `src/stores/items.js` | `restockReminders`、`addManyToShoppingList`（004-B） |
 | `src/components/AppToast.vue` | 依 Bottom Nav 決定位置 |
+| `src/composables/useBottomNav.js`（新增，004-B） | 頁面暫時隱藏 Bottom Nav（多選），`App.vue`、`AppToast` 共用 |
 
 不修改：`ShoppingView.vue`（組員負責）。
 
@@ -108,6 +109,7 @@
 | H4 | 加入清單後的卡片 | 註解 704:4423：卡片變「已加入清單」 | 從補貨提醒移除（HOME-02，與 Flow 02 Caption 一致） |
 | H5 | 摘要區 | 待買＋最近更新兩張 | 只有待買，寬度撐滿（HOME-01） |
 | H6 | Popover | 已補貨、暫時不用補貨 | 只有已補貨（HOME-05） |
+| H7 | 批次加入 Toast（1243:7640） | 「已加入 2 項到待買清單」＋「復原」 | 「已加入 N 項到購買清單」＋「查看」（FR-405，同 FR-403） |
 
 ## 尚需釐清
 - 無。原 Q1～Q7 已定案，見 DECISION_LOG HOME-01～HOME-07。

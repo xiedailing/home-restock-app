@@ -1,6 +1,7 @@
 <script setup>
 // 首頁補貨提醒卡片（specs/004 FR-402～FR-404）。Figma：Suggestion Card / Homepage V2（687:5070）、Suggestion Popover（693:4712）。
 // 狀態列不用紅色與驚嘆號（001 D6、HOME-03）；Popover 只有【已補貨】（HOME-05）。
+// 多選模式（FR-405，Figma 693:3838）：點卡片改為勾選，隱藏「⋯」與【加入清單】。
 import { computed, onUnmounted, watch } from 'vue'
 import { STATUS } from '../../models/item'
 import { getItemIcon } from '../../assets/household-icons-by-state/index.js'
@@ -10,9 +11,11 @@ const props = defineProps({
   item: { type: Object, required: true }, // 含 status、daysLeft
   spaceName: { type: String, required: true },
   menuOpen: Boolean, // 由頁面管理，同時只開一個選單
+  selecting: Boolean,
+  selected: Boolean,
 })
-// open：進入用品詳情；toggle-menu / close-menu：「⋯」選單開關；restock：選單內【已補貨】。
-const emit = defineEmits(['open', 'add-to-list', 'toggle-menu', 'close-menu', 'restock'])
+// open：進入用品詳情；toggle-menu / close-menu：「⋯」選單開關；restock：選單內【已補貨】；toggle-select：多選時勾選。
+const emit = defineEmits(['open', 'add-to-list', 'toggle-menu', 'close-menu', 'restock', 'toggle-select'])
 
 const isOverdue = computed(() => props.item.status === STATUS.OVERDUE)
 // 沒有補貨紀錄時只顯示空間（HOME-04）。
@@ -38,6 +41,10 @@ watch(() => props.menuOpen, (open) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
+function activate() {
+  emit(props.selecting ? 'toggle-select' : 'open')
+}
+
 function restock() {
   emit('close-menu')
   emit('restock')
@@ -47,11 +54,14 @@ function restock() {
 <template>
   <article
     class="reminder-card"
-    :class="[`reminder-card--${item.status}`, { 'reminder-card--menu-open': menuOpen }]"
+    :class="[`reminder-card--${item.status}`, { 'reminder-card--menu-open': menuOpen, 'reminder-card--selected': selecting && selected }]"
     tabindex="0"
-    :aria-label="`${item.name}，${statusText}，查看用品詳情`"
-    @click="emit('open')"
-    @keydown.enter.self="emit('open')"
+    :role="selecting ? 'checkbox' : undefined"
+    :aria-checked="selecting ? selected : undefined"
+    :aria-label="selecting ? `${item.name}，${statusText}` : `${item.name}，${statusText}，查看用品詳情`"
+    @click="activate"
+    @keydown.enter.self="activate"
+    @keydown.space.self.prevent="selecting && emit('toggle-select')"
   >
     <div class="info-row">
       <span class="item-stamp" aria-hidden="true">
@@ -67,7 +77,10 @@ function restock() {
           </template>
         </p>
       </div>
-      <div class="more-anchor">
+      <span v-if="selecting" class="select-box" :class="{ 'select-box--checked': selected }" aria-hidden="true">
+        <svg v-if="selected" viewBox="0 0 20 20"><path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </span>
+      <div v-else class="more-anchor">
         <button
           type="button"
           class="more-button"
@@ -95,7 +108,7 @@ function restock() {
       <span>{{ statusText }}</span>
     </div>
 
-    <button type="button" class="btn btn-primary add-button" @click.stop="emit('add-to-list')">
+    <button v-if="!selecting" type="button" class="btn btn-primary add-button" @click.stop="emit('add-to-list')">
       <span class="plus-icon" aria-hidden="true" />加入清單
     </button>
   </article>
@@ -120,6 +133,8 @@ function restock() {
   &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 3px; }
   // 與我的用品列表的圖示底色一致。
   &--overdue { --stamp-bg: #f6c4bc; }
+  // 多選勾選：綠色外框（Figma 693:3838）。
+  &--selected { box-shadow: t.$shadow-card, inset 0 0 0 1.5px #9db59a; }
   // 選單要蓋過下方的卡片。
   &--menu-open { z-index: 20; }
 }
@@ -160,6 +175,21 @@ function restock() {
   cursor: pointer;
   img { position: absolute; top: -6px; left: -6px; }
   &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+}
+// Figma Checkbox：32px；勾選後主綠底白勾。
+.select-box {
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid #a9a59b;
+  border-radius: 10px;
+  background: t.$surface-bg;
+  box-shadow: t.$shadow-raised;
+  color: #fff;
+  svg { width: 20px; height: 20px; }
+  &--checked { border-color: t.$primary-green; background: t.$primary-green; }
 }
 .popover-backdrop { position: fixed; inset: 0; z-index: 1; cursor: default; }
 // Figma Suggestion Popover：176 寬，右緣對齊「⋯」，緊接在按鈕下方。

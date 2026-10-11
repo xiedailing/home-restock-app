@@ -1,11 +1,12 @@
 <script setup>
-// 首頁（specs/004-home，004-A）。Figma：[Current] 首頁V3 / Mobile（692:5011）一般狀態 693:3575、Empty State 1198:9734。
-// 不做「最近更新」卡（HOME-01）與多選（004-B）。
-import { ref } from 'vue'
+// 首頁（specs/004-home）。Figma：[Current] 首頁V3 / Mobile（692:5011）一般狀態 693:3575、多選 693:3838、Empty State 1198:9734。
+// 不做「最近更新」卡（HOME-01）。
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import { useToast } from '../composables/useToast'
+import { bottomNavHiddenByPage } from '../composables/useBottomNav'
 import { profile } from '../stores/profile'
 import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
 import AppToast from '../components/AppToast.vue'
@@ -38,6 +39,38 @@ function addToShoppingList(item) {
 }
 
 // FR-404：記錄補貨同 003 FR-306；復原還原整筆用品，卡片依排序回到原位置。
+// FR-405：多選時隱藏 Bottom Nav，離開首頁一併恢復。
+const selecting = ref(false)
+const selectedIds = ref([])
+// 只計算仍在補貨提醒中的勾選項目。
+const selectedReminderIds = computed(() =>
+  restockReminders.value.filter((item) => selectedIds.value.includes(item.id)).map((item) => item.id),
+)
+watch(selecting, (value) => { bottomNavHiddenByPage.value = value })
+onUnmounted(() => { bottomNavHiddenByPage.value = false })
+
+function startSelecting() {
+  menuItemId.value = null
+  selectedIds.value = []
+  selecting.value = true
+}
+function stopSelecting() {
+  selecting.value = false
+  selectedIds.value = []
+}
+function toggleSelected(item) {
+  selectedIds.value = selectedIds.value.includes(item.id)
+    ? selectedIds.value.filter((id) => id !== item.id)
+    : [...selectedIds.value, item.id]
+}
+function addSelectedToShoppingList() {
+  const ids = selectedReminderIds.value
+  if (!ids.length) return
+  itemsStore.addManyToShoppingList(ids)
+  stopSelecting()
+  showToast(`已加入 ${ids.length} 項到購買清單`, () => router.push({ name: 'shopping' }), '查看')
+}
+
 const restockItem = ref(null)
 function onRestockConfirm(restock) {
   const snapshot = itemsStore.snapshotItem(restockItem.value.id)
@@ -47,7 +80,7 @@ function onRestockConfirm(restock) {
 </script>
 
 <template>
-  <section class="home-page" aria-labelledby="home-title">
+  <section class="home-page" :class="{ 'home-page--selecting': selecting }" aria-labelledby="home-title">
     <div class="home-top">
       <header class="home-header">
         <div>
@@ -63,6 +96,8 @@ function onRestockConfirm(restock) {
       <div class="section-header">
         <h2 id="reminder-title">補貨提醒</h2>
         <span v-if="restockReminders.length" class="reminder-badge">{{ restockReminders.length }} 項該補貨</span>
+        <span v-if="selecting" class="selected-count" aria-live="polite">已選 {{ selectedReminderIds.length }} 項</span>
+        <button v-else-if="restockReminders.length" type="button" class="select-button" @click="startSelecting">多選</button>
       </div>
 
       <ul v-if="restockReminders.length" class="reminder-list" aria-label="補貨提醒列表">
@@ -71,11 +106,14 @@ function onRestockConfirm(restock) {
             :item="item"
             :space-name="spaceName(item.spaceId)"
             :menu-open="menuItemId === item.id"
+            :selecting="selecting"
+            :selected="selectedIds.includes(item.id)"
             @open="openItemDetail(item)"
             @add-to-list="addToShoppingList(item)"
             @toggle-menu="toggleMenu(item)"
             @close-menu="menuItemId = null"
             @restock="restockItem = item"
+            @toggle-select="toggleSelected(item)"
           />
         </li>
       </ul>
@@ -92,6 +130,18 @@ function onRestockConfirm(restock) {
         </RouterLink>
       </div>
     </section>
+
+    <div v-if="selecting" class="select-action-bar">
+      <button type="button" class="btn btn-secondary action-cancel" @click="stopSelecting">取消</button>
+      <button
+        type="button"
+        class="btn btn-primary action-confirm"
+        :disabled="!selectedReminderIds.length"
+        @click="addSelectedToShoppingList"
+      >
+        加入清單（{{ selectedReminderIds.length }} 項）
+      </button>
+    </div>
 
     <RestockSheet
       :open="!!restockItem"
@@ -144,7 +194,42 @@ h2 { margin: 0; color: #2b2a26; font: t.$font-weight-bold t.$font-size-heading /
   font: t.$font-weight-bold t.$font-size-caption / normal t.$font-family;
   white-space: nowrap;
 }
+.selected-count,
+.select-button {
+  margin-left: auto;
+  color: t.$primary-green;
+  font: t.$font-weight-bold t.$font-size-body-sm / normal t.$font-family;
+  white-space: nowrap;
+}
+.select-button {
+  padding: t.$space-4 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; border-radius: 4px; }
+}
 .reminder-list { display: flex; flex-direction: column; gap: 18px; margin: 0; padding: 0; list-style: none; }
+
+// Figma Soft Bottom Action Bar（693:4149）：358×72，固定在底部手勢區上方；取代 Bottom Nav。
+.select-action-bar {
+  position: fixed;
+  bottom: 34px;
+  left: 50%;
+  z-index: 1000;
+  box-sizing: border-box;
+  display: flex;
+  gap: 10px;
+  width: min(358px, calc(100% - 32px));
+  padding: 12px 11px;
+  border-radius: t.$radius-pill;
+  background: t.$card-bg;
+  box-shadow: t.$shadow-floating;
+  transform: translateX(-50%);
+}
+.action-cancel { flex: 0 0 104px; height: t.$button-height; font-size: t.$font-size-button; }
+.action-confirm { flex: 1; height: t.$button-height; font-size: t.$font-size-button; }
+// 留出 Action Bar 高度與間距，最後一張卡片不被蓋住。
+.home-page--selecting { padding-bottom: 96px; }
 
 // Figma Empty State / 沒有補貨提醒・簡潔版（1198:9821）；【新增用品】依 FR-401，樣式同我的用品 Empty State。
 .reminder-empty {
