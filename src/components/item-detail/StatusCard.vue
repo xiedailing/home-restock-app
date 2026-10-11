@@ -1,6 +1,6 @@
 <script setup>
 // 用品詳情狀態卡（specs/003 FR-302）。Figma：Draft A／B、948:7773、966:8254。
-// 視覺只分兩種提醒狀態（001 D6）：該補貨了白底＋暖橘外框；補貨時間已過淡暖橘底＋明顯徽章。不用紅色與驚嘆號。
+// 視覺只分兩種提醒狀態（001 D6）：該補貨了白底＋暖橘外框；補貨時間已過淡紅底＋紅字（D6-1）。不用驚嘆號。
 import { computed } from 'vue'
 import { STATUS, daysUntil, toDateString } from '../../models/item'
 
@@ -88,6 +88,7 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
 .status-card {
   --icon-bg: #{t.$success-subtle};
   --icon-color: #{t.$primary-green};
+  --counter-color: #{t.$accent-text};
   padding: t.$space-20;
   display: flex;
   flex-direction: column;
@@ -97,7 +98,7 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
   background: t.$card-bg;
   box-shadow: t.$shadow-card;
   &--dueSoon { --icon-bg: #ffebd7; --icon-color: #{t.$accent-orange}; border-color: #f7c48f; }
-  &--overdue { --icon-bg: #ffdec0; --icon-color: #{t.$accent-text}; border-color: #f7c48f; background: t.$accent-soft; }
+  &--overdue { --icon-bg: #fde3df; --icon-color: #{t.$danger}; --counter-color: #{t.$danger}; border-color: #f0b7ad; background: #fff4f2; }
   &--inShoppingList { --icon-bg: #{t.$primary-subtle}; border-color: #b8d1af; }
   &--reminderOff { --icon-bg: #f0eee8; --icon-color: #{t.$text-sub}; }
 }
@@ -140,10 +141,10 @@ h2 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
   border-radius: t.$radius-md;
   background: t.$input-bg;
   box-shadow: t.$shadow-inset;
-  color: t.$accent-text;
+  color: var(--counter-color);
   font: t.$font-weight-bold 32px / 1 t.$font-family;
 }
-.counter-unit { color: t.$accent-text; font: t.$font-weight-bold 15px / normal t.$font-family; }
+.counter-unit { color: var(--counter-color); font: t.$font-weight-bold 15px / normal t.$font-family; }
 .due-today { margin: 0; color: t.$accent-text; font: t.$font-weight-bold 16px / 24px t.$font-family; }
 .panel-divider { height: 1px; background: t.$border-color; }
 .date-row {
