@@ -3,7 +3,7 @@ import { onUnmounted, ref } from 'vue'
 import { UNDO_DURATION_MS } from '../stores/items'
 
 export function useToast() {
-  const toast = ref(null) // { message, undo }
+  const toast = ref(null) // { message, undo, actionLabel }
   let timer = null
 
   function hideToast() {
@@ -12,10 +12,10 @@ export function useToast() {
     toast.value = null
   }
 
-  // undo 為選填；有傳入時 Toast 顯示「復原」。
-  function showToast(message, undo = null) {
+  // undo 為選填；有傳入時 Toast 顯示按鈕，文字預設「復原」，可改成「查看」等（specs/004 FR-403）。
+  function showToast(message, undo = null, actionLabel = '復原') {
     clearTimeout(timer)
-    toast.value = { message, undo }
+    toast.value = { message, undo, actionLabel }
     timer = setTimeout(hideToast, UNDO_DURATION_MS)
   }
 

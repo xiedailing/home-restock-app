@@ -12,8 +12,10 @@ import {
   createItem,
   createRestockRecord,
   createSampleItems,
+  daysUntil,
   getLatestRecord,
   getStatus,
+  STATUS,
   toDateString,
 } from '../models/item'
 
@@ -67,6 +69,14 @@ export const useItemsStore = defineStore('items', () => {
     items.value.map((item) => ({ ...item, status: getStatus(item) })),
   )
   const shoppingList = computed(() => items.value.filter((item) => item.inShoppingList))
+  // 首頁補貨提醒（specs/004 FR-401）：補貨時間已過在前、過期越久越前，接著該補貨了、剩餘天數越少越前。
+  // daysLeft 已過期為負數，遞增排序即可；sort 為穩定排序，同天數維持新增順序。
+  const restockReminders = computed(() =>
+    itemsWithStatus.value
+      .filter((item) => item.status === STATUS.OVERDUE || item.status === STATUS.DUE_SOON)
+      .map((item) => ({ ...item, daysLeft: daysUntil(item.nextRestockDate) }))
+      .sort((a, b) => a.daysLeft - b.daysLeft),
+  )
 
   function getItem(id) {
     return items.value.find((item) => item.id === id)
@@ -325,6 +335,7 @@ export const useItemsStore = defineStore('items', () => {
     recentlyRemoved,
     itemsWithStatus,
     shoppingList,
+    restockReminders,
     getItem,
     addItem,
     updateItem,

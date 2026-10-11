@@ -1,12 +1,182 @@
+<script setup>
+// 首頁（specs/004-home，004-A）。Figma：[Current] 首頁V3 / Mobile（692:5011）一般狀態 693:3575、Empty State 1198:9734。
+// 不做「最近更新」卡（HOME-01）與多選（004-B）。
+import { ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
+import { useItemsStore } from '../stores/items'
+import { useToast } from '../composables/useToast'
+import { profile } from '../stores/profile'
+import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
+import AppToast from '../components/AppToast.vue'
+import ShoppingSummaryCard from '../components/home/ShoppingSummaryCard.vue'
+import ReminderCard from '../components/home/ReminderCard.vue'
+import RestockSheet from '../components/item-detail/RestockSheet.vue'
+import emptyIcon from '../assets/home/reminders-empty.svg'
+
+const router = useRouter()
+const itemsStore = useItemsStore()
+const { restockReminders, shoppingList, spaces } = storeToRefs(itemsStore)
+const { toast, showToast, runUndo } = useToast()
+
+const spaceName = (spaceId) => spaces.value.find((space) => space.id === spaceId)?.name ?? '未指定空間'
+
+function openItemDetail(item) {
+  router.push({ name: 'item-detail', params: { id: item.id } })
+}
+
+// 同時只開一個「⋯」選單。
+const menuItemId = ref(null)
+function toggleMenu(item) {
+  menuItemId.value = menuItemId.value === item.id ? null : item.id
+}
+
+// FR-403：加入後狀態變「購買清單中」，卡片從補貨提醒移除；Toast「查看」前往購買清單。
+function addToShoppingList(item) {
+  itemsStore.addToShoppingList(item.id)
+  showToast('已加入購買清單', () => router.push({ name: 'shopping' }), '查看')
+}
+
+// FR-404：記錄補貨同 003 FR-306；復原還原整筆用品，卡片依排序回到原位置。
+const restockItem = ref(null)
+function onRestockConfirm(restock) {
+  const snapshot = itemsStore.snapshotItem(restockItem.value.id)
+  itemsStore.completeRestock(restockItem.value.id, restock)
+  showToast('已記錄補貨', () => itemsStore.restoreItem(snapshot))
+}
+</script>
+
 <template>
-  <section>
-    <h1 class="h3 fw-bold mb-3">首頁</h1>
-    <div class="card p-4">
-      <p class="mb-3">這裡將顯示用品摘要與補貨提醒。</p>
-      <div class="d-flex flex-wrap gap-3">
-        <RouterLink class="btn btn-primary" :to="{ name: 'inventory' }">查看我的用品</RouterLink>
-        <RouterLink class="btn btn-secondary" :to="{ name: 'shopping' }">查看購買清單</RouterLink>
-      </div>
+  <section class="home-page" aria-labelledby="home-title">
+    <div class="home-top">
+      <header class="home-header">
+        <div>
+          <h1 id="home-title">補補</h1>
+          <p class="home-subtitle">所有空間的補貨總覽</p>
+        </div>
+        <img class="profile-avatar" :src="profile.avatar || defaultAvatar" alt="個人頭像" />
+      </header>
+      <ShoppingSummaryCard :items="shoppingList" />
     </div>
+
+    <section class="reminder-section" aria-labelledby="reminder-title">
+      <div class="section-header">
+        <h2 id="reminder-title">補貨提醒</h2>
+        <span v-if="restockReminders.length" class="reminder-badge">{{ restockReminders.length }} 項該補貨</span>
+      </div>
+
+      <ul v-if="restockReminders.length" class="reminder-list" aria-label="補貨提醒列表">
+        <li v-for="item in restockReminders" :key="item.id">
+          <ReminderCard
+            :item="item"
+            :space-name="spaceName(item.spaceId)"
+            :menu-open="menuItemId === item.id"
+            @open="openItemDetail(item)"
+            @add-to-list="addToShoppingList(item)"
+            @toggle-menu="toggleMenu(item)"
+            @close-menu="menuItemId = null"
+            @restock="restockItem = item"
+          />
+        </li>
+      </ul>
+
+      <div v-else class="reminder-empty" role="status">
+        <span class="empty-illustration" aria-hidden="true"><img :src="emptyIcon" alt="" /></span>
+        <div class="empty-copy">
+          <h3>目前沒有需要補貨的用品</h3>
+          <p>有新的提醒時會出現在這裡</p>
+        </div>
+        <RouterLink class="btn btn-primary empty-add" :to="{ name: 'add-item' }">
+          <span class="add-symbol" aria-hidden="true">＋</span>
+          新增用品
+        </RouterLink>
+      </div>
+    </section>
+
+    <RestockSheet
+      :open="!!restockItem"
+      :unit="restockItem?.unit ?? ''"
+      :reminder-enabled="!!restockItem?.reminderEnabled"
+      @confirm="onRestockConfirm"
+      @close="restockItem = null"
+    />
+    <AppToast :toast="toast" @undo="runUndo" />
   </section>
 </template>
+
+<style scoped lang="scss">
+@use '../assets/scss/tokens' as t;
+
+.home-page {
+  width: 100%;
+  max-width: 358px;
+  margin-inline: auto;
+  padding-top: t.$space-16;
+  display: flex;
+  flex-direction: column;
+  gap: t.$space-24;
+  color: t.$text-main;
+  font-family: t.$font-family;
+  letter-spacing: 0;
+  text-align: left;
+}
+.home-top { display: flex; flex-direction: column; gap: t.$space-16; }
+.home-header { display: flex; align-items: center; justify-content: space-between; gap: t.$space-16; min-height: 48px; }
+h1 { margin: 0 0 2px; color: #2b2a26; font: t.$font-weight-bold t.$font-size-heading / normal t.$font-family; }
+.home-subtitle { margin: 0; color: #8b8880; font: t.$font-weight-regular t.$font-size-caption / normal t.$font-family; }
+.profile-avatar {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: t.$radius-pill;
+  object-fit: cover;
+  box-shadow: t.$shadow-raised;
+}
+
+.reminder-section { display: flex; flex-direction: column; gap: 25px; padding-top: t.$space-4; }
+.section-header { display: flex; align-items: center; gap: 10px; min-height: 24px; }
+h2 { margin: 0; color: #2b2a26; font: t.$font-weight-bold t.$font-size-heading / normal t.$font-family; }
+.reminder-badge {
+  padding: t.$space-4 10px;
+  border-radius: t.$radius-pill;
+  background: #fff1e8;
+  color: #c75a24;
+  font: t.$font-weight-bold t.$font-size-caption / normal t.$font-family;
+  white-space: nowrap;
+}
+.reminder-list { display: flex; flex-direction: column; gap: 18px; margin: 0; padding: 0; list-style: none; }
+
+// Figma Empty State / 沒有補貨提醒・簡潔版（1198:9821）；【新增用品】依 FR-401，樣式同我的用品 Empty State。
+.reminder-empty {
+  min-height: 367px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: t.$space-32;
+  text-align: center;
+}
+.empty-illustration {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: t.$radius-pill;
+  background: t.$active-green;
+  box-shadow: inset -3px -3px 7px rgba(255, 255, 255, .9), inset 2px 3px 7px rgba(138, 158, 136, .16);
+}
+.empty-copy {
+  h3 { margin: 0 0 2px; color: t.$text-main; font: t.$font-weight-bold t.$font-size-heading / 30px t.$font-family; }
+  p { margin: 0; color: t.$text-sub; font: t.$font-weight-regular t.$font-size-body-sm / 22px t.$font-family; }
+}
+.empty-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: t.$space-4;
+  width: 222px;
+  height: t.$button-height;
+  font-size: t.$font-size-button;
+}
+.add-symbol { font-size: 20px; line-height: 1; }
+</style>
