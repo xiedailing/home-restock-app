@@ -1,6 +1,6 @@
 <script setup>
 // 首頁補貨提醒卡片（specs/004 FR-402～FR-404）。Figma：Suggestion Card / Homepage V2（687:5070）、Suggestion Popover（693:4712）。
-// 狀態列不用紅色與驚嘆號（001 D6、HOME-03）；Popover 只有【已補貨】（HOME-05）。
+// 狀態列顏色對應狀態、不用驚嘆號（HOME-10）；Popover 只有【已補貨】（HOME-05）。
 // 多選模式（FR-405，Figma 693:3838）：點卡片改為勾選，隱藏「⋯」與【加入清單】。
 import { computed, onUnmounted, watch } from 'vue'
 import { STATUS } from '../../models/item'
@@ -223,18 +223,18 @@ function restock() {
   &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
 }
 
-// 狀態列：該補貨了白底暖橘字；補貨時間已過淡暖橘底（HOME-03）。
+// 狀態列顏色同我的用品狀態 Badge（HOME-10）：該補貨了淡橘底橘字；補貨時間已過淡紅底紅字。
 .status-bar {
   display: flex;
   align-items: center;
   gap: t.$space-8;
   padding: 11px t.$space-16 11px 14px;
   border-radius: 20px;
-  background: t.$surface-bg;
+  background: #ffebd7;
   box-shadow: inset -1.5px -1.5px 3px rgba(255, 255, 255, .9), inset 1.5px 2px 3px rgba(217, 169, 138, .3);
-  color: #a85a10;
+  color: t.$accent-text;
   font: t.$font-weight-medium 14px / normal t.$font-family;
-  .reminder-card--overdue & { background: #ffebd6; color: t.$accent-text; font-weight: t.$font-weight-bold; }
+  .reminder-card--overdue & { background: #fde3df; color: t.$danger; font-weight: t.$font-weight-bold; }
 }
 .status-icon { flex: 0 0 20px; width: 20px; height: 20px; }
 
