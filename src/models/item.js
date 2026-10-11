@@ -172,6 +172,10 @@ export function createItem(input = {}) {
     reminderEnabledQuantity: input.reminderEnabledQuantity ?? null,
     lastRestockDate: input.lastRestockDate ?? null,
     inShoppingList: input.inShoppingList ?? false,
+    shoppingClaimantId: input.shoppingClaimantId ?? null,
+    shoppingCompletedAt: input.shoppingCompletedAt ?? null,
+    shoppingCompletedQuantity: input.shoppingCompletedQuantity ?? null,
+    shoppingCompletedBy: input.shoppingCompletedBy ?? null,
     // 待買數量（不是庫存量）；加入購買清單時為 1，移出時清除（specs/003 DET-11）。
     quantity: input.quantity ?? null,
     addedToShoppingListDate: input.addedToShoppingListDate ?? null,

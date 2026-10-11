@@ -1,11 +1,14 @@
 <script setup>
 import { computed, ref, shallowRef, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute } from 'vue-router'
 import { limitSpaceName } from '../models/space'
 import { profile, updateProfile } from '../stores/profile'
 import backIcon from '../assets/add-item/back-chevron.svg'
 import { defaultAvatar, avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 
 
+const route = useRoute()
+const backTarget = computed(() => ({ name: route.query.from === 'shopping' ? 'shopping' : 'settings' }))
 const name = ref(profile.name)
 const avatar = ref(profile.avatar)
 const avatarMenuOpen = ref(false)
@@ -188,7 +191,7 @@ async function selectAvatar(event) {
 <template>
   <section class="edit-profile-page" aria-labelledby="edit-profile-title">
     <header class="page-header">
-      <RouterLink :to="{ name: 'settings' }" class="back-link" aria-label="返回設定"><img :src="backIcon" alt="" /></RouterLink>
+      <RouterLink :to="backTarget" class="back-link" :aria-label="backTarget.name === 'shopping' ? '返回購買清單' : '返回設定'"><img :src="backIcon" alt="" /></RouterLink>
       <h1 id="edit-profile-title">個人檔案設定</h1>
       <span class="header-spacer" aria-hidden="true"></span>
     </header>

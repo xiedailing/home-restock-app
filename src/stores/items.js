@@ -60,6 +60,12 @@ export const useItemsStore = defineStore('items', () => {
     )
   }
 
+  // 購買清單展示：目前使用者可接手小明已認購的家庭用品。
+  const takeoverPreviewSpace = spaces.value.find(space => space.id === 'preview-family')
+  takeoverPreviewSpace.members.push({ id: 'preview-xiaoming', name: '小明' })
+  const takeoverPreviewItem = items.value.find(item => item.spaceId === 'preview-family' && item.name === '垃圾袋')
+  Object.assign(takeoverPreviewItem, { inShoppingList: true, quantity: 2, addedToShoppingListDate: toDateString(), shoppingClaimantId: 'preview-xiaoming' })
+
   // 模擬其他成員仍持有的空間資料，不提供目前使用者的列表存取。
   const departedSpaces = ref([])
   // 我的用品目前的空間篩選（null ＝ 所有用品）；新增用品頁依此預帶空間，不持久化。
@@ -139,7 +145,7 @@ export const useItemsStore = defineStore('items', () => {
 
   // 001 FR-006：加入時待買數量 1；移出時清除。加入時一併取消延後（specs/005 SNZ-04）。
   function addToShoppingList(id) {
-    updateItem(id, { inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), snoozedUntil: null })
+    updateItem(id, { inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), snoozedUntil: null, shoppingCompletedAt: null, shoppingCompletedQuantity: null, shoppingCompletedBy: null, shoppingClaimantId: null })
   }
 
   // 首頁多選批次加入（specs/004 FR-405）。
@@ -228,6 +234,86 @@ export const useItemsStore = defineStore('items', () => {
       addedToShoppingListDate: null,
       snoozedUntil: null,
     })
+  }
+
+  // 購買清單完成後保留展示 24 小時；用品本身與補貨紀錄不刪除。
+  const shoppingCompletionOperations = new Map()
+  const shoppingFields = ['inShoppingList', 'quantity', 'addedToShoppingListDate', 'shoppingCompletedAt', 'shoppingCompletedQuantity', 'shoppingCompletedBy', 'shoppingClaimantId']
+  const restockReminderFields = ['nextRestockDate', 'reminderBaseDate', 'reminderBaseQuantity', 'snoozedUntil']
+  function pickShoppingFields(item, fields) {
+    return Object.fromEntries(fields.map(key => [key, item[key]]))
+  }
+  function undoShoppingOperation(operation) {
+    if (!operation) return
+    const item = getItem(operation.id)
+    if (!item) return
+    const changes = {}
+    for (const key of Object.keys(operation.before)) {
+      // 後續操作已改過的欄位保留，不以舊值覆蓋。
+      if (Object.is(item[key], operation.after[key])) changes[key] = operation.before[key]
+    }
+    if (operation.recordId) {
+      const records = item.restockRecords.filter(record => record.id !== operation.recordId)
+      applyRestockRecords(item.id, records, changes)
+      if (shoppingCompletionOperations.get(item.id) === operation) shoppingCompletionOperations.delete(item.id)
+    } else {
+      updateItem(item.id, changes)
+    }
+  }
+  function completeShoppingItem(id, completedAt = Date.now()) {
+    const item = getItem(id)
+    if (!item?.inShoppingList) return
+    if (getSpace(item.spaceId)?.shared && item.shoppingClaimantId !== 'self') return
+    const fields = [...shoppingFields, ...restockReminderFields]
+    const before = pickShoppingFields(item, fields)
+    const quantity = item.quantity ?? 1
+    completeRestock(id, { quantity })
+    const recordId = item.restockRecords.at(-1).id
+    updateItem(id, { shoppingCompletedAt: completedAt, shoppingCompletedQuantity: quantity, shoppingCompletedBy: 'self' })
+    const operation = { id, before, after: pickShoppingFields(item, fields), recordId }
+    shoppingCompletionOperations.set(id, operation)
+    return operation
+  }
+
+  function reopenShoppingItem(id) {
+    const item = getItem(id)
+    if (!item || item.shoppingCompletedAt == null || item.shoppingCompletedBy !== 'self') return
+    undoShoppingOperation(shoppingCompletionOperations.get(id))
+  }
+
+  function removeShoppingEntry(id) {
+    const item = getItem(id)
+    if (!item) return
+    const before = pickShoppingFields(item, shoppingFields)
+    updateItem(id, { inShoppingList: false, quantity: null, addedToShoppingListDate: null, shoppingCompletedAt: null, shoppingCompletedQuantity: null, shoppingCompletedBy: null, shoppingClaimantId: null })
+    return { id, before, after: pickShoppingFields(item, shoppingFields) }
+  }
+
+  function claimShoppingItem(id) {
+    const item = getItem(id)
+    if (!item?.inShoppingList || !getSpace(item.spaceId)?.shared || item.shoppingClaimantId) return
+    updateItem(id, { shoppingClaimantId: 'self' })
+  }
+
+  function cancelShoppingClaim(id) {
+    const item = getItem(id)
+    if (!item?.inShoppingList || item.shoppingClaimantId !== 'self' || !getSpace(item.spaceId)?.shared) return
+    updateItem(id, { shoppingClaimantId: null })
+    return { id, before: { shoppingClaimantId: 'self' }, after: { shoppingClaimantId: null } }
+  }
+
+  function takeOverShoppingClaim(id) {
+    const item = getItem(id)
+    if (!item?.inShoppingList || !item.shoppingClaimantId || item.shoppingClaimantId === 'self' || !getSpace(item.spaceId)?.shared) return
+    updateItem(id, { shoppingClaimantId: 'self' })
+  }
+
+  function clearExpiredShoppingItems(now = Date.now()) {
+    for (const item of items.value) {
+      if (item.shoppingCompletedAt != null && now - item.shoppingCompletedAt >= 24 * 60 * 60 * 1000) {
+        updateItem(item.id, { shoppingCompletedAt: null, shoppingCompletedQuantity: null, shoppingCompletedBy: null, shoppingClaimantId: null })
+      }
+    }
   }
 
   // 001 FR-004：修改一筆紀錄的日期與數量；保留新增順序。
@@ -372,6 +458,14 @@ export const useItemsStore = defineStore('items', () => {
     enableReminder,
     updateNextRestockDate,
     completeRestock,
+    completeShoppingItem,
+    reopenShoppingItem,
+    removeShoppingEntry,
+    undoShoppingOperation,
+    claimShoppingItem,
+    cancelShoppingClaim,
+    takeOverShoppingClaim,
+    clearExpiredShoppingItems,
     updateRestockRecord,
     removeRestockRecord,
     addSpace,
