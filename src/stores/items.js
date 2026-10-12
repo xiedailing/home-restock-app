@@ -74,8 +74,27 @@ export const useItemsStore = defineStore('items', () => {
   // shallowRef：snapshot 保持非 Proxy，復原時 structuredClone 才不會失敗。
   const recentlyRemoved = shallowRef(null) // { item, index, spaceName, expiresAt }
 
+  // 響應式的「今天」（specs/003 KI-01）：跨過午夜或回到前景時更新，狀態、延後與剩餘天數隨之重算。
+  // 電腦休眠時計時器可能延遲，回到前景時再檢查一次。
+  const today = ref(toDateString())
+  let midnightTimer
+  function refreshToday() {
+    const now = new Date()
+    const value = toDateString(now)
+    if (today.value !== value) today.value = value
+    clearTimeout(midnightTimer)
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+    midnightTimer = setTimeout(refreshToday, nextMidnight - now + 1000)
+  }
+  refreshToday()
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') refreshToday()
+    })
+  }
+
   const itemsWithStatus = computed(() =>
-    items.value.map((item) => ({ ...item, status: getStatus(item) })),
+    items.value.map((item) => ({ ...item, status: getStatus(item, today.value) })),
   )
   const shoppingList = computed(() => items.value.filter((item) => item.inShoppingList))
   // 首頁補貨提醒（specs/004 FR-401）：補貨時間已過在前、過期越久越前，接著該補貨了、剩餘天數越少越前。
@@ -83,8 +102,8 @@ export const useItemsStore = defineStore('items', () => {
   // daysLeft 已過期為負數，遞增排序即可；sort 為穩定排序，同天數維持新增順序。
   const restockReminders = computed(() =>
     itemsWithStatus.value
-      .filter((item) => (item.status === STATUS.OVERDUE || item.status === STATUS.DUE_SOON) && !isSnoozed(item))
-      .map((item) => ({ ...item, daysLeft: daysUntil(item.nextRestockDate) }))
+      .filter((item) => (item.status === STATUS.OVERDUE || item.status === STATUS.DUE_SOON) && !isSnoozed(item, today.value))
+      .map((item) => ({ ...item, daysLeft: daysUntil(item.nextRestockDate, today.value) }))
       .sort((a, b) => a.daysLeft - b.daysLeft),
   )
 
@@ -439,6 +458,7 @@ export const useItemsStore = defineStore('items', () => {
     spaces,
     inventorySpaceId,
     recentlyRemoved,
+    today,
     itemsWithStatus,
     shoppingList,
     restockReminders,
