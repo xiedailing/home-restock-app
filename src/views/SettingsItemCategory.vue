@@ -9,6 +9,7 @@ import backIcon from '../assets/settings/category-back.svg'
 import checkboxOn from '../assets/settings/category-checkbox-on.svg'
 import chevron from '../assets/settings/category-chevron.svg'
 import emptyItem from '../assets/household-icons-by-state/common/generic-item-in-stock.svg'
+import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
 const route = useRoute()
 const router = useRouter()
 const store = useItemsStore()
@@ -24,7 +25,7 @@ const selectedIds = ref([])
 const bulkPending = ref(false)
 function toggleSelectionMode() { selecting.value = !selecting.value; selectedIds.value = []; offset.value = 0 }
 function requestBulkDeletion() { if (!selectedIds.value.length) return; bulkPending.value = true; deleteDialog.value.showModal() }
-const deleteTitle = computed(() => bulkPending.value ? `刪除 ${selectedIds.value.length} 項用品？` : `刪除${pendingItem.value?.name || '用品'}？`)
+const deleteTitle = computed(() => bulkPending.value ? `刪除 ${selectedIds.value.length} 項用品？` : deleteItemTitle(pendingItem.value))
 const deleteMessage = computed(() => {
   if (bulkPending.value) {
     const includesSharedItems = selectedIds.value.some(id => store.getSpace(store.getItem(id)?.spaceId)?.shared)
@@ -34,10 +35,7 @@ const deleteMessage = computed(() => {
   }
   const item = pendingItem.value
   if (!item) return ''
-  const space = store.getSpace(item.spaceId)
-  const spaceName = space?.name || '未指定空間'
-  if (space?.shared) return `將從「${spaceName}」空間刪除並同步所有成員，相關紀錄與提醒將一併刪除。`
-  return `「${item.name}」將從「${spaceName}」空間刪除，補貨提醒與紀錄也會一併刪除。`
+  return deleteItemMessage(item, store.getSpace(item.spaceId))
 })
 const { toast, showToast, runUndo } = useToast()
 let gesture
