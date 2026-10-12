@@ -520,6 +520,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/page-header' as ph;
 
 .inventory-page {
   // App.vue 已預留 34px 底部距離＋106px 導覽區，避免重複撐高整頁。
@@ -546,6 +547,8 @@ watch(categoryPills, (element, _previous, onCleanup) => {
   flex-direction: column;
   gap: t.$space-16;
   flex-shrink: 0;
+  // 頂部 16px 放在 sticky 內，捲動時背景才會蓋住上方，與首頁、購買清單的 padding-top 一致。
+  padding-top: t.$space-16;
   padding-bottom: t.$space-8;
   background: t.$bg-main;
 }
@@ -556,13 +559,10 @@ watch(categoryPills, (element, _previous, onCleanup) => {
   flex-shrink: 0;
 }
 
+// 下方間距由 .inventory-sticky-header 的 gap 提供。
 .inventory-header {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: t.$space-16;
-  min-height: 52px;
+  @include ph.page-header(0);
 }
 
 .inventory-heading { min-width: 0; }
@@ -622,10 +622,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
 .inventory-title-row { display: flex; align-items: center; gap: t.$space-8; }
 
 h1 {
-  margin: 0;
-  color: t.$text-main;
-  font: t.$font-weight-bold #{t.$font-size-page-title} / #{t.$line-height-page-title} t.$font-family;
-  letter-spacing: 0;
+  @include ph.page-title;
 }
 
 .space-chevron {
@@ -644,7 +641,7 @@ h1 {
   img { transform: rotate(90deg); }
 }
 
-.inventory-subtitle { margin: 2px 0 0; color: t.$text-sub; font-size: t.$font-size-metadata; line-height: 18px; }
+.inventory-subtitle { @include ph.page-subtitle; }
 
 .profile-avatar {
   flex: 0 0 44px;
@@ -1037,7 +1034,7 @@ h1 {
 }
 
 @media (max-height: 600px) {
-  .inventory-page { padding-top: t.$space-16; padding-bottom: t.$space-12; }
+  .inventory-page { padding-bottom: t.$space-12; }
   .inventory-empty { gap: t.$space-16; }
 }
 </style>

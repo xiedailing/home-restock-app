@@ -169,6 +169,7 @@ function onRestockConfirm(restock) {
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/page-header' as ph;
 
 .home-page {
   width: 100%;
@@ -186,9 +187,10 @@ function onRestockConfirm(restock) {
 .home-top { display: flex; flex-direction: column; gap: t.$space-16; }
 // Figma Top Summary Row（705:4342）：待買 212＋最近更新 132，間距 14。
 .summary-row { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 14px; }
-.home-header { display: flex; align-items: center; justify-content: space-between; gap: t.$space-16; min-height: 48px; }
-h1 { margin: 0 0 2px; color: #2b2a26; font: t.$font-weight-bold t.$font-size-heading / normal t.$font-family; }
-.home-subtitle { margin: 0; color: #8b8880; font: t.$font-weight-regular t.$font-size-caption / normal t.$font-family; }
+// 下方間距由 .home-top 的 gap 提供。
+.home-header { @include ph.page-header(0); }
+h1 { @include ph.page-title; }
+.home-subtitle { @include ph.page-subtitle; }
 .profile-avatar {
   flex: 0 0 44px;
   width: 44px;
