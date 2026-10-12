@@ -29,7 +29,7 @@ import spaceCheck from '../assets/add-item/space-check.svg'
 import reminderIcon from '../assets/add-item/reminder.svg'
 import calendarIcon from '../assets/add-item/calendar.svg'
 import dateChevron from '../assets/add-item/date-chevron.svg'
-import toastCheck from '../assets/settings/toast-check.svg'
+import toastCheck from '../assets/settings/toast-check-on-dark.svg'
 
 const CUSTOM_UNIT = 'custom'
 
@@ -51,6 +51,12 @@ const quantity = ref(1)
 const nextRestockDate = ref(null)
 
 const commonOpen = ref(false)
+// 常用用品捲到底時隱藏底部淡出遮罩。
+const commonAtEnd = ref(false)
+function updateCommonEnd(event) {
+  const el = event.target
+  commonAtEnd.value = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+}
 const openPanel = ref(null) // 'category' | 'unit' | 'space'；同一時間只展開一個
 const datePickerOpen = ref(false)
 const addSpaceOpen = ref(false)
@@ -221,14 +227,14 @@ async function createItem() {
 
     <!-- 常用用品 -->
     <section class="soft-card common-card">
-      <button type="button" class="common-header" :aria-expanded="commonOpen" aria-controls="common-items" @click="commonOpen = !commonOpen">
+      <button type="button" class="common-header" :aria-expanded="commonOpen" aria-controls="common-items" @click="commonOpen = !commonOpen; commonAtEnd = false">
         <span class="common-text">
           <strong>常用用品</strong>
           <span>{{ commonOpen ? '選擇後會自動帶入名稱、分類與單位。' : '快速帶入名稱、分類與單位' }}</span>
         </span>
         <img class="expand-icon" :class="{ 'expand-icon--open': commonOpen }" :src="expandIcon" alt="" />
       </button>
-      <div v-if="commonOpen" id="common-items" class="common-scroll">
+      <div v-if="commonOpen" id="common-items" class="common-scroll" :class="{ 'common-scroll--end': commonAtEnd }" @scroll="updateCommonEnd">
         <div v-for="group in COMMON_ITEM_GROUPS" :key="group.category" class="common-group" role="group" :aria-label="group.category">
           <p>{{ group.category }}</p>
           <div class="pills">
@@ -569,6 +575,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green;
   scrollbar-color: #c6c1b4 #ece9e1;
   // 底部淡出，提示還有內容可捲動。
   mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent);
+  &--end { mask-image: none; }
 }
 .common-group {
   display: flex;
@@ -783,7 +790,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green;
   white-space: nowrap;
   img { display: block; }
 }
-.date-placeholder { color: t.$text-disabled; font-weight: t.$font-weight-regular; }
+.date-placeholder { color: t.$text-main; font-weight: t.$font-weight-regular; }
 
 // ---------- 底部 CTA ----------
 .bottom-cta {
@@ -849,11 +856,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green;
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #d4cbbe;
   border-radius: t.$radius-pill;
-  background: t.$card-bg;
-  box-shadow: 0 -2px 8px rgba(255, 255, 255, .8), 0 8px 24px rgba(140, 136, 127, .36), 0 2px 6px rgba(107, 102, 92, .2);
-  color: t.$text-main;
+  background: t.$toast-background;
+  box-shadow: t.$toast-shadow;
+  color: t.$toast-text;
   font: t.$font-weight-medium 14px t.$font-family;
   img { width: 22px; height: 22px; flex-shrink: 0; }
 }

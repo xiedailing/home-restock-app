@@ -15,7 +15,7 @@ import ShoppingSummaryCard from '../components/home/ShoppingSummaryCard.vue'
 import RecentUpdateCard from '../components/home/RecentUpdateCard.vue'
 import ReminderCard from '../components/home/ReminderCard.vue'
 import RestockSheet from '../components/item-detail/RestockSheet.vue'
-import emptyIcon from '../assets/home/reminders-empty.svg'
+import emptyIcon from '../assets/household-icons-by-state/common/generic-item-in-stock.svg'
 
 const router = useRouter()
 const itemsStore = useItemsStore()
