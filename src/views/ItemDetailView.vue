@@ -29,7 +29,7 @@ const itemId = route.params.id
 const item = computed(() => itemsWithStatus.value.find((entry) => entry.id === itemId))
 const itemSpace = computed(() => spaces.value.find((space) => space.id === item.value?.spaceId))
 const spaceName = computed(() => itemSpace.value?.name ?? '未指定空間')
-const formatDate = (date) => date?.replaceAll('-', '/') ?? '—'
+const formatDate = (date) => date?.replaceAll('-', '/') ?? '−'
 
 // 用品不存在（已刪除、重新整理後 id 失效）時回到我的用品；自己刪除時由 confirmDelete 導頁。
 let leaving = false
@@ -237,7 +237,7 @@ function confirmDelete() {
         <!-- 只顯示；要修改請到補貨紀錄（specs/003 DET-13）。 -->
         <div class="list-row info-row">
           <span class="info-label">上次補貨</span>
-          <span class="info-value">{{ formatDate(item.lastRestockDate) }}</span>
+          <span class="info-value" :class="{ 'info-value--empty': !item.lastRestockDate }">{{ formatDate(item.lastRestockDate) }}</span>
         </div>
       </div>
     </section>
@@ -413,7 +413,7 @@ function confirmDelete() {
   img { flex-shrink: 0; }
 }
 .info-label { flex: 1; color: t.$text-body; font: t.$font-weight-regular 15px / normal t.$font-family; }
-.info-value { color: t.$text-main; font: t.$font-weight-medium 15px / normal t.$font-family; }
+.info-value { color: t.$text-main; font: t.$font-weight-medium 15px / normal t.$font-family; &--empty { color: t.$text-sub; font-size: 14px; } }
 .reminder-switch {
   flex: 0 0 t.$switch-width;
   height: t.$switch-height;

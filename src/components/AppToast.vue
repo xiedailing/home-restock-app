@@ -1,8 +1,8 @@
 <script setup>
-// Figma Toast / 已更新用品名稱（966:8254）：淺色底、綠色勾勾，可附「復原」。
+// 深色底 Toast（同我的用品刪除 Toast）：淺綠勾勾，可附「復原」。
 // 樣式同我的用品「已新增用品」Toast；搭配 composables/useToast 使用。
 import { useBottomNavHidden } from '../composables/useBottomNav'
-import toastCheck from '../assets/settings/toast-check.svg'
+import toastCheck from '../assets/settings/toast-check-on-dark.svg'
 
 defineProps({ toast: { type: Object, default: null } })
 const emit = defineEmits(['undo'])
@@ -33,17 +33,18 @@ const hideBottomNav = useBottomNavHidden()
   transform: translateX(-50%);
   z-index: 1100;
   box-sizing: border-box;
-  width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2));
+  // 寬度跟內容走（同我的用品 Toast），最寬 358px，窄螢幕兩側各留 16px。
+  width: max-content;
+  max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2));
   min-height: t.$toast-min-height;
   padding: 8px 22px 8px 18px;
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #d4cbbe;
   border-radius: t.$radius-pill;
-  background: t.$card-bg;
-  box-shadow: 0 -2px 8px rgba(255, 255, 255, .8), 0 8px 24px rgba(140, 136, 127, .36), 0 2px 6px rgba(107, 102, 92, .2);
-  color: t.$text-main;
+  background: t.$toast-background;
+  box-shadow: t.$toast-shadow;
+  color: t.$toast-text;
   font: t.$font-weight-medium 14px t.$font-family;
   img { width: 22px; height: 22px; flex-shrink: 0; }
   // Bottom Nav 頂端在 116px（bottom 34 + 高 82），再留 16px，同我的用品刪除 Toast。
@@ -55,10 +56,10 @@ const hideBottomNav = useBottomNavHidden()
   padding: 0;
   border: 0;
   background: transparent;
-  color: t.$primary-green;
+  color: t.$toast-success-accent;
   font: t.$font-weight-bold 14px / 20px t.$font-family;
   cursor: pointer;
-  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; border-radius: t.$radius-pill; }
+  &:focus-visible { outline: 2px solid t.$toast-success-accent; outline-offset: 2px; border-radius: t.$radius-pill; }
 }
 .app-toast-enter-active, .app-toast-leave-active { transition: opacity .3s ease; }
 .app-toast-enter-from, .app-toast-leave-to { opacity: 0; }

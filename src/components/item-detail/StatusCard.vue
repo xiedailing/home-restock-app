@@ -108,7 +108,7 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
   background: t.$card-bg;
   box-shadow: t.$shadow-card;
   &--dueSoon { --icon-bg: #ffebd7; --icon-color: #{t.$accent-orange}; border-color: #f7c48f; }
-  &--overdue { --icon-bg: #fde3df; --icon-color: #{t.$danger}; --counter-color: #{t.$danger}; border-color: #f0b7ad; background: #fff4f2; }
+  &--overdue { --icon-bg: #fde3df; --icon-color: #{t.$danger}; --counter-color: #{t.$danger}; border-color: #b83a26; }
   &--inShoppingList { --icon-bg: #{t.$primary-subtle}; border-color: #b8d1af; }
   &--reminderOff { --icon-bg: #f0eee8; --icon-color: #{t.$text-sub}; }
 }
