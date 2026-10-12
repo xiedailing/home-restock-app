@@ -108,7 +108,7 @@
 | 9 | 回歸 | 我的用品、新增用品、用品詳情流程正常；`npm run build` 成功 |
 
 ## Figma 與規格的差異
-> 2026-10-11：H1～H4、H7 已在 Figma 同步（[Current] 首頁、元件、Flow 01/02、Design System 總覽；首頁第二版 RWD 未改）。H5、H6 仍為差異。
+> 2026-10-11：H1～H4、H7 已在 Figma 同步（[Current] 首頁、元件、Flow 01/02、Design System 總覽；首頁第二版 RWD 於 2026-10-12 補改）。H5、H6 仍為差異。
 
 | # | 項目 | Figma（同步前） | 本規格 |
 |---|---|---|---|
