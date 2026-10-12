@@ -15,6 +15,7 @@ import BasicInfoSection from '../components/item-detail/BasicInfoSection.vue'
 import ReminderSetupSheet from '../components/item-detail/ReminderSetupSheet.vue'
 import RestockSheet from '../components/item-detail/RestockSheet.vue'
 import RestockRecordList from '../components/item-detail/RestockRecordList.vue'
+import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
 import backIcon from '../assets/add-item/back-chevron.svg'
 import selectorChevron from '../assets/add-item/selector-chevron.svg'
 
@@ -26,7 +27,8 @@ const { toast, showToast, runUndo } = useToast()
 
 const itemId = route.params.id
 const item = computed(() => itemsWithStatus.value.find((entry) => entry.id === itemId))
-const spaceName = computed(() => spaces.value.find((space) => space.id === item.value?.spaceId)?.name ?? '未指定空間')
+const itemSpace = computed(() => spaces.value.find((space) => space.id === item.value?.spaceId))
+const spaceName = computed(() => itemSpace.value?.name ?? '未指定空間')
 const formatDate = (date) => date?.replaceAll('-', '/') ?? '—'
 
 // 用品不存在（已刪除、重新整理後 id 失效）時回到我的用品；自己刪除時由 confirmDelete 導頁。
@@ -266,8 +268,8 @@ function confirmDelete() {
 
     <!-- 刪除確認：文字與樣式同我的用品。 -->
     <dialog ref="deleteDialog" class="delete-dialog" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-desc">
-      <h2 id="delete-dialog-title">刪除「{{ item.name }}」？</h2>
-      <p id="delete-dialog-desc">刪除後，這項用品會從「{{ spaceName }}」空間移除。</p>
+      <h2 id="delete-dialog-title">{{ deleteItemTitle(item) }}</h2>
+      <p id="delete-dialog-desc">{{ deleteItemMessage(item, itemSpace) }}</p>
       <div class="delete-dialog-actions">
         <button type="button" class="delete-dialog-cancel" @click="deleteDialog.close()">取消</button>
         <button type="button" class="delete-dialog-confirm" @click="confirmDelete">刪除</button>

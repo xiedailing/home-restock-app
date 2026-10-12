@@ -14,6 +14,7 @@ import shoppingListDot from '../assets/items/status-filter/shopping-list.svg'
 import notNeededDot from '../assets/items/status-filter/not-needed.svg'
 import { profile } from '../stores/profile'
 import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
+import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
 import chevronIcon from '../assets/settings/chevron.svg'
 import emptyItemIcon from '../assets/household-icons-by-state/common/generic-item-in-shopping-list-plain.svg'
 
@@ -85,9 +86,7 @@ const pendingDeleteItem = ref(null)
 const isDeleteDialogOpen = ref(false)
 const deleteDialog = ref(null)
 
-const pendingDeleteSpaceName = computed(
-  () => spaces.value.find((space) => space.id === pendingDeleteItem.value?.spaceId)?.name ?? '未指定空間',
-)
+const pendingDeleteSpace = computed(() => spaces.value.find((space) => space.id === pendingDeleteItem.value?.spaceId))
 
 // 點擊已展開列以外的區域（含其他列）時收回；展開列本身由列元件自行處理。
 function closeRevealedOutside(event) {
@@ -497,8 +496,8 @@ watch(categoryPills, (element, _previous, onCleanup) => {
       @close="onDeleteDialogClose"
     >
       <template v-if="pendingDeleteItem">
-        <h2 id="delete-dialog-title">刪除「{{ pendingDeleteItem.name }}」？</h2>
-        <p id="delete-dialog-desc">刪除後，這項用品會從「{{ pendingDeleteSpaceName }}」空間移除。</p>
+        <h2 id="delete-dialog-title">{{ deleteItemTitle(pendingDeleteItem) }}</h2>
+        <p id="delete-dialog-desc">{{ deleteItemMessage(pendingDeleteItem, pendingDeleteSpace) }}</p>
         <div class="delete-dialog-actions">
           <button type="button" class="delete-dialog-cancel" @click="deleteDialog.close()">取消</button>
           <button type="button" class="delete-dialog-confirm" @click="confirmDelete">刪除</button>
