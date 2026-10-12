@@ -3,8 +3,11 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import ItemListRow from '../components/items/ItemListRow.vue'
+import AddSpaceSheet from '../components/add-item/AddSpaceSheet.vue'
+import AppToast from '../components/AppToast.vue'
+import { useToast } from '../composables/useToast'
 import { useItemsStore } from '../stores/items'
-import { CATEGORIES, DEFAULT_CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
+import { CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
 import statusCheckedIcon from '../assets/items/status-filter/checked.svg'
 import statusPanel from '../assets/items/status-filter/panel.svg'
 import overdueDot from '../assets/items/status-filter/overdue.svg'
@@ -32,6 +35,18 @@ watch(spaces, (list) => {
   if (selectedSpaceId.value !== null && !list.some((space) => space.id === selectedSpaceId.value)) selectedSpaceId.value = null
 }, { immediate: true, deep: true })
 const spaceMenuOpen = ref(false)
+
+// 新增空間：同新增用品頁的 Sheet；建立後切到新空間並顯示 Toast。
+const addSpaceOpen = ref(false)
+const { toast, showToast, runUndo } = useToast()
+function openAddSpace() {
+  spaceMenuOpen.value = false
+  addSpaceOpen.value = true
+}
+function onSpaceCreated(space) {
+  selectSpace(space.id)
+  showToast('已成功新增空間')
+}
 const statusMenuOpen = ref(false)
 const selectedStatuses = ref([])
 const statusFilterButton = ref(null)
@@ -200,10 +215,9 @@ const spaceItems = computed(() =>
 )
 const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、不持久化
 
-// 預設分類一律顯示；其他分類（寵物用品）只在目前空間有用品時顯示。搜尋與狀態不影響，避免輸入時 pills 跳動。
+// 分類只在目前空間有用品時顯示（ADD-14）。搜尋與狀態不影響，避免輸入時 pills 跳動。
 const availableCategories = computed(() =>
-  CATEGORIES.filter((category) =>
-    DEFAULT_CATEGORIES.includes(category) || spaceItems.value.some((item) => item.category === category)),
+  CATEGORIES.filter((category) => spaceItems.value.some((item) => item.category === category)),
 )
 watch(availableCategories, (categories) => {
   if (selectedCategory.value !== null && !categories.includes(selectedCategory.value)) selectedCategory.value = null
@@ -331,8 +345,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
               </svg>
             </button>
             <div class="space-popover-divider" />
-            <!-- 視覺入口；本階段尚未提供新增空間流程。 -->
-            <button type="button" class="space-option space-action" aria-disabled="true">
+            <button type="button" class="space-option space-action" @click="openAddSpace">
               <svg class="space-plus" viewBox="0 0 18 18" aria-hidden="true">
                 <path d="M9 3v12M3 9h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
               </svg>
@@ -456,6 +469,10 @@ watch(categoryPills, (element, _previous, onCleanup) => {
       <div class="empty-copy">
         <h2>這個空間目前還沒有用品</h2>
       </div>
+      <button type="button" class="btn btn-primary empty-add" @click="openAddItem">
+        <span class="add-symbol" aria-hidden="true">＋</span>
+        新增用品
+      </button>
     </div>
 
     <ul v-else-if="emptyState === null" class="item-list" aria-label="我的用品列表">
@@ -504,6 +521,9 @@ watch(categoryPills, (element, _previous, onCleanup) => {
         </div>
       </template>
     </dialog>
+
+    <AddSpaceSheet :open="addSpaceOpen" @close="addSpaceOpen = false" @created="onSpaceCreated" />
+    <AppToast :toast="toast" @undo="runUndo" />
 
     <!-- 刪除成功 Toast：Bottom Nav 上方水平置中。 -->
     <div v-if="recentlyRemoved" class="delete-toast" role="status" aria-live="polite">
