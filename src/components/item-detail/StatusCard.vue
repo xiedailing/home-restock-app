@@ -2,12 +2,15 @@
 // 用品詳情狀態卡（specs/003 FR-302）。Figma：Draft A／B、948:7773、966:8254。
 // 視覺只分兩種提醒狀態（001 D6）：該補貨了白底＋暖橘外框；補貨時間已過淡紅底＋紅字（D6-1）。不用驚嘆號。
 import { computed } from 'vue'
-import { STATUS, daysUntil, isSnoozed, toDateString } from '../../models/item'
+import { STATUS, daysUntil, isSnoozed } from '../../models/item'
+import { useItemsStore } from '../../stores/items'
 
 const props = defineProps({
   item: { type: Object, required: true }, // 含 status
 })
 const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'enable-reminder'])
+// 讀 store 的響應式「今天」，跨日後剩餘天數與延後提示會自動更新（specs/003 KI-01）。
+const store = useItemsStore()
 
 const COPY = {
   [STATUS.NOT_NEEDED]: { title: '目前不用補貨', description: '我們會在下次接近補貨日時提醒你。', icon: 'check' },
@@ -18,7 +21,7 @@ const COPY = {
 }
 
 const copy = computed(() => COPY[props.item.status] ?? COPY[STATUS.REMINDER_OFF])
-const daysLeft = computed(() => (props.item.nextRestockDate ? daysUntil(props.item.nextRestockDate, toDateString()) : null))
+const daysLeft = computed(() => (props.item.nextRestockDate ? daysUntil(props.item.nextRestockDate, store.today) : null))
 const formattedDate = computed(() => props.item.nextRestockDate?.replaceAll('-', '/') ?? '')
 
 // 計數至少兩位數；超過 99 天顯示實際位數（specs/003 DET-16）。
@@ -32,7 +35,7 @@ const digits = computed(() => (counter.value ? String(counter.value.days).padSta
 const isDueToday = computed(() => props.item.status === STATUS.DUE_SOON && daysLeft.value === 0)
 // 「暫時不用補貨」延後中：只提示，不改變狀態（specs/005 SNZ-03）。
 const snoozeText = computed(() => {
-  if (!isSnoozed(props.item)) return ''
+  if (!isSnoozed(props.item, store.today)) return ''
   const [, month, day] = props.item.snoozedUntil.split('-').map(Number)
   return `已延後提醒至 ${month}/${day}`
 })
