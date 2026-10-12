@@ -1,0 +1,26 @@
+@use './tokens' as t;
+
+// 分頁頂部 header 共用排版（以購買清單為基準）：標題在左、avatar 在右。
+// 父層已用 gap 提供下方間距時（首頁、我的用品），$margin-bottom 傳 0 避免重複。
+@mixin page-header($margin-bottom: t.$space-16) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: t.$space-16;
+  min-height: 45px;
+  margin-bottom: $margin-bottom;
+}
+
+@mixin page-title {
+  margin: 0;
+  color: t.$text-main;
+  font: t.$font-weight-bold #{t.$font-size-page-title} / #{t.$line-height-page-title} t.$font-family;
+  letter-spacing: 0;
+}
+
+@mixin page-subtitle {
+  margin: 2px 0 0;
+  color: t.$text-sub;
+  font-size: t.$font-size-metadata;
+  line-height: 18px;
+}

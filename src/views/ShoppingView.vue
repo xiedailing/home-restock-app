@@ -249,11 +249,12 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 </template>
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/page-header' as ph;
 .shopping-page { width: 100%; max-width: 358px; margin-inline: auto; padding-top: t.$space-16; text-align: left; font-family: t.$font-family; color: t.$text-main; }
 .shopping-page.with-claim-all { padding-bottom: calc(t.$button-height + t.$space-32); }
 .claim-all-bar { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1000; width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); .btn { width: 100%; min-height: t.$button-height; } }
-.shopping-header { display: flex; align-items: center; justify-content: space-between; min-height: 45px; margin-bottom: t.$space-16; }
-h1 { margin: 0; font: t.$font-weight-bold #{t.$font-size-page-title} / #{t.$line-height-page-title} t.$font-family; letter-spacing: 0; }
+.shopping-header { @include ph.page-header; }
+h1 { @include ph.page-title; }
 .shopping-avatar-link { display: flex; border-radius: t.$radius-pill; cursor: pointer; &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 3px; } }
 .shopping-avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: t.$active-green; }
 .shopping-tabs { display: flex; box-sizing: border-box; min-height: 46px; padding: 3px; margin-bottom: t.$space-16; border-radius: t.$radius-popover; background: t.$surface-bg; button { flex: 1; min-width: 0; min-height: 40px; padding: 0 t.$space-8; border: 0; border-radius: t.$radius-popover; background: transparent; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; cursor: pointer; &[aria-selected="true"] { background: t.$primary-soft; color: t.$primary-green; font-weight: t.$font-weight-medium; box-shadow: t.$shadow-added; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; } } }
