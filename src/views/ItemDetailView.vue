@@ -109,16 +109,20 @@ const reminderSheetMode = ref(null) // 'setup' | 'date'
 // 打開開關後 Sheet 顯示期間開關先呈現開啟；取消時回到關閉（001 F3）。
 const reminderSwitchOn = computed(() => item.value.reminderEnabled || reminderSheetMode.value === 'setup')
 
+// 關閉前先跳確認 modal，說明後果（DET-22）；開啟與關閉都不顯示 Toast。
+const reminderOffDialog = ref(null)
 function toggleReminder() {
-  if (item.value.reminderEnabled) changeWithUndo('已關閉補貨提醒', () => itemsStore.disableReminder(itemId))
+  if (item.value.reminderEnabled) reminderOffDialog.value?.showModal()
   else reminderSheetMode.value = 'setup'
+}
+function confirmReminderOff() {
+  itemsStore.disableReminder(itemId)
+  reminderOffDialog.value?.close()
 }
 
 function onReminderSheetDone({ quantity, nextRestockDate }) {
   if (reminderSheetMode.value === 'setup') {
     itemsStore.enableReminder(itemId, { quantity, nextRestockDate })
-    // 開啟不提供復原：復原等於關閉，直接用開關即可（specs/003 DET-08）。
-    showToast('已開啟補貨提醒')
   } else {
     changeWithUndo('已更新下次預計補貨日', () => itemsStore.updateNextRestockDate(itemId, nextRestockDate))
   }
@@ -273,6 +277,16 @@ function confirmDelete() {
       <div class="delete-dialog-actions">
         <button type="button" class="delete-dialog-cancel" @click="deleteDialog.close()">取消</button>
         <button type="button" class="delete-dialog-confirm" @click="confirmDelete">刪除</button>
+      </div>
+    </dialog>
+
+    <!-- 關閉補貨提醒確認：版型同刪除確認，確認鈕用主色。 -->
+    <dialog ref="reminderOffDialog" class="delete-dialog reminder-off-dialog" aria-labelledby="reminder-off-title" aria-describedby="reminder-off-desc">
+      <h2 id="reminder-off-title">關閉補貨提醒？</h2>
+      <p id="reminder-off-desc">關閉後，「{{ item.name }}」不會再出現在首頁的補貨提醒。之後重新開啟時，需要重新設定庫存量與下次預計補貨日。</p>
+      <div class="delete-dialog-actions">
+        <button type="button" class="delete-dialog-cancel" @click="reminderOffDialog.close()">取消</button>
+        <button type="button" class="delete-dialog-confirm" @click="confirmReminderOff">關閉提醒</button>
       </div>
     </dialog>
 
@@ -461,6 +475,7 @@ function confirmDelete() {
 .delete-dialog-cancel { background: t.$input-bg; box-shadow: t.$shadow-raised; color: t.$text-button-secondary; }
 .delete-dialog-confirm {
   background: t.$danger;
+  .reminder-off-dialog & { background: t.$primary-green; }
   box-shadow: -3px -3px 6px rgba(249, 249, 249, .4), 4px 5px 10px rgba(42, 74, 39, .4), inset 1.5px 2px 3px rgba(31, 58, 29, .35), inset -1.5px -1.5px 3px rgba(255, 255, 255, .15);
   color: t.$text-inverse;
 }

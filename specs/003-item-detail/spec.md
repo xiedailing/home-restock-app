@@ -38,7 +38,7 @@
 ### 共通｜Toast
 - 同時只顯示一個 Toast；新的取代舊的，舊的不能再復原（DET-07）。
 - 離開詳情頁即失效；刪除用品例外（DET-20）。
-- 基本資訊與改名的 Toast 都提供「復原」（DET-15）；「已開啟補貨提醒」例外（DET-08）。
+- 基本資訊與改名的 Toast 都提供「復原」（DET-15）；補貨提醒開關**不顯示 Toast**（DET-22，取代 DET-08）。
 
 ### FR-301｜用品摘要與改名
 - 點鉛筆 → 名稱變成 inline input（Figma 966:8254），右側 ✓。
@@ -66,9 +66,9 @@
 - 不修改週期、日期或狀態；補貨單位只影響數量顯示。
 
 ### FR-304｜補貨提醒開關（001 FR-005，Draft A～C）
-- **關閉**：不跳確認，立即生效；`reminderEnabled = false`，保留 `nextRestockDate`、計算基準與 `daysPerUnit`；用品若在購買清單中仍留在清單。Toast「已關閉補貨提醒」＋「復原」，點復原直接恢復，不跳 Sheet。
+- **關閉**：先跳確認 modal（DET-22）——標題「關閉補貨提醒？」，內容「關閉後，「{名稱}」不會再出現在首頁的補貨提醒。之後重新開啟時，需要重新設定庫存量與下次預計補貨日。」，按鈕【取消】【關閉提醒】；確認後 `reminderEnabled = false`，保留 `nextRestockDate`、計算基準與 `daysPerUnit`；用品若在購買清單中仍留在清單。**不顯示 Toast、不提供復原**；取消則維持開啟。
 - **開啟**（開關或狀態卡【開啟補貨提醒】）：開「設定補貨提醒」Sheet（Figma 1204:11069）：家裡目前有多少？（預設 1）＋下一次預計什麼時候補貨？（快選下週／兩週後／下個月＋日期列，**日期為空、不預填**，最早明天）＋【完成】。
-  - 完成：`reminderEnabled = true`、`nextRestockDate`、計算基準（今天，庫存量）、`daysPerUnit` 重新計算、`reminderEnabledDate = 今天`；Toast「已開啟補貨提醒」，**不提供復原**（復原等於關閉，直接用開關即可；DET-08）。
+  - 完成：`reminderEnabled = true`、`nextRestockDate`、計算基準（今天，庫存量）、`daysPerUnit` 重新計算、`reminderEnabledDate = 今天`；**不顯示 Toast**（DET-22）。
   - 取消（下滑、點背景）：開關回到關閉，不儲存（F3）。
 - Toast 顯示時間沿用刪除用品的 Undo Toast（5 秒）。
 
