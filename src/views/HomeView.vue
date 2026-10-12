@@ -1,7 +1,7 @@
 <script setup>
 // 首頁（specs/004-home）。Figma：[Current] 首頁V3 / Mobile（692:5011）一般狀態 693:3575、多選 693:3838、Empty State 1198:9734。
 // 「最近更新」卡目前固定為空狀態（HOME-09）。
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
@@ -21,6 +21,30 @@ const router = useRouter()
 const itemsStore = useItemsStore()
 const { restockReminders, shoppingList, spaces } = storeToRefs(itemsStore)
 const { toast, showToast, runUndo } = useToast()
+
+// 最近更新卡：最近一筆自己完成的購買；與購買清單「已補貨」區同樣只保留 24 小時（HOME-11）。
+const COMPLETED_KEEP_MS = 24 * 60 * 60 * 1000
+const now = ref(Date.now())
+let expiryTimer
+const recentItem = computed(() =>
+  itemsStore.items
+    .filter((item) => item.shoppingCompletedAt != null && item.shoppingCompletedBy === 'self' && now.value - item.shoppingCompletedAt < COMPLETED_KEEP_MS)
+    .sort((a, b) => b.shoppingCompletedAt - a.shoppingCompletedAt)[0] ?? null,
+)
+// 到期時重新判斷，卡片自動回到空狀態；回到分頁時也重算。
+function refreshNow() {
+  clearTimeout(expiryTimer)
+  now.value = Date.now()
+  if (recentItem.value) expiryTimer = setTimeout(refreshNow, recentItem.value.shoppingCompletedAt + COMPLETED_KEEP_MS - now.value)
+}
+watch(() => itemsStore.items.map((item) => item.shoppingCompletedAt), refreshNow)
+onMounted(() => { refreshNow(); document.addEventListener('visibilitychange', refreshNow) })
+onUnmounted(() => { clearTimeout(expiryTimer); document.removeEventListener('visibilitychange', refreshNow) })
+
+// 待買卡只算「我的清單」待買：個人用品＋自己認購的共享用品，與購買清單「全部補貨」範圍一致（HOME-12）。
+const myShoppingList = computed(() =>
+  shoppingList.value.filter((item) => !spaces.value.find((space) => space.id === item.spaceId)?.shared || item.shoppingClaimantId === 'self'),
+)
 
 const spaceName = (spaceId) => spaces.value.find((space) => space.id === spaceId)?.name ?? '未指定空間'
 
@@ -99,8 +123,8 @@ function onRestockConfirm(restock) {
         <img class="profile-avatar" :src="profile.avatar || defaultAvatar" alt="個人頭像" />
       </header>
       <div class="summary-row">
-        <ShoppingSummaryCard :items="shoppingList" />
-        <RecentUpdateCard />
+        <ShoppingSummaryCard :items="myShoppingList" />
+        <RecentUpdateCard :item="recentItem" />
       </div>
     </div>
 
@@ -137,7 +161,8 @@ function onRestockConfirm(restock) {
           <h3>目前沒有需要補貨的用品</h3>
           <p>有新的提醒時會出現在這裡</p>
         </div>
-        <RouterLink class="btn btn-primary empty-add" :to="{ name: 'add-item' }">
+        <!-- Bottom Nav 已有新增入口；只有完全沒有用品時才放，給第一次使用的人（HOME-12）。 -->
+        <RouterLink v-if="!itemsStore.items.length" class="btn btn-primary empty-add" :to="{ name: 'add-item' }">
           <span class="add-symbol" aria-hidden="true">＋</span>
           新增用品
         </RouterLink>
