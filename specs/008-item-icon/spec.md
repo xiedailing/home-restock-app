@@ -44,7 +44,7 @@
 
 ### FR-803｜從相簿選擇／拍照
 - 關閉 Sheet 後，以隱藏的 `<input type="file">` 開啟：相簿 `accept="image/jpeg,image/png,image/webp"`；拍照另加 `capture="environment"`（桌機沒有相機時退回選檔，同頭貼）。
-- 限制與錯誤訊息**同頭貼**：超過 5 MB →「圖片大小不可超過 5 MB，請重新選擇。」；非 JPG／PNG／WebP →「請選擇 JPG、PNG 或 WebP 圖片。」；讀取失敗 →「無法讀取圖片，請重新選擇。」。錯誤以頁面既有的 Toast 顯示（新增用品、用品詳情都有）。
+- 限制與錯誤訊息**同頭貼**：超過 5 MB →「圖片大小不可超過 5 MB，請重新選擇。」；非 JPG／PNG／WebP →「請選擇 JPG、PNG 或 WebP 圖片。」；讀取失敗 →「無法讀取圖片，請重新選擇。」。錯誤顯示方式：用品詳情用頁面的 Toast；新增用品沒有通用 Toast，改在圖示下方以紅字訊息顯示（`role="alert"`），下一次成功選擇時清除。
 - 通過檢查後開 FR-804 裁切。
 
 ### FR-804｜調整圖示（裁切）
@@ -82,9 +82,8 @@
 ## 受影響檔案
 | 檔案 | 變更 |
 |---|---|
-| `src/components/ItemIconSheet.vue`（新） | FR-801、FR-802 |
+| `src/components/ItemIconEditor.vue`（新） | FR-801～803：圖示圓圈按鈕＋相機角標（預設插槽放圓圈）、三選項與預設圖示 Sheet、相簿／拍照選檔 |
 | `src/components/ImageCropDialog.vue`（新） | FR-804 |
-| `src/components/ItemIconButton.vue`（新） | FR-801 的圓圈＋角標 |
 | `src/views/AddItemView.vue` | 入口、暫存選擇、寫入三欄位 |
 | `src/views/ItemDetailView.vue` | 入口、套用、Toast、改名只在 `iconManual === false` 時重新比對 |
 | `src/models/item.js`、`src/stores/items.js` | `createItem` 欄位、`persistFailed` |

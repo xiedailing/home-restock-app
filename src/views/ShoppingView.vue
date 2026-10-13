@@ -7,7 +7,7 @@ import SpaceTag from '../components/SpaceTag.vue'
 import { useToast } from '../composables/useToast'
 import shoppingListEmpty from '../assets/household-icons-by-state/empty-states/shopping-list-empty.svg'
 import { profile } from '../stores/profile'
-import { getItemIcon } from '../assets/household-icons-by-state'
+import { getItemIconSrc } from '../assets/household-icons-by-state'
 const store = useItemsStore()
 const { toast, showToast, hideToast, runUndo } = useToast()
 function completeItem(item) {
@@ -231,7 +231,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
             <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card" :class="{ completed: group.id === 'completed', expanded: expandedItems.includes(item.id) }">
               <div class="personal-card-summary">
                 <input class="shopping-checkbox" type="checkbox" :checked="group.id === 'completed'"  :aria-label="`${item.name}已補貨`" @change="completeItem(item)" />
-                <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :src="getItemIcon(item.iconKey || iconKeys[item.name], item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
+                <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
                 <div class="item-info"><h3>{{ item.name }}</h3><SpaceTag :space-id="item.spaceId" /><p>補貨數量 {{ group.id === 'completed' ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
                 <button type="button" class="item-expand" :aria-expanded="expandedItems.includes(item.id)" :aria-controls="`item-controls-${item.id}`" :aria-label="`${expandedItems.includes(item.id) ? '收起' : '展開'}${item.name}`" @click="toggleItem(item.id)"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
               </div>
@@ -264,7 +264,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <div v-show="group.id === 'shared-pending' || !collapsedGroups.includes(group.id)" :id="`shopping-group-${group.id}`" :inert="group.id !== 'shared-pending' && collapsedGroups.includes(group.id)"><div class="group-drawer-content">
           <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card shared-card" :class="{ completed: item.shoppingCompletedAt != null, expanded: expandedItems.includes(item.id) }">
             <div class="personal-card-summary">
-              <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :src="getItemIcon(item.iconKey || iconKeys[item.name], item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
+              <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
               <div class="item-info"><h3>{{ item.name }}</h3><p>{{ store.getSpace(item.spaceId)?.name }}</p><p>補貨數量 {{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
               <span class="claim-status" :class="{ claimed: item.shoppingClaimantId, restocked: item.shoppingCompletedAt != null }">{{ claimStatus(item) }}</span>
               <button type="button" class="item-expand" :aria-expanded="expandedItems.includes(item.id)" :aria-controls="`shared-item-controls-${item.id}`" :aria-label="`${expandedItems.includes(item.id) ? '收起' : '展開'}${item.name}`" @click="toggleItem(item.id)"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>

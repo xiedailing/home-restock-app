@@ -165,3 +165,6 @@
 .card {
   box-shadow: t.$shadow-card;
 }
+
+// 用品照片圖示（specs/008 FR-806）：填滿各處的圓形容器；各處原本的插畫尺寸規則較具體，這裡需要 !important。
+img.item-photo { width: 100% !important; height: 100% !important; object-fit: cover !important; border-radius: 50%; }

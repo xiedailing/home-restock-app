@@ -476,8 +476,10 @@ export const useItemsStore = defineStore('items', () => {
 
   // 資料變動後寫入 localStorage（specs 外的持久化，見 docs/PERSISTENCE_DISCUSSION.md）。
   // 最近刪除、購買完成復原記錄、今天、篩選等暫態不存。
+  // 寫入失敗（儲存空間不足等）時為 true，讓畫面提示照片可能不會保留（specs/008 FR-807）。
+  const persistFailed = ref(false)
   const scheduleSave = createDebouncedSaver(() => {
-    savePersisted(STORE_KEYS.items, {
+    persistFailed.value = !savePersisted(STORE_KEYS.items, {
       items: toRaw(items.value),
       spaces: toRaw(spaces.value),
       customCategories: toRaw(customCategories.value),
@@ -487,6 +489,7 @@ export const useItemsStore = defineStore('items', () => {
   watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
 
   return {
+    persistFailed,
     customCategories,
     systemCategoryCounts,
     customCategoryCounts,

@@ -3,7 +3,7 @@
 // 與「最近更新」卡並排（HOME-09）。整張卡點擊前往購買清單。
 import { computed } from 'vue'
 import { STATUS } from '../../models/item'
-import { getItemIcon } from '../../assets/household-icons-by-state/index.js'
+import { getItemIconSrc } from '../../assets/household-icons-by-state/index.js'
 import shoppingBagIcon from '../../assets/home/shopping-bag.svg'
 import arrowIcon from '../../assets/home/summary-arrow.svg'
 
@@ -35,7 +35,7 @@ const moreCount = computed(() => props.items.length - stamps.value.length)
       <p class="summary-count"><strong>{{ items.length }}</strong>項</p>
       <div class="summary-stamps">
         <span v-for="item in stamps" :key="item.id" class="summary-stamp">
-          <img :src="getItemIcon(item.iconKey, STATUS.IN_SHOPPING_LIST)" alt="" />
+          <img :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, STATUS.IN_SHOPPING_LIST)" alt="" />
         </span>
         <span v-if="moreCount" class="summary-stamp summary-stamp--more">+{{ moreCount }}</span>
       </div>

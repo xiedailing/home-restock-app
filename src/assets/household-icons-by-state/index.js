@@ -85,3 +85,8 @@ export function getItemIcon(iconKey, state) {
   if (!Object.hasOwn(itemIcons, iconKey)) return fallback;
   return itemIcons[iconKey][normalizedState] ?? fallback;
 }
+
+// 取用品圖示：有照片時所有狀態都是同一張，狀態只靠 Badge 表現；否則依種類與狀態取插畫（specs/008 FR-806）。
+export function getItemIconSrc(item, state) {
+  return item?.iconPhoto || getItemIcon(item?.iconKey, state);
+}

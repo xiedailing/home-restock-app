@@ -159,6 +159,10 @@ export function createItem(input = {}) {
     id: input.id ?? generateId(),
     name: input.name ?? '',
     iconKey: input.iconKey ?? null,
+    // 使用者自己的照片（256×256 JPEG data URL）；有值時優先於 iconKey，所有狀態同一張（specs/008）。
+    iconPhoto: input.iconPhoto ?? null,
+    // 手動指定過圖示後，改名不再依名稱重新比對 iconKey（specs/008 ICO-05）。
+    iconManual: input.iconManual ?? false,
     category: input.category ?? null,
     unit: input.unit ?? DEFAULT_UNIT,
     spaceId: input.spaceId ?? DEFAULT_SPACE_ID,
