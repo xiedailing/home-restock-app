@@ -245,7 +245,7 @@ function confirmDelete() {
     />
 
     <!-- 刪除確認：文字與樣式同我的用品。 -->
-    <dialog ref="deleteDialog" class="delete-dialog" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-desc">
+    <dialog ref="deleteDialog" class="delete-dialog" tabindex="-1" autofocus aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-desc">
       <h2 id="delete-dialog-title">{{ deleteItemTitle(item) }}</h2>
       <p id="delete-dialog-desc">{{ deleteItemMessage(item, itemSpace) }}</p>
       <div class="delete-dialog-actions">
@@ -255,7 +255,7 @@ function confirmDelete() {
     </dialog>
 
     <!-- 關閉補貨提醒確認：版型同刪除確認，確認鈕用主色。 -->
-    <dialog ref="reminderOffDialog" class="delete-dialog reminder-off-dialog" aria-labelledby="reminder-off-title" aria-describedby="reminder-off-desc">
+    <dialog ref="reminderOffDialog" class="delete-dialog reminder-off-dialog" tabindex="-1" autofocus aria-labelledby="reminder-off-title" aria-describedby="reminder-off-desc">
       <h2 id="reminder-off-title">關閉補貨提醒？</h2>
       <p id="reminder-off-desc">關閉後，「{{ item.name }}」不會再出現在首頁的補貨提醒。之後重新開啟時，需要重新設定庫存量與下次預計補貨日。</p>
       <div class="delete-dialog-actions">
