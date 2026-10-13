@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute } from 'vue-router'
 import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
 import { useItemsStore } from '../stores/items'
 import { getSpaceColor, formatSpaceLabel } from '../models/space'
@@ -64,8 +65,11 @@ function removeShoppingItem(item) {
   expandedItems.value = expandedItems.value.filter(id => id !== item.id)
   showToast(`已移除「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的${item.name}`, () => store.undoShoppingOperation(operation))
 }
-const selectedSpace = ref('')
-const activeTab = ref('personal')
+// 用品詳情【查看清單】帶 ?tab=shared&space=<id>：直接開共享清單並預選該空間。
+const route = useRoute()
+const fromSharedItem = route.query.tab === 'shared'
+const selectedSpace = ref(fromSharedItem && store.getSpace(route.query.space)?.shared ? route.query.space : '')
+const activeTab = ref(fromSharedItem ? 'shared' : 'personal')
 const personalItems = computed(() => store.shoppingList.filter(item => !store.getSpace(item.spaceId)?.shared))
 const allSharedItems = computed(() => store.items.filter(item => (item.inShoppingList || item.shoppingCompletedAt != null) && store.getSpace(item.spaceId)?.shared))
 const sharedItems = computed(() => allSharedItems.value.filter(item => !selectedSpace.value || selectedSpace.value === item.spaceId))
