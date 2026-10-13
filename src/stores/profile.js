@@ -5,8 +5,8 @@ import { loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 // 頭像是數百 KB 的 data URL，與用品分開存，寫入失敗時不影響用品資料。
 const saved = loadPersisted(STORE_KEYS.profile)
 const state = reactive({
-  name: typeof saved?.name === 'string' && saved.name.trim() ? saved.name : '123',
-  email: '123@gmail.com',
+  name: typeof saved?.name === 'string' && saved.name.trim() ? saved.name : 'bubu1028',
+  email: 'bubu1028@gmail.com',
   avatar: typeof saved?.avatar === 'string' ? saved.avatar : '',
 })
 export const profile = readonly(state)

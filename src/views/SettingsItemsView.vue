@@ -292,4 +292,5 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 }
 .category-form:has(+ .category-error) { padding-bottom: 0; }
 .category-delete-dialog .category-delete-dialog-actions .btn-secondary:focus, .category-delete-dialog .category-delete-dialog-actions .btn-secondary:focus-visible { outline: none; }
+header h1 { letter-spacing: .5px; }
 </style>

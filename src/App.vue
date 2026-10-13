@@ -12,6 +12,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ref, watch } from 'vue'
 import BottomNav from './components/BottomNav.vue'
 import { useBottomNavHidden } from './composables/useBottomNav'
+import { supportsPagePresentation, leavingPageScroll } from './utils/pagePresentation'
 import { useItemsStore } from './stores/items'
 
 const route = useRoute()
@@ -24,13 +25,28 @@ const animateItemsPages = ref(route.path === '/settings/items' || route.path.sta
 const isItemsPage = path => path === '/settings/items' || path.startsWith('/settings/items/')
 const isSettingsPage = path => path === '/settings' || path.startsWith('/settings/')
 watch(() => route.path, (to, from) => {
-  animateSettingsPages.value = isSettingsPage(to) && isSettingsPage(from)
-  animateItemsPages.value = isItemsPage(to) || isItemsPage(from)
+  animateSettingsPages.value = supportsPagePresentation(to) && supportsPagePresentation(from)
+  animateItemsPages.value = supportsPagePresentation(to) && supportsPagePresentation(from)
   const toDepth = to.split('/').filter(Boolean).length
   const fromDepth = from.split('/').filter(Boolean).length
   const goingBack = toDepth < fromDepth
   pageTransition.value = goingBack ? 'page-back' : 'page-forward'
 }, { flush: 'sync' })
+
+function freezeLeavingPage(element) {
+  if (!animateSettingsPages.value) return
+  element.style.position = 'fixed'
+  element.style.top = `${-leavingPageScroll}px`
+  element.style.left = '0'
+  element.style.width = '100%'
+  element.style.boxSizing = 'border-box'
+  element.style.minHeight = `${window.innerHeight + leavingPageScroll}px`
+  element.style.zIndex = '2'
+}
+
+function clearLeavingPage(element) {
+  for (const key of ['position', 'top', 'left', 'width', 'boxSizing', 'minHeight', 'zIndex']) element.style[key] = ''
+}
 
 // 在「我的用品」篩選某個空間時預帶該空間；其他頁面由新增頁預設為「個人」。
 const handlePlusClick = () => {
@@ -44,7 +60,7 @@ const handlePlusClick = () => {
     <!-- 主內容呈現區 -->
     <main class="app-content" :class="{ 'without-nav': hideBottomNav, 'items-page-transition': animateSettingsPages && animateItemsPages }">
       <RouterView v-slot="{ Component, route: pageRoute }">
-        <Transition :name="pageTransition" :css="animateSettingsPages">
+        <Transition :name="pageTransition" :css="animateSettingsPages" @before-leave="freezeLeavingPage" @after-leave="clearLeavingPage" @leave-cancelled="clearLeavingPage">
           <div :key="pageRoute.path" class="page-view">
             <component :is="Component" />
           </div>

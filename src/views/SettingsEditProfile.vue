@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, shallowRef, nextTick, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { limitSpaceName } from '../models/space'
 import { profile, updateProfile } from '../stores/profile'
 import BottomSheet from '../components/BottomSheet.vue'
@@ -9,7 +9,13 @@ import { defaultAvatar, avatarOptions } from '../assets/household-icons-by-state
 
 
 const route = useRoute()
-const backTarget = computed(() => ({ name: route.query.from === 'shopping' ? 'shopping' : 'settings' }))
+const router = useRouter()
+const backTarget = computed(() => {
+  const returnTo = route.query.returnTo
+  if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')
+    && router.resolve(returnTo).matched.length && router.resolve(returnTo).name !== 'edit-profile') return returnTo
+  return { name: route.query.from === 'shopping' ? 'shopping' : 'settings' }
+})
 const name = ref(profile.name)
 const avatar = ref(profile.avatar)
 const avatarMenuOpen = ref(false)
@@ -187,7 +193,7 @@ async function selectAvatar(event) {
 <template>
   <section class="edit-profile-page" aria-labelledby="edit-profile-title">
     <header class="page-header">
-      <RouterLink :to="backTarget" class="back-link" :aria-label="backTarget.name === 'shopping' ? '返回購買清單' : '返回設定'"><img :src="backIcon" alt="" /></RouterLink>
+      <RouterLink :to="backTarget" class="back-link" aria-label="返回原頁面"><img :src="backIcon" alt="" /></RouterLink>
       <h1 id="edit-profile-title">個人檔案設定</h1>
       <span class="header-spacer" aria-hidden="true"></span>
     </header>
@@ -256,6 +262,7 @@ async function selectAvatar(event) {
 <style scoped lang="scss">
 @use 'sass:color';
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/profile-avatar' as avatar;
 
 .edit-profile-page { max-width: 358px; min-height: calc(100svh - 34px); margin-inline: auto; padding-top: 16px; text-align: left; color: t.$text-main; font-family: t.$font-family; }
 .page-header { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: 16px; }
@@ -264,8 +271,8 @@ async function selectAvatar(event) {
 .header-spacer { width: 44px; }
 .avatar-card { display: flex; flex-direction: column; align-items: center; gap: 34px; padding: 32px 24px 28px; border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; }
 .avatar-preview { position: relative; width: 104px; height: 104px; }
-.default-avatar { width: 104px; height: 104px; border-radius: 50%; background: color.mix(t.$primary-green, t.$primary-subtle, 12%); box-shadow: t.$shadow-raised; }
-.uploaded-avatar { width: 104px; height: 104px; object-fit: cover; border-radius: 50%; background: color.mix(t.$primary-green, t.$primary-subtle, 12%); box-shadow: t.$shadow-raised; }
+.default-avatar { width: 104px; height: 104px; border-radius: 50%; @include avatar.background; box-shadow: t.$shadow-raised; }
+.uploaded-avatar { width: 104px; height: 104px; object-fit: cover; border-radius: 50%; @include avatar.background; box-shadow: t.$shadow-raised; }
 .avatar-upload { position: absolute; right: -6px; bottom: -8px; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid #dce6d6; border-radius: 50%; background: t.$primary-green; box-shadow: t.$shadow-raised; color: white; font-size: 17px; cursor: pointer; }
 .avatar-upload { box-sizing: border-box; padding: 0; }
 .avatar-upload > i { display: grid; place-items: center; width: 20px; height: 20px; line-height: 1; }
@@ -324,4 +331,5 @@ async function selectAvatar(event) {
 }
 .nickname-input-wrapper .nickname-length-error { margin-bottom: 0; }
 .avatar-crop-dialog .avatar-crop-actions .btn-secondary:focus, .avatar-crop-dialog .avatar-crop-actions .btn-secondary:focus-visible { outline: none; }
+header h1 { letter-spacing: .5px; }
 </style>

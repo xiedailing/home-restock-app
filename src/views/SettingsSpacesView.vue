@@ -1,4 +1,5 @@
 <script setup>
+import { isValidInviteCode } from '../utils/inviteCode'
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
@@ -11,7 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const spaceList = ref(null)
 const inviteCode = ref(typeof route.query.invite === 'string' ? route.query.invite : '')
-const validInviteCode = computed(() => /^[A-Za-z]{3}-\d{4}$/.test(inviteCode.value.trim()))
+const validInviteCode = computed(() => isValidInviteCode(inviteCode.value))
 const notice = ref('')
 const joinSucceeded = ref(false)
 const createdSpace = computed(() => store.getSpace(route.query.createdSpaceId))
@@ -320,4 +321,5 @@ button { cursor: pointer; }
 .invite-toast { display: flex; align-items: center; gap: t.$space-8; margin: 0; &.is-error i { color: t.$toast-error-accent; } }
 .created-space-toast button { color: t.$toast-success-accent; }
 .created-message i { font-size: 20px; flex-shrink: 0; }
+header h1 { letter-spacing: .5px; }
 </style>

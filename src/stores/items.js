@@ -1,7 +1,9 @@
 import { computed, ref, shallowRef, toRaw, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { isValidInviteCode } from '../utils/inviteCode'
 import { generateId } from '../utils/id.js'
 import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
+import { avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 import { profile } from './profile'
 import { SYSTEM_CATEGORIES, PRESET_ITEMS, getItemCategory } from '../models/itemCategories'
 import { SPACE_COLORS, limitSpaceName } from '../models/space'
@@ -30,25 +32,18 @@ export const UNDO_DURATION_MS = 5000
 function createDemoState() {
   const items = createSampleItems()
   const spaces = DEFAULT_SPACES.map((space) => ({ ...space, ownerId: 'self', members: [] }))
-  // 展示生活日用品中，同名用品分屬不同空間的標籤效果。
+  // 保留展示空間；用品只使用五種補貨狀態各一筆的共用示範資料。
   const previewSpaces = [
     { id: 'preview-family', name: '家庭', shared: true, color: 'blue' },
     { id: 'preview-company', name: '公司', shared: true, color: 'orange' },
     { id: 'preview-travel', name: '旅行', shared: false, color: 'red' },
   ]
   spaces.push(...previewSpaces.map(space => ({ ...space, ownerId: 'self', members: [] })))
-  for (const space of previewSpaces) {
-    items.push(
-      createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: space.id, reminderEnabled: false }),
-      createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: space.id, reminderEnabled: false }),
-    )
-  }
-
   // 購買清單展示：目前使用者可接手小明已認購的家庭用品。
   const takeoverPreviewSpace = spaces.find(space => space.id === 'preview-family')
-  takeoverPreviewSpace.members.push({ id: 'preview-xiaoming', name: '小明' })
-  const takeoverPreviewItem = items.find(item => item.spaceId === 'preview-family' && item.name === '垃圾袋')
-  Object.assign(takeoverPreviewItem, { inShoppingList: true, quantity: 2, addedToShoppingListDate: toDateString(), shoppingClaimantId: 'preview-xiaoming' })
+  takeoverPreviewSpace.members.push({ id: 'preview-xiaoming', name: '小明', avatar: avatarOptions[0].image }, { id: 'preview-huahua', name: '花花', avatar: avatarOptions[1].image })
+  const takeoverPreviewItem = items.find(item => item.name === '衛生紙')
+  Object.assign(takeoverPreviewItem, { spaceId: 'preview-family', inShoppingList: true, quantity: 2, addedToShoppingListDate: toDateString(), shoppingClaimantId: 'preview-xiaoming' })
   return { items, spaces }
 }
 
@@ -428,6 +423,7 @@ export const useItemsStore = defineStore('items', () => {
   function joinSpaceByCode(code) {
     const normalized = code.trim().toUpperCase()
     if (!normalized) return { ok: false, message: '請先輸入空間邀請碼' }
+    if (!isValidInviteCode(normalized)) return { ok: false, message: '邀請碼格式不正確' }
     if (normalized === 'FUL-0010') return { ok: false, message: '空間人數已滿' }
     if (normalized === 'JON-0001') return { ok: false, message: '已經是成員' }
     const targetId = normalized === 'COM-8888' ? 'company' : normalized === 'FAM-8888' ? 'family' : null
