@@ -80,14 +80,13 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
     </div>
 
     <div class="status-actions">
-      <button v-if="item.status === STATUS.REMINDER_OFF" type="button" class="btn btn-primary action-primary" @click="emit('enable-reminder')">開啟補貨提醒</button>
-      <template v-else>
-        <button type="button" class="action-secondary" @click="emit('restock')">已補貨</button>
-        <button v-if="item.status === STATUS.IN_SHOPPING_LIST" type="button" class="btn btn-primary action-primary" @click="emit('view-list')">查看清單</button>
-        <button v-else type="button" class="btn btn-primary action-primary" @click="emit('add-to-list')">
-          <span class="plus-icon" aria-hidden="true" />加入清單
-        </button>
-      </template>
+      <button type="button" class="action-secondary" @click="emit('restock')">已補貨</button>
+      <button v-if="item.status === STATUS.IN_SHOPPING_LIST" type="button" class="btn btn-primary action-primary" @click="emit('view-list')">查看清單</button>
+      <button v-else type="button" class="btn btn-primary action-primary" @click="emit('add-to-list')">
+        <span class="plus-icon" aria-hidden="true" />加入清單
+      </button>
+      <!-- 提醒關閉仍可補貨與加入清單（001 FR-003、RST-02）；開啟提醒為次要動作。 -->
+      <button v-if="item.status === STATUS.REMINDER_OFF" type="button" class="action-secondary action-enable" @click="emit('enable-reminder')">開啟補貨提醒</button>
     </div>
   </section>
 </template>
@@ -166,7 +165,7 @@ h2 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
   span { color: t.$text-body; font: t.$font-weight-regular 13px / 20px t.$font-family; }
   strong { color: t.$text-main; font: t.$font-weight-bold 14px / 20px t.$font-family; }
 }
-.status-actions { display: flex; gap: t.$space-8; }
+.status-actions { display: flex; flex-wrap: wrap; gap: t.$space-8; }
 .action-secondary, .action-primary {
   min-height: t.$button-height-compact;
   border: 0;
@@ -183,7 +182,7 @@ h2 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
   font: t.$font-weight-medium 15px / normal t.$font-family;
 }
 .action-primary { flex: 1.6; font: t.$font-weight-bold t.$font-size-button / normal t.$font-family; }
-.status-card--reminderOff .action-primary { flex: 1; }
+.action-enable { flex: 1 1 100%; }
 // Figma Icon / Plus：12px，橫豎線各佔 25%～75%。
 .plus-icon {
   position: relative;

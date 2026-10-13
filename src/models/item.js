@@ -79,6 +79,9 @@ export function matchItemIconKey(name = '') {
 
 // 剩餘天數 <= 此值時顯示「該補貨了」
 export const REMIND_WITHIN_DAYS = 5
+// 系統推算的下次預計補貨日至少離補貨日這麼多天，避免剛補完貨就立刻變成「該補貨了」（001 FR-003、RST-01）。
+// 不限制使用者自己選的日期。
+export const MIN_RESTOCK_INTERVAL_DAYS = REMIND_WITHIN_DAYS + 1
 
 // 「暫時不用補貨」延後的天數（specs/005 SNZ-01）。
 export const SNOOZE_DAYS = 7
@@ -201,9 +204,9 @@ export function calcDaysPerUnit(nextRestockDate, baseDate, baseQuantity) {
   return daysUntil(nextRestockDate, baseDate) / baseQuantity
 }
 
-// 001 FR-003：下次預計補貨日 ＝ 補貨日 ＋ 數量 × 每單位可撐天數，四捨五入到整天。
+// 001 FR-003：下次預計補貨日 ＝ 補貨日 ＋ 數量 × 每單位可撐天數，四捨五入到整天，且不少於 MIN_RESTOCK_INTERVAL_DAYS 天。
 export function calcNextRestockDate(date, quantity, daysPerUnit) {
-  return addDays(date, Math.round(quantity * daysPerUnit))
+  return addDays(date, Math.max(MIN_RESTOCK_INTERVAL_DAYS, Math.round(quantity * daysPerUnit)))
 }
 
 // 最新一筆：日期最晚者；同一天時取較晚新增者（specs/003 DET-04）。
