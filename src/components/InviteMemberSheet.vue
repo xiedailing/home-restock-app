@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import closeIcon from '../assets/settings/invite-close.svg'
-const props = defineProps({ open: Boolean, space: Object })
+const props = defineProps({ open: Boolean, space: Object, hideCloseButton: Boolean })
 const emit = defineEmits(['close', 'copied'])
 const dialog = ref(null)
 const offset = ref(0)
@@ -72,7 +72,7 @@ onBeforeUnmount(() => { clearTimeout(copyTimer); clearTimeout(closeTimer); dialo
   <Teleport to="body">
     <dialog ref="dialog" class="invite-sheet" :class="{ closing }" :style="{ '--drag-offset': `${offset}px`, '--close-duration': `${closeDuration}ms` }" aria-labelledby="invite-sheet-title" @cancel.prevent="close" @click="($event.target === dialog) && close()">
       <div class="sheet-grab-area" @pointerdown="startDrag" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag"><span class="sheet-handle" /></div>
-      <header><h2 id="invite-sheet-title">邀請成員</h2><button type="button" class="sheet-close" aria-label="關閉邀請成員" @click="close"><img :src="closeIcon" alt="" /></button></header>
+      <header><h2 id="invite-sheet-title">邀請成員</h2><button v-if="!hideCloseButton" type="button" class="sheet-close" aria-label="關閉邀請成員" @click="close"><img :src="closeIcon" alt="" /></button></header>
       <p class="sheet-description">將邀請碼或連結提供給成員，即可加入「{{ space?.name }}」。</p>
       <div class="invite-field"><div><span>邀請碼</span><p>{{ code }}</p></div><button type="button" :class="{ copied: copiedField === '邀請碼' }" class="copy-button" @click="copy(code, '邀請碼')">複製</button></div>
       <div class="invite-field"><div><span>邀請網址</span><p :title="link">{{ link }}</p></div><button type="button" :class="{ copied: copiedField === '邀請網址' }" class="copy-button" @click="copy(link, '邀請網址')">複製</button></div>
@@ -84,11 +84,11 @@ onBeforeUnmount(() => { clearTimeout(copyTimer); clearTimeout(closeTimer); dialo
 </template>
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
-.invite-sheet { position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 390px; max-height: 90dvh; padding: 0 20px max(34px, env(safe-area-inset-bottom)); border: 0; border-radius: 28px 28px 0 0; background: #fbfaf6; color: t.$text-main; font-family: t.$font-family; box-shadow: 0 -8px 24px rgba(77,71,61,.22); transform: translateY(var(--drag-offset)); &::backdrop { background: rgba(0,0,0,.35); } &[open] { animation: sheet-enter .5s ease; } header { display: flex; align-items: center; justify-content: space-between; min-height: 32px; } h2 { margin: 0; font-size: 20px; font-weight: 700; } }
+.invite-sheet { box-sizing: border-box; text-align: left; position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 390px; max-height: 90dvh; padding: 0 20px max(44px, env(safe-area-inset-bottom)); border: 0; border-radius: t.$radius-card t.$radius-card 0 0; background: t.$card-bg; color: t.$text-main; font-family: t.$font-family; box-shadow: 0 -6px 24px rgba(0,0,0,.12); transform: translateY(var(--drag-offset)); &::backdrop { background: rgba(0,0,0,.35); } &[open] { animation: sheet-enter .5s ease; } header { display: flex; align-items: center; justify-content: space-between; min-height: 32px; } h2 { margin: 0; font-size: 20px; font-weight: 700; } }
 .invite-sheet.closing { animation: sheet-exit var(--close-duration) ease forwards; }
 @keyframes sheet-exit { from { transform: translateY(var(--drag-offset)); } to { transform: translateY(100%); } }
-.sheet-grab-area { height: 30px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; }
-.sheet-handle { width: 36px; height: 4px; border-radius: t.$radius-pill; background: t.$border-color; }
+.sheet-grab-area { height: 27px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; }
+.sheet-handle { width: 40px; height: 5px; border-radius: 3px; background: t.$border-active; }
 .sheet-close { width: 32px; height: 32px; border: 0; background: transparent; display: grid; place-items: center; img { width: 20px; height: 20px; } }
 .sheet-description { margin: 12px 0; color: #8b8880; font-size: 12px; }
 .invite-field { display: flex; align-items: center; gap: 12px; min-height: 72px; margin-bottom: 12px; padding: 10px 16px; border-radius: 16px; box-shadow: t.$shadow-inset; > div { min-width: 0; flex: 1; } span { color: #8b8880; font-size: 12px; } p { margin: 6px 0 0; font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }

@@ -86,7 +86,7 @@ function confirmDeletion() {
     selecting.value = false
     selectedIds.value = []
     bulkPending.value = false
-    showToast(`已刪除${removed.length}項用品`, () => {
+    showToast(`已刪除${Array.from(new Set(removed.map(entry => store.getSpace(entry.snapshot.spaceId)?.name || '未指定空間'))).map(name => `「${name}」`).join('、')}的${removed.length}項用品`, () => {
       for (const entry of removed) if (!store.getItem(entry.id)) store.items.splice(Math.min(entry.index, store.items.length), 0, structuredClone(entry.snapshot))
       if (removed.some(entry => entry.id === store.recentlyRemoved?.item.id)) store.clearRecentlyRemoved()
     })
@@ -94,12 +94,14 @@ function confirmDeletion() {
   }
   if (!pendingItem.value) return
   const deletedId = pendingItem.value.id
+  const deletedName = pendingItem.value.name
+  const pendingSpaceId = pendingItem.value.spaceId
   store.removeItem(deletedId)
   deleteDialog.value.close()
   pendingItem.value = null
   openItem.value = null
   offset.value = 0
-  showToast('用品已刪除', () => {
+  showToast(`已刪除「${store.getSpace(pendingSpaceId)?.name || '未指定空間'}」的${deletedName}`, () => {
     if (store.recentlyRemoved?.item.id === deletedId) store.undoRemoveItem()
   })
 }
@@ -148,8 +150,8 @@ function confirmDeletion() {
 .category-page { width: 100%; max-width: 358px; margin-inline: auto; padding-top: 16px; color: t.$text-main; font-family: t.$font-family; text-align: left; }
 header { position: relative; min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin-bottom: 16px; h1 { margin: 0; font-size: 17px; text-align: center; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; } }
-.category-card { overflow: hidden; border: 1px solid rgba(237,234,227,.4); border-radius: 20px; background: #fbfaf6; box-shadow: t.$shadow-card; }
-.item-row { cursor: pointer; display: flex; align-items: center; gap: 4px; @include layout.row(48px, t.$space-16); margin: 0; background: #fbfaf6; position: relative; transition: transform .5s ease; user-select: none; &.dragging { transition: none; } color: t.$text-body; font: 400 14px / 20px t.$font-family; .item-labels { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; } .item-name { min-width: 0; overflow-wrap: anywhere; } :deep(.space-tag) { flex: 0 0 auto; font-size: t.$font-size-caption; } img { width: 16px; height: 16px; flex-shrink: 0; } &:last-child { border-bottom: 0; } }
+.category-card { overflow: hidden; border: 1px solid rgba(237,234,227,.4); border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; }
+.item-row { cursor: pointer; display: flex; align-items: center; gap: 4px; @include layout.row(48px, t.$space-16); margin: 0; background: t.$card-bg; position: relative; transition: transform .5s ease; user-select: none; &.dragging { transition: none; } color: t.$text-body; font: 400 14px / 20px t.$font-family; .item-labels { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; } .item-name { min-width: 0; overflow-wrap: anywhere; } :deep(.space-tag) { flex: 0 0 auto; font-size: t.$font-size-caption; background-color: transparent !important; border: 1px solid color-mix(in srgb, currentColor 65%, transparent); } img { width: 16px; height: 16px; flex-shrink: 0; } &:last-child { border-bottom: 0; } }
 .category-empty { display: flex; flex-direction: column; align-items: center; padding-top: max(64px, calc(36dvh - 76px)); text-align: center; }
 .empty-disc { display: grid; place-items: center; width: 88px; height: 88px; margin-bottom: 19px; border-radius: 50%; background: t.$active-green; box-shadow: t.$shadow-added; img { display: block; width: 57px; height: 57px; } }
 .category-empty h2 { margin: 0 0 t.$space-4; color: t.$text-main; font-family: t.$font-family; font-weight: t.$font-weight-bold; font-size: t.$font-size-heading; line-height: 30px; }
@@ -158,13 +160,34 @@ header { position: relative; min-height: 44px; display: grid; grid-template-colu
 .swipe-delete { position: absolute; inset: 0 0 0 auto; width: 88px; border: 0; background: t.$danger; color: t.$text-inverse; font: 500 14px / 20px t.$font-family; cursor: pointer; }
 .item-row:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
 @media (prefers-reduced-motion: reduce) { .item-row { transition: none; } }
-.item-delete-dialog { box-sizing: border-box; width: min(300px, calc(100% - 48px)); max-height: calc(100dvh - 48px); padding: t.$space-24 18px; border: 0; border-radius: t.$radius-card; background: t.$card-bg; color: t.$text-main; font-family: t.$font-family; text-align: center; box-shadow: 0 -2px 8px rgba(255,255,255,.18), 0 16px 36px rgba(43,42,38,.28); h2 { margin: 0; font-size: 18px; line-height: 1.45; } p { margin: t.$space-8 0 t.$space-24; color: t.$text-sub; font-size: t.$font-size-body; line-height: 1.45; } &::backdrop { background: rgba(29,29,31,.5); } &:focus { outline: none; } }
+.item-delete-dialog {
+  width: min(300px, calc(100% - t.$space-16 * 2));
+  margin: auto;
+  max-height: calc(100dvh - t.$space-16 * 2);
+  padding: t.$space-24 18px;
+  border: 0;
+  border-radius: t.$radius-card;
+  background: t.$card-bg;
+  color: t.$text-main;
+  box-shadow: 0 14px 16px rgba(140, 136, 127, .2);
+  text-align: center;
+  &::backdrop { background: rgba(t.$text-main, .35); }
+  &:focus { outline: none; }
+  h2 { margin: 0 0 t.$space-8; font: t.$font-weight-bold #{t.$font-size-card-title} / 1.45 t.$font-family; overflow-wrap: anywhere; }
+  p { margin: 0; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body} / 1.45 t.$font-family; overflow-wrap: anywhere; }
+}
 .item-delete-actions { display: flex; gap: t.$space-12; .btn { flex: 1; min-width: 0; min-height: 48px; font-size: t.$font-size-body; } .btn-secondary, .btn-secondary:focus, .btn-secondary:focus-visible { outline: none; } }
-.item-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; box-sizing: border-box; width: t.$toast-max-width; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; margin: 0; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; border: 0; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-weight: t.$font-weight-bold; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; font-family: t.$font-family; i { color: t.$toast-success-accent; } }
+.item-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; box-sizing: border-box; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; margin: 0; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; border: 0; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-weight: t.$font-weight-medium; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; font-family: t.$font-family; i { color: t.$toast-success-accent; } }
 .item-toast > i { flex-shrink: 0; }
 .item-toast > span { flex: 1; }
 .item-toast-undo { flex-shrink: 0; padding: 4px; border: 0; background: transparent; color: t.$toast-success-accent; font: inherit; cursor: pointer; }
-.item-toast-enter-active, .item-toast-leave-active { transition: opacity .5s ease; }
+.item-toast-enter-active, .item-toast-leave-active { transition: opacity .3s ease; }
 .item-toast-enter-from, .item-toast-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .item-toast-enter-active, .item-toast-leave-active { transition: none; } }
+.item-delete-dialog .item-delete-actions { display: flex; gap: t.$space-12; margin-top: t.$space-32; }
+.item-delete-dialog .item-delete-actions .btn { flex: 1; min-width: 0; height: t.$button-height; min-height: t.$button-height; padding: 0 t.$space-24; border: 0; border-radius: t.$radius-pill; font: t.$font-weight-medium #{t.$font-size-body} / normal t.$font-family; }
+.item-delete-dialog .item-delete-actions .btn-secondary { background: t.$input-bg; color: t.$text-button-secondary; box-shadow: t.$shadow-raised; }
+.item-delete-dialog .item-delete-actions button:focus { outline: none; }
+.item-delete-dialog .item-delete-actions button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+.item-delete-dialog .item-delete-actions .btn-secondary:focus, .item-delete-dialog .item-delete-actions .btn-secondary:focus-visible { outline: none; }
 </style>

@@ -349,7 +349,13 @@ export const useItemsStore = defineStore('items', () => {
     applyRestockRecords(id, item.restockRecords.filter((record) => record.id !== recordId))
   }
 
+  function hasSpaceName(name, excludeId = null) {
+    const normalized = limitSpaceName(name.trim()).normalize('NFC')
+    return spaces.value.some(space => space.id !== excludeId && space.name.trim().normalize('NFC') === normalized)
+  }
+
   function addSpace({ name, shared = false, color = 'green' }) {
+    if (hasSpaceName(name)) return null
     const space = { id: generateId(), name: limitSpaceName(name.trim()), shared, color, ownerId: 'self', members: [] }
     spaces.value.push(space)
     return space
@@ -362,6 +368,7 @@ export const useItemsStore = defineStore('items', () => {
   function updateSpace(id, changes) {
     const space = getSpace(id)
     if (!space || (!space.shared && space.ownerId !== 'self')) return
+    if (typeof changes.name === 'string' && hasSpaceName(changes.name, id)) return
     if (typeof changes.name === 'string' && changes.name.trim()) space.name = limitSpaceName(changes.name.trim())
     if (SPACE_COLORS.some(option => option.id === changes.color)) space.color = changes.color
     if (space.id !== DEFAULT_SPACE_ID && typeof changes.shared === 'boolean' && (changes.shared || !space.members?.length)) space.shared = changes.shared
@@ -401,8 +408,12 @@ export const useItemsStore = defineStore('items', () => {
   function joinSpaceByCode(code) {
     const normalized = code.trim().toUpperCase()
     if (!normalized) return { ok: false, message: '請先輸入空間邀請碼' }
-    if (normalized === 'FULL-0010') return { ok: false, message: '空間人數已滿' }
-    if (normalized === 'JOIN-0001') return { ok: false, message: '已經是成員' }
+    if (normalized === 'FUL-0010') return { ok: false, message: '空間人數已滿' }
+    if (normalized === 'JON-0001') return { ok: false, message: '已經是成員' }
+    const targetId = normalized === 'COM-8888' ? 'company' : normalized === 'FAM-8888' ? 'family' : null
+    if (targetId && getSpace(targetId)) return { ok: false, message: '已經是成員' }
+    const targetName = departedSpaces.value.find(entry => entry.space.id === targetId)?.space.name || (targetId === 'company' ? '公司' : '家庭')
+    if (targetId && hasSpaceName(targetName)) return { ok: false, reason: 'duplicate-name', spaceName: targetName, message: '已有相同名稱的空間' }
     // 邀請前為 9 人，展示帳號加入後剛好達到 10 人上限。
     if (normalized === 'COM-8888') {
       if (getSpace('company')) return { ok: false, message: '已經是成員' }
@@ -491,6 +502,7 @@ export const useItemsStore = defineStore('items', () => {
     updateRestockRecord,
     removeRestockRecord,
     addSpace,
+    hasSpaceName,
     getSpace,
     updateSpace,
     addSpaceMember,

@@ -1,8 +1,9 @@
 <script setup>
-import { computed, ref, shallowRef, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, shallowRef, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { limitSpaceName } from '../models/space'
 import { profile, updateProfile } from '../stores/profile'
+import BottomSheet from '../components/BottomSheet.vue'
 import backIcon from '../assets/add-item/back-chevron.svg'
 import { defaultAvatar, avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 
@@ -14,11 +15,6 @@ const avatar = ref(profile.avatar)
 const avatarMenuOpen = ref(false)
 const cameraInput = ref(null)
 const albumInput = ref(null)
-function closeAvatarMenu(event) {
-  if (!event.target.closest('.avatar-preview')) avatarMenuOpen.value = false
-}
-onMounted(() => document.addEventListener('pointerdown', closeAvatarMenu))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', closeAvatarMenu))
 function openImagePicker(source) {
   avatarMenuOpen.value = false
   const input = source === 'camera' ? cameraInput.value : albumInput.value
@@ -42,7 +38,7 @@ let enterCount = 0
 function showNotice(message) {
   clearTimeout(toastTimer)
   notice.value = message
-  toastTimer = setTimeout(() => { notice.value = '' }, 3000)
+  toastTimer = setTimeout(() => { notice.value = '' }, 5000)
 }
 onBeforeUnmount(() => clearTimeout(toastTimer))
 async function editName() {
@@ -206,12 +202,7 @@ async function selectAvatar(event) {
           </button>
           <input ref="cameraInput" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" capture="user" tabindex="-1" aria-label="拍照上傳頭貼" @change="selectAvatar" />
           <input ref="albumInput" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-label="從相簿上傳頭貼" @change="selectAvatar" />
-          <Transition name="avatar-menu">
-            <div v-if="avatarMenuOpen" id="avatar-source-menu" class="avatar-source-menu" role="group" aria-label="頭貼來源" @keydown.esc.stop="avatarMenuOpen = false">
-              <button type="button" @click="openImagePicker('camera')"><i class="fa-regular fa-camera" aria-hidden="true"></i>拍照</button>
-              <button type="button" @click="openImagePicker('album')"><i class="fa-regular fa-image" aria-hidden="true"></i>從相簿選擇</button>
-            </div>
-          </Transition>
+
         </div>
         <p v-if="avatarError" class="avatar-error" role="alert">{{ avatarError }}</p>
         <div class="avatar-options" role="group" aria-label="選擇頭像">
@@ -252,10 +243,18 @@ async function selectAvatar(event) {
         <div class="avatar-crop-actions"><button type="button" class="btn btn-secondary" @click="cancelCrop">取消</button><button type="button" class="btn btn-primary" @click="applyCrop">確認</button></div>
       </dialog>
       <Transition name="profile-toast"><div v-if="notice" class="profile-toast" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ notice }}</div></Transition></Teleport>
+    <BottomSheet :open="avatarMenuOpen" labelledby="avatar-source-title" @close="avatarMenuOpen = false">
+      <h2 id="avatar-source-title" class="avatar-sheet-title">更換頭貼</h2>
+      <div id="avatar-source-menu" class="avatar-source-menu" role="group" aria-label="頭貼來源">
+        <button type="button" @click="openImagePicker('camera')"><i class="fa-regular fa-camera" aria-hidden="true"></i>拍照</button>
+        <button type="button" @click="openImagePicker('album')"><i class="fa-regular fa-image" aria-hidden="true"></i>從相簿選擇</button>
+      </div>
+    </BottomSheet>
   </section>
 </template>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @use '../assets/scss/tokens' as t;
 
 .edit-profile-page { max-width: 358px; min-height: calc(100svh - 34px); margin-inline: auto; padding-top: 16px; text-align: left; color: t.$text-main; font-family: t.$font-family; }
@@ -265,8 +264,8 @@ async function selectAvatar(event) {
 .header-spacer { width: 44px; }
 .avatar-card { display: flex; flex-direction: column; align-items: center; gap: 34px; padding: 32px 24px 28px; border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; }
 .avatar-preview { position: relative; width: 104px; height: 104px; }
-.default-avatar { width: 104px; height: 104px; border-radius: 50%; background: t.$active-green; box-shadow: t.$shadow-raised; }
-.uploaded-avatar { width: 104px; height: 104px; object-fit: cover; border-radius: 50%; background: t.$active-green; box-shadow: t.$shadow-raised; }
+.default-avatar { width: 104px; height: 104px; border-radius: 50%; background: color.mix(t.$primary-green, t.$primary-subtle, 12%); box-shadow: t.$shadow-raised; }
+.uploaded-avatar { width: 104px; height: 104px; object-fit: cover; border-radius: 50%; background: color.mix(t.$primary-green, t.$primary-subtle, 12%); box-shadow: t.$shadow-raised; }
 .avatar-upload { position: absolute; right: -6px; bottom: -8px; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid #dce6d6; border-radius: 50%; background: t.$primary-green; box-shadow: t.$shadow-raised; color: white; font-size: 17px; cursor: pointer; }
 .avatar-upload { box-sizing: border-box; padding: 0; }
 .avatar-upload > i { display: grid; place-items: center; width: 20px; height: 20px; line-height: 1; }
@@ -276,7 +275,7 @@ async function selectAvatar(event) {
 .avatar-option img { display: block; width: 42px; height: 42px; border-radius: 50%; }
 .avatar-option.selected { border-color: #196b3e; }
 .avatar-upload:focus-within, .back-link:focus-visible, .avatar-option:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 4px; }
-.profile-form { margin-top: 46px; padding: 0; border-radius: 20px; background: t.$card-bg; overflow: hidden; }
+.profile-form { margin-top: 46px; padding: 0; border-radius: t.$radius-card; background: t.$card-bg; overflow: hidden; }
 .profile-row { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 10px 16px; position: relative; }
 .profile-row + .profile-row::before { content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 1px; background: t.$border-color; }
 .field-label { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin: 0; font-size: t.$font-size-body-sm; color: t.$text-body; }
@@ -295,21 +294,34 @@ async function selectAvatar(event) {
 .clear-name { position: absolute; right: 12px; top: 18px; transform: translateY(-50%); }
 .nickname-input:focus { outline: 2px solid t.$primary-green; outline-offset: 0; }
 
-.profile-toast { box-sizing: border-box; position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; gap: t.$space-8; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-family: t.$font-family; font-size: t.$font-size-body-sm; font-weight: t.$font-weight-bold; line-height: t.$line-height-body; i { color: t.$toast-success-accent; flex-shrink: 0; } }
-.profile-toast-enter-active, .profile-toast-leave-active { transition: opacity .5s ease; }
+.profile-toast { box-sizing: border-box; position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; gap: t.$space-8; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-family: t.$font-family; font-size: t.$font-size-body-sm; font-weight: t.$font-weight-medium; line-height: t.$line-height-body; i { color: t.$toast-success-accent; flex-shrink: 0; } }
+.profile-toast-enter-active, .profile-toast-leave-active { transition: opacity .3s ease; }
 .profile-toast-enter-from, .profile-toast-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .profile-toast-enter-active, .profile-toast-leave-active { transition: none; } }
 .nickname-count { position: absolute; right: 36px; top: 18px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; pointer-events: none; }
-.nickname-input.limit-exceeded { outline: 2px solid t.$accent-text; }
 .nickname-length-error { margin: 4px 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }
-.avatar-source-menu { position: absolute; left: -28px; top: 12px; z-index: 10; box-sizing: border-box; width: 176px; padding: 8px; border: 1px solid t.$border-color; border-radius: t.$radius-popover; background: t.$card-bg; box-shadow: t.$shadow-floating; button { display: flex; align-items: center; gap: 7px; width: 100%; height: 40px; padding: 0 12px; border: 0; background: transparent; color: t.$text-main; font: 500 14px / 20px t.$font-family; text-align: left; cursor: pointer; &:not(:last-child) { border-bottom: 1px solid t.$border-color; } &:focus-visible { outline: 2px solid t.$primary-green; border-radius: 14px; } } i { width: 20px; text-align: center; font-size: t.$font-size-card-title; } }
+.avatar-sheet-title { margin: t.$space-16 0; font: t.$font-weight-bold #{t.$font-size-heading} / #{t.$line-height-app-bar} t.$font-family; }
+.avatar-source-menu { display: flex; flex-direction: column; button { display: flex; align-items: center; gap: t.$space-12; width: 100%; min-height: t.$button-height; padding: t.$space-12 0; border: 0; background: transparent; color: t.$text-main; font: t.$font-weight-medium #{t.$font-size-button} / #{t.$line-height-body} t.$font-family; text-align: left; cursor: pointer; &:not(:last-child) { border-bottom: 1px solid t.$border-color; } &:focus, &:focus-visible { outline: none; } } i { width: t.$space-24; text-align: center; font-size: t.$font-size-card-title; } }
+
 .avatar-menu-enter-active, .avatar-menu-leave-active { transition: opacity .5s ease; }
 .avatar-menu-enter-from, .avatar-menu-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .avatar-menu-enter-active, .avatar-menu-leave-active { transition: none; } }
 .avatar-error { margin: 0; color: t.$danger; font-size: t.$font-size-caption; line-height: 18px; text-align: center; }
 .avatar-crop-dialog { box-sizing: border-box; width: min(320px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 24px; border: 0; border-radius: t.$radius-card; background: t.$card-bg; color: t.$text-main; font-family: t.$font-family; h2 { margin: 0; font-size: t.$font-size-card-title; text-align: center; } p { margin: 8px 0 16px; color: t.$text-sub; font-size: t.$font-size-caption; text-align: center; } &::backdrop { background: rgba(29,29,31,.5); } }
 .avatar-crop-surface { position: relative; width: 240px; height: 240px; margin-inline: auto; overflow: hidden; background: t.$input-bg; touch-action: none; cursor: grab; user-select: none; &:active { cursor: grabbing; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; } img { position: absolute; top: 0; left: 0; max-width: none; pointer-events: none; } }
-.avatar-crop-mask { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 80px rgba(0,0,0,.45); pointer-events: none; }
+.avatar-crop-mask { position: absolute; inset: 0; border-radius: 50%; box-shadow: t.$shadow-raised; pointer-events: none; }
 .avatar-crop-zoom { display: flex; align-items: center; gap: 12px; margin-block: 16px; font-size: t.$font-size-body-sm; input { flex: 1; min-width: 0; accent-color: t.$primary-green; } }
 .avatar-crop-actions { display: flex; gap: 12px; .btn { flex: 1; } .btn-secondary:focus { outline: none; } }
+.nickname-length-error, .avatar-error, .error-message {
+  margin-block: t.$space-12;
+  box-sizing: border-box;
+  padding: t.$space-8 t.$space-12;
+  border-radius: t.$radius-md;
+  background: t.$accent-soft;
+  color: t.$accent-text;
+  font: t.$font-weight-regular #{t.$font-size-metadata} / normal t.$font-family;
+  text-align: left;
+}
+.nickname-input-wrapper .nickname-length-error { margin-bottom: 0; }
+.avatar-crop-dialog .avatar-crop-actions .btn-secondary:focus, .avatar-crop-dialog .avatar-crop-actions .btn-secondary:focus-visible { outline: none; }
 </style>
