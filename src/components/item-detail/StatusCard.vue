@@ -22,19 +22,22 @@ const store = useItemsStore()
 const reminderStatus = computed(() => getReminderStatus(props.item, store.today))
 
 const COPY = {
-  [STATUS.NOT_NEEDED]: { title: '目前不用補貨', description: '我們會在下次接近補貨日時提醒你。', icon: 'check' },
+  [STATUS.NOT_NEEDED]: { title: '尚未到補貨時間', description: '接近下次補貨日時，我們會提醒你。', icon: 'check' },
   [STATUS.DUE_SOON]: { title: '該補貨了', description: '這項用品已進入提醒時間。', icon: 'clock' },
   [STATUS.OVERDUE]: { title: '補貨時間已過', description: '這項用品已超過原本的補貨時間，可以加入清單或記錄補貨。', icon: 'clock' },
-  [STATUS.REMINDER_OFF]: { title: '補貨提醒未開啟', description: '開啟後，系統會在接近預計補貨日時提醒你。', icon: 'clock' },
+  [STATUS.REMINDER_OFF]: { title: '補貨提醒未開啟', description: '開啟提醒後，系統會在接近補貨日時通知你。', icon: 'clock' },
 }
 
+// 已在購買清單時，說明改為提醒補貨完成後記錄，不再建議「加入清單」（RST-08）。
+const IN_LIST_DESCRIPTIONS = {
+  [STATUS.NOT_NEEDED]: '已加入購買清單，補貨完成後可記錄補貨。',
+  [STATUS.REMINDER_OFF]: '已加入購買清單，補貨完成後可記錄補貨。',
+  [STATUS.OVERDUE]: '這項用品已超過原本的補貨時間，補貨完成後可以記錄補貨。',
+}
 const copy = computed(() => {
   const entry = COPY[reminderStatus.value] ?? COPY[STATUS.REMINDER_OFF]
-  // 已在購買清單時，不再建議「加入清單」。
-  if (reminderStatus.value === STATUS.OVERDUE && props.item.inShoppingList) {
-    return { ...entry, description: '這項用品已超過原本的補貨時間，補貨完成後可以記錄補貨。' }
-  }
-  return entry
+  const inListDescription = props.item.inShoppingList && IN_LIST_DESCRIPTIONS[reminderStatus.value]
+  return inListDescription ? { ...entry, description: inListDescription } : entry
 })
 const daysLeft = computed(() => (props.item.nextRestockDate ? daysUntil(props.item.nextRestockDate, store.today) : null))
 
