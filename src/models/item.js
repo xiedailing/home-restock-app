@@ -222,14 +222,19 @@ export function sortRecordsNewestFirst(records) {
     .map(({ record }) => record)
 }
 
-// 狀態由資料推算，不存進 item。
-export function getStatus(item, today = toDateString()) {
-  if (item.inShoppingList) return STATUS.IN_SHOPPING_LIST
+// 提醒狀態：只看提醒開關與預計補貨日，不看購買清單（用品詳情的補貨提醒區使用，RST-07）。
+export function getReminderStatus(item, today = toDateString()) {
   if (!item.reminderEnabled || !item.nextRestockDate) return STATUS.REMINDER_OFF
   const days = daysUntil(item.nextRestockDate, today)
   if (days < 0) return STATUS.OVERDUE
   if (days <= REMIND_WITHIN_DAYS) return STATUS.DUE_SOON
   return STATUS.NOT_NEEDED
+}
+
+// 主要顯示狀態：已在購買清單優先，否則為提醒狀態。狀態由資料推算，不存進 item。
+export function getStatus(item, today = toDateString()) {
+  if (item.inShoppingList) return STATUS.IN_SHOPPING_LIST
+  return getReminderStatus(item, today)
 }
 
 // 延後中：今天早於延後到期日。不影響狀態，只用於首頁補貨提醒與詳情提示（specs/005 SNZ-03）。

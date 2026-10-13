@@ -67,7 +67,7 @@ function remove() {
         <button v-else type="button" class="record-row" @click="openRecord(entry)">
           <span class="record-dot" aria-hidden="true" />
           <span class="record-date">{{ entry.date.replaceAll('-', '/') }}</span>
-          <span class="record-quantity">補貨 {{ entry.quantity }} {{ item.unit }}</span>
+          <span class="record-quantity">+{{ entry.quantity }} {{ item.unit }}</span>
         </button>
       </li>
     </ul>
