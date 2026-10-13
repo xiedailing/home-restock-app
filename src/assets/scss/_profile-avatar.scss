@@ -1,0 +1,7 @@
+@use 'sass:color';
+@use 'tokens' as t;
+
+// 個人檔案與頁首頭貼共用底色，調整後同步套用。
+@mixin background {
+  background: color.mix(t.$primary-green, t.$primary-subtle, 12%);
+}

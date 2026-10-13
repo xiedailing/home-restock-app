@@ -1,13 +1,12 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { RouterLink } from 'vue-router'
+import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
 import { useItemsStore } from '../stores/items'
 import { getSpaceColor, formatSpaceLabel } from '../models/space'
 import SpaceTag from '../components/SpaceTag.vue'
 import { useToast } from '../composables/useToast'
 import shoppingListEmpty from '../assets/household-icons-by-state/empty-states/shopping-list-empty.svg'
 import { profile } from '../stores/profile'
-import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
 import { getItemIcon } from '../assets/household-icons-by-state'
 const store = useItemsStore()
 const { toast, showToast, hideToast, runUndo } = useToast()
@@ -217,7 +216,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 </script>
 <template>
   <section class="shopping-page" :class="{ 'with-claim-all': showRestockAll }" aria-labelledby="shopping-title">
-    <header class="shopping-header"><h1 id="shopping-title">購買清單</h1><RouterLink class="shopping-avatar-link" :to="{ name: 'edit-profile', query: { from: 'shopping' } }" aria-label="個人檔案設定"><img class="shopping-avatar" :src="profile.avatar || defaultAvatar" alt="" /></RouterLink></header>
+    <header class="shopping-header"><h1 id="shopping-title">購買清單</h1><ProfileAvatarMenu :to="{ name: 'edit-profile', query: { from: 'shopping' } }" /></header>
     <div class="shopping-tabs" role="tablist" aria-label="購買清單類型">
       <button id="personal-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'personal'" aria-controls="personal-shopping-panel" @click="activeTab = 'personal'">我的清單</button>
       <button id="shared-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'shared'" aria-controls="shared-shopping-panel" @click="activeTab = 'shared'">共享清單</button>
@@ -320,8 +319,6 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 .shopping-header { @include ph.page-header; }
 h1 { @include ph.page-title; }
 .inline-claim-all { margin-bottom: t.$space-16; .btn { width: 100%; min-height: t.$button-height; background: t.$primary-soft; color: t.$primary-green; box-shadow: t.$shadow-raised; } .btn:disabled { background: t.$text-disabled; color: t.$text-inverse; box-shadow: none; opacity: 1; } }
-.shopping-avatar-link { display: flex; border-radius: t.$radius-pill; cursor: pointer; &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 3px; } }
-.shopping-avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; background: t.$active-green; }
 .shopping-tabs { display: flex; box-sizing: border-box; min-height: 46px; padding: 3px; margin-bottom: t.$space-16; border-radius: t.$radius-popover; background: t.$surface-bg; button { flex: 1; min-width: 0; min-height: 40px; padding: 0 t.$space-8; border: 0; border-radius: t.$radius-popover; background: transparent; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; cursor: pointer; &[aria-selected="true"] { background: t.$primary-soft; color: t.$primary-green; font-weight: t.$font-weight-medium; box-shadow: t.$shadow-added; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; } } }
 .shopping-empty { display: flex; flex-direction: column; align-items: center; padding-top: max(64px, calc(36dvh - 126px)); text-align: center; h2 { margin: 19px 0 2px; font: t.$font-weight-bold #{t.$font-size-heading} / 30px t.$font-family; } p { max-width: 318px; margin: 0; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; } }
 .empty-disc { display: grid; place-items: center; width: 88px; height: 88px; border-radius: 50%; background: t.$primary-soft; box-shadow: t.$shadow-added; img { display: block; } }

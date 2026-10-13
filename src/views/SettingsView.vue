@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { isValidInviteCode } from '../utils/inviteCode'
+import { computed, ref, nextTick, onBeforeMount, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import { getSpaceColor } from '../models/space'
 import { profile } from '../stores/profile'
@@ -19,20 +20,19 @@ const store = useItemsStore()
 const route = useRoute()
 const router = useRouter()
 const settingsViewKey = 'settings-space-return-view'
-let restoreScrollFrame
 const restoringView = ref(false)
 function rememberSpaceView() {
   try {
     sessionStorage.setItem(settingsViewKey, JSON.stringify({
-      scrollY: window.scrollY, remainingSpacesExpanded: remainingSpacesExpanded.value, expandedSpaceGroups: expandedSpaceGroups.value,
+      remainingSpacesExpanded: remainingSpacesExpanded.value, expandedSpaceGroups: expandedSpaceGroups.value,
       expandedReminder: expandedReminder.value, notifications: notifications.value,
       reminderModes: reminderModes.value, customDays: customDays.value,
       restockDays: restockDays.value, shoppingDays: shoppingDays.value,
     }))
   } catch { /* 無法使用 sessionStorage 時仍可正常導覽。 */ }
 }
-onMounted(() => {
-  if (route.query.restoreView !== 'spaces') return
+onBeforeRouteLeave(() => { rememberSpaceView() })
+onBeforeMount(() => {
   let saved
   try { saved = JSON.parse(sessionStorage.getItem(settingsViewKey) || 'null'); sessionStorage.removeItem(settingsViewKey) } catch { return }
   if (!saved) return
@@ -44,15 +44,8 @@ onMounted(() => {
   customDays.value = saved.customDays
   restockDays.value = saved.restockDays
   shoppingDays.value = saved.shoppingDays
-  restoringView.value = true
-  nextTick(() => {
-    restoreScrollFrame = requestAnimationFrame(() => {
-      window.scrollTo({ top: saved.scrollY, behavior: 'instant' })
-      restoringView.value = false
-    })
-  })
+
 })
-onBeforeUnmount(() => cancelAnimationFrame(restoreScrollFrame))
 const remainingSpacesExpanded = ref(false)
 const expandedSpaceGroups = ref({ personal: true, shared: true })
 const spaceGroups = computed(() => [
@@ -60,10 +53,7 @@ const spaceGroups = computed(() => [
   { id: 'shared', label: '共享空間', spaces: store.spaces.filter(space => space.shared) },
 ].filter(group => group.spaces.length))
 const inviteCode = ref('')
-const validInviteCode = computed(() => {
-  const code = inviteCode.value.trim().toUpperCase()
-  return /^[A-Z]{3}-\d{4}$/.test(code)
-})
+const validInviteCode = computed(() => isValidInviteCode(inviteCode.value))
 function joinSpace() {
   if (!validInviteCode.value) return
   const result = store.joinSpaceByCode(inviteCode.value)
@@ -303,6 +293,7 @@ function saveChanges() {
 <style scoped lang="scss">
 @use 'sass:color';
 @use '../assets/scss/tokens' as t;
+@use '../assets/scss/profile-avatar' as avatar;
 @use '../assets/scss/page-header' as header;
 
 .settings-page.restoring-view { visibility: hidden; }
@@ -345,7 +336,7 @@ function saveChanges() {
   width: 104px;
   height: 104px;
   object-fit: cover;
-  background: color.mix(t.$primary-green, t.$primary-subtle, 12%);
+  @include avatar.background;
   border-radius: 50%;
   box-shadow: t.$shadow-raised;
 }

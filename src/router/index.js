@@ -1,3 +1,4 @@
+import { supportsPagePresentation, pageScrollPositions, rememberPageScroll } from '../utils/pagePresentation'
 import { createRouter, createWebHistory } from 'vue-router'
 
 export const routes = [
@@ -76,10 +77,17 @@ export const routes = [
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
-  scrollBehavior() {
+  scrollBehavior(to, from, savedPosition) {
+    if (supportsPagePresentation(to.path) && supportsPagePresentation(from.path)) {
+      const target = savedPosition || { top: pageScrollPositions.get(to.path) || 0 }
+      // Vue Router 已在 nextTick 後呼叫 scrollBehavior，直接恢復以免多繪製一幀錯誤位置。
+      return { ...target, behavior: 'instant' }
+    }
     return { top: 0 }
   },
 })
+
+router.beforeEach((to, from) => { rememberPageScroll(from.path, window.scrollY) })
 
 router.afterEach((to, _from, failure) => {
   // 被取消的導覽（例如新增用品的放棄確認）不更新標題。
