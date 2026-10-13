@@ -4,7 +4,7 @@
 // 多選模式（FR-405，Figma 693:3838）：點卡片改為勾選，隱藏「⋯」與【加入清單】。
 import { computed, onUnmounted, watch } from 'vue'
 import { STATUS } from '../../models/item'
-import { getItemIcon } from '../../assets/household-icons-by-state/index.js'
+import { getItemIconSrc } from '../../assets/household-icons-by-state/index.js'
 import moreButtonIcon from '../../assets/home/more-button.svg'
 
 const props = defineProps({
@@ -65,7 +65,7 @@ function chooseMenuOption(event) {
   >
     <div class="info-row">
       <span class="item-stamp" aria-hidden="true">
-        <img :src="getItemIcon(item.iconKey, item.status)" alt="" />
+        <img :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.status)" alt="" />
       </span>
       <div class="item-text">
         <h3 class="item-name">{{ item.name }}</h3>

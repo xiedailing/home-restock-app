@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { STATUS_LABELS } from '../../models/item'
-import { getItemIcon } from '../../assets/household-icons-by-state/index.js'
+import { getItemIconSrc } from '../../assets/household-icons-by-state/index.js'
 import chevronIcon from '../../assets/settings/chevron.svg'
 
 const props = defineProps({
@@ -103,7 +103,7 @@ function onContentClick() {
       @click="onContentClick"
     >
       <span class="item-icon-circle" aria-hidden="true">
-        <img class="item-icon" :src="getItemIcon(item.iconKey, item.status)" alt="" />
+        <img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.status)" alt="" />
       </span>
       <div class="item-body">
         <p class="item-name">{{ item.name }}</p>

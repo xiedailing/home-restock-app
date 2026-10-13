@@ -72,3 +72,7 @@ import { ITEM_STATUS } from '../models/item.js'
 ```js
 import { defaultAvatar, avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 ```
+
+## 使用者照片（specs/008）
+
+用品可以有自己的照片 `item.iconPhoto`（256×256 JPEG data URL）。顯示用品圖示時請用 `getItemIconSrc(item, status)`，不要直接用 `getItemIcon(item.iconKey, status)`：有照片時所有狀態都是同一張，沒有照片才依 `iconKey` 與狀態取插畫。照片的 `<img>` 加上 `item-photo` class，會填滿圓形容器。

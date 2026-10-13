@@ -6,7 +6,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import { STATUS_LABELS, matchItemIconKey } from '../models/item'
 import { limitSpaceName } from '../models/space'
-import { getItemIcon } from '../assets/household-icons-by-state/index.js'
+import { getItemIconSrc } from '../assets/household-icons-by-state/index.js'
+import ItemIconEditor from '../components/ItemIconEditor.vue'
 import { useToast } from '../composables/useToast'
 import AppToast from '../components/AppToast.vue'
 import StatusCard from '../components/item-detail/StatusCard.vue'
@@ -20,7 +21,7 @@ import backIcon from '../assets/add-item/back-chevron.svg'
 const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
-const { itemsWithStatus, spaces } = storeToRefs(itemsStore)
+const { itemsWithStatus, spaces, persistFailed } = storeToRefs(itemsStore)
 const { toast, showToast, runUndo } = useToast()
 
 const itemId = route.params.id
@@ -87,8 +88,23 @@ function saveName() {
   }
   editingName.value = false
   if (name === item.value.name) return
-  changeWithUndo('已更新用品名稱', () => itemsStore.updateItem(itemId, { name, iconKey: matchItemIconKey(name) }))
+  // 手動指定過圖示就不再依名稱比對（specs/008 ICO-05）。
+  const changes = item.value.iconManual ? { name } : { name, iconKey: matchItemIconKey(name) }
+  changeWithUndo('已更新用品名稱', () => itemsStore.updateItem(itemId, changes))
 }
+
+// ---------- 更換圖示（specs/008）----------
+function selectPresetIcon(key) {
+  if (!item.value.iconPhoto && item.value.iconKey === key) return
+  changeWithUndo('已更新用品圖示', () => itemsStore.updateItem(itemId, { iconKey: key, iconPhoto: null, iconManual: true }))
+}
+function applyIconPhoto(dataUrl) {
+  changeWithUndo('已更新用品圖示', () => itemsStore.updateItem(itemId, { iconPhoto: dataUrl, iconManual: true }))
+}
+// 儲存空間不足時照片重新整理後可能消失（FR-807）；本次工作階段照常顯示。
+watch(persistFailed, (failed) => {
+  if (failed && item.value?.iconPhoto) showToast('儲存空間不足，重新整理後照片可能不會保留')
+})
 
 function cancelRename() {
   editingName.value = false
@@ -171,9 +187,18 @@ function confirmDelete() {
 
     <!-- 用品摘要（FR-301） -->
     <section class="summary-card" :class="`summary-card--${item.status}`" aria-label="用品摘要">
-      <span class="summary-icon" aria-hidden="true">
-        <img :src="getItemIcon(item.iconKey, item.status)" alt="" />
-      </span>
+      <ItemIconEditor
+        :icon-key="item.iconKey"
+        :icon-photo="item.iconPhoto"
+        :preview-state="item.status"
+        @select-preset="selectPresetIcon"
+        @apply-photo="applyIconPhoto"
+        @error="showToast($event)"
+      >
+        <span class="summary-icon" aria-hidden="true">
+          <img :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.status)" alt="" />
+        </span>
+      </ItemIconEditor>
       <div class="summary-body">
         <div v-if="editingName" class="name-edit">
           <input

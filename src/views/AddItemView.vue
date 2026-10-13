@@ -16,6 +16,7 @@ import {
 } from '../models/item'
 import { limitSpaceName } from '../models/space'
 import { getItemIcon } from '../assets/household-icons-by-state/index.js'
+import ItemIconEditor from '../components/ItemIconEditor.vue'
 import DatePickerSheet from '../components/add-item/DatePickerSheet.vue'
 import AddSpaceSheet from '../components/add-item/AddSpaceSheet.vue'
 import SwitchTrack from '../components/SwitchTrack.vue'
@@ -60,7 +61,26 @@ const datePickerOpen = ref(false)
 const addSpaceOpen = ref(false)
 
 const unit = computed(() => (unitChoice.value === CUSTOM_UNIT ? customUnit.value.trim() : unitChoice.value ?? ''))
-const iconSrc = computed(() => getItemIcon(matchItemIconKey(name.value.trim()), ITEM_STATUS.IN_STOCK))
+// 圖示（specs/008）：沒手動指定時隨名稱比對；手動選預設圖示或照片後固定（ICO-05）。
+const iconManual = ref(false)
+const pickedIconKey = ref(null)
+const iconPhoto = ref(null)
+const iconError = ref('')
+const iconKey = computed(() => (iconManual.value ? pickedIconKey.value : matchItemIconKey(name.value.trim())))
+const iconSrc = computed(() => iconPhoto.value || getItemIcon(iconKey.value, ITEM_STATUS.IN_STOCK))
+function selectPresetIcon(key) {
+  iconError.value = ''
+  pickedIconKey.value = key
+  iconPhoto.value = null
+  iconManual.value = true
+}
+function applyIconPhoto(dataUrl) {
+  iconError.value = ''
+  // iconKey 保留目前的種類，只是照片優先顯示。
+  pickedIconKey.value = iconKey.value
+  iconPhoto.value = dataUrl
+  iconManual.value = true
+}
 const selectedSpaceName = computed(() => spaces.value.find((space) => space.id === spaceId.value)?.name ?? '')
 const selectedCommonName = computed(() => {
   const trimmed = name.value.trim()
@@ -133,10 +153,10 @@ const customUnitField = fieldRefs.customUnit
 const dateField = fieldRefs.date
 
 // ---------- 返回與放棄 ----------
-const initialSnapshot = JSON.stringify({ name: '', category: null, unitChoice: null, customUnit: '', spaceId: initialSpaceId, reminderEnabled: true, quantity: 1, nextRestockDate: null })
+const initialSnapshot = JSON.stringify({ name: '', category: null, unitChoice: null, customUnit: '', spaceId: initialSpaceId, reminderEnabled: true, quantity: 1, nextRestockDate: null, iconManual: false })
 const isDirty = computed(() => JSON.stringify({
   name: name.value.trim(), category: category.value, unitChoice: unitChoice.value, customUnit: customUnit.value.trim(),
-  spaceId: spaceId.value, reminderEnabled: reminderEnabled.value, quantity: quantity.value, nextRestockDate: nextRestockDate.value,
+  spaceId: spaceId.value, reminderEnabled: reminderEnabled.value, quantity: quantity.value, nextRestockDate: nextRestockDate.value, iconManual: iconManual.value,
 }) !== initialSnapshot)
 
 const discardDialog = ref(null)
@@ -196,7 +216,9 @@ async function createItem() {
   const baseDate = today.value
   const item = itemsStore.addItem({
     name: name.value.trim(),
-    iconKey: matchItemIconKey(name.value.trim()),
+    iconKey: iconKey.value,
+    iconPhoto: iconPhoto.value,
+    iconManual: iconManual.value,
     category: category.value,
     unit: unit.value,
     spaceId: spaceId.value,
@@ -262,8 +284,17 @@ async function createItem() {
       <h2 id="basic-info-title" class="section-title">基本資訊 <span class="required">*</span></h2>
       <div class="soft-card list-card">
         <div class="icon-preview">
-          <span class="icon-circle"><img :src="iconSrc" alt="" /></span>
+          <ItemIconEditor
+            :icon-key="iconKey"
+            :icon-photo="iconPhoto"
+            @select-preset="selectPresetIcon"
+            @apply-photo="applyIconPhoto"
+            @error="iconError = $event"
+          >
+            <span class="icon-circle"><img :class="{ 'item-photo': iconPhoto }" :src="iconSrc" alt="" /></span>
+          </ItemIconEditor>
         </div>
+        <p v-if="iconError" class="icon-error" role="alert">{{ iconError }}</p>
 
         <div ref="nameField" class="name-row">
           <div class="name-content">
@@ -590,6 +621,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green;
 // ---------- 基本資訊 ----------
 .list-card { padding: t.$space-4 0; border-radius: t.$space-24; }
 .icon-preview { padding: t.$space-16 0 t.$space-4; display: flex; justify-content: center; }
+.icon-error { margin: 0; padding: 0 t.$space-16 t.$space-4; color: t.$danger; font: t.$font-weight-regular 13px / 1.4 t.$font-family; text-align: center; }
 .icon-circle {
   width: 64px;
   height: 64px;
@@ -597,6 +629,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green;
   place-items: center;
   border-radius: 50%;
   background: t.$success-subtle;
+  overflow: hidden;
   box-shadow: inset -3.692px -3.692px 7.385px rgba(255, 255, 255, .9), inset 3.692px 3.692px 7.385px rgba(184, 131, 90, .22);
   img { width: 48px; height: 48px; }
 }
