@@ -47,6 +47,12 @@ onMounted(() => {
   showToast('已新增用品')
 })
 
+// 共享空間的用品在「共享清單」才看得到（未認購／他人認購不在「我的清單」），並預選該空間篩選。
+function viewShoppingList() {
+  if (itemSpace.value?.shared) router.push({ name: 'shopping', query: { tab: 'shared', space: itemSpace.value.id } })
+  else router.push({ name: 'shopping' })
+}
+
 // 變更前先保存整筆 snapshot，Toast「復原」時還原（specs/003 DET-15）。
 function changeWithUndo(message, change) {
   const snapshot = itemsStore.snapshotItem(itemId)
@@ -238,7 +244,7 @@ function confirmDelete() {
       :switch-on="reminderSwitchOn"
       @restock="restockOpen = true"
       @add-to-list="addToShoppingList"
-      @view-list="router.push({ name: 'shopping' })"
+      @view-list="viewShoppingList"
       @toggle-reminder="toggleReminder"
       @edit-date="reminderSheetMode = 'date'"
     />
