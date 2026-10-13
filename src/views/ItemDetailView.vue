@@ -9,7 +9,6 @@ import { limitSpaceName } from '../models/space'
 import { getItemIcon } from '../assets/household-icons-by-state/index.js'
 import { useToast } from '../composables/useToast'
 import AppToast from '../components/AppToast.vue'
-import SwitchTrack from '../components/SwitchTrack.vue'
 import StatusCard from '../components/item-detail/StatusCard.vue'
 import BasicInfoSection from '../components/item-detail/BasicInfoSection.vue'
 import ReminderSetupSheet from '../components/item-detail/ReminderSetupSheet.vue'
@@ -17,7 +16,6 @@ import RestockSheet from '../components/item-detail/RestockSheet.vue'
 import RestockRecordList from '../components/item-detail/RestockRecordList.vue'
 import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
 import backIcon from '../assets/add-item/back-chevron.svg'
-import selectorChevron from '../assets/add-item/selector-chevron.svg'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,7 +27,6 @@ const itemId = route.params.id
 const item = computed(() => itemsWithStatus.value.find((entry) => entry.id === itemId))
 const itemSpace = computed(() => spaces.value.find((space) => space.id === item.value?.spaceId))
 const spaceName = computed(() => itemSpace.value?.name ?? '未指定空間')
-const formatDate = (date) => date?.replaceAll('-', '/') ?? '−'
 
 // 用品不存在（已刪除、重新整理後 id 失效）時回到我的用品；自己刪除時由 confirmDelete 導頁。
 let leaving = false
@@ -213,38 +210,15 @@ function confirmDelete() {
 
     <StatusCard
       :item="item"
+      :switch-on="reminderSwitchOn"
       @restock="restockOpen = true"
       @add-to-list="addToShoppingList"
       @view-list="router.push({ name: 'shopping' })"
-      @enable-reminder="reminderSheetMode = 'setup'"
+      @toggle-reminder="toggleReminder"
+      @edit-date="reminderSheetMode = 'date'"
     />
 
     <BasicInfoSection :item="item" :spaces="spaces" @change="onBasicInfoChange" />
-
-    <!-- 補貨資訊（001 FR-005：開關、下次預計補貨日、上次補貨） -->
-    <section class="detail-section" aria-labelledby="restock-info-title">
-      <h2 id="restock-info-title" class="section-title">補貨資訊</h2>
-      <div class="list-card">
-        <div class="list-row info-row">
-          <span id="reminder-switch-label" class="info-label">補貨提醒</span>
-          <button type="button" class="reminder-switch" role="switch" :aria-checked="reminderSwitchOn" aria-labelledby="reminder-switch-label" @click="toggleReminder">
-            <SwitchTrack :checked="reminderSwitchOn" />
-          </button>
-        </div>
-        <div v-if="item.reminderEnabled" class="list-row">
-          <button type="button" class="info-row info-row--button" @click="reminderSheetMode = 'date'">
-            <span class="info-label">下次預計補貨日</span>
-            <span class="info-value">{{ formatDate(item.nextRestockDate) }}</span>
-            <img :src="selectorChevron" alt="" />
-          </button>
-        </div>
-        <!-- 只顯示；要修改請到補貨紀錄（specs/003 DET-13）。 -->
-        <div class="list-row info-row">
-          <span class="info-label">上次補貨</span>
-          <span class="info-value" :class="{ 'info-value--empty': !item.lastRestockDate }">{{ formatDate(item.lastRestockDate) }}</span>
-        </div>
-      </div>
-    </section>
 
     <section class="detail-section" aria-labelledby="records-title">
       <div class="section-header">
@@ -414,28 +388,6 @@ function confirmDelete() {
   white-space: nowrap;
 }
 .summary-card--overdue .status-badge { font-weight: t.$font-weight-bold; }
-
-// ---------- 補貨資訊 ----------
-.info-row {
-  width: 100%;
-  min-height: 48px;
-  padding: t.$space-8 t.$space-16;
-  display: flex;
-  align-items: center;
-  gap: t.$space-8;
-  &--button { border: 0; background: transparent; text-align: left; }
-  img { flex-shrink: 0; }
-}
-.info-label { flex: 1; color: t.$text-body; font: t.$font-weight-regular 15px / normal t.$font-family; }
-.info-value { color: t.$text-main; font: t.$font-weight-medium 15px / normal t.$font-family; &--empty { color: t.$text-sub; font-size: 14px; } }
-.reminder-switch {
-  flex: 0 0 t.$switch-width;
-  height: t.$switch-height;
-  padding: 0;
-  border: 0;
-  border-radius: t.$switch-radius;
-  background: transparent;
-}
 
 // ---------- 補貨紀錄 ----------
 .section-header { display: flex; align-items: baseline; justify-content: space-between; padding-right: t.$space-4; }
