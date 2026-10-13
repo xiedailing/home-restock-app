@@ -8,9 +8,8 @@ import { useItemsStore } from '../stores/items'
 import { SNOOZE_DAYS } from '../models/item'
 import { useToast } from '../composables/useToast'
 import { bottomNavHiddenByPage } from '../composables/useBottomNav'
-import { profile } from '../stores/profile'
-import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
 import AppToast from '../components/AppToast.vue'
+import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
 import ShoppingSummaryCard from '../components/home/ShoppingSummaryCard.vue'
 import RecentUpdateCard from '../components/home/RecentUpdateCard.vue'
 import ReminderCard from '../components/home/ReminderCard.vue'
@@ -120,7 +119,7 @@ function onRestockConfirm(restock) {
           <h1 id="home-title">補補</h1>
           <p class="home-subtitle">所有空間的補貨總覽</p>
         </div>
-        <img class="profile-avatar" :src="profile.avatar || defaultAvatar" alt="個人頭像" />
+        <ProfileAvatarMenu :to="{ name: 'edit-profile' }" />
       </header>
       <div class="summary-row">
         <ShoppingSummaryCard :items="myShoppingList" />
@@ -216,14 +215,6 @@ function onRestockConfirm(restock) {
 .home-header { @include ph.page-header(0); }
 h1 { @include ph.page-title; }
 .home-subtitle { @include ph.page-subtitle; }
-.profile-avatar {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  border-radius: t.$radius-pill;
-  object-fit: cover;
-  box-shadow: t.$shadow-raised;
-}
 
 .reminder-section { display: flex; flex-direction: column; gap: 25px; padding-top: t.$space-4; }
 .section-header { display: flex; align-items: center; gap: 10px; min-height: 24px; }

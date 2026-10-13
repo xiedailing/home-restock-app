@@ -16,8 +16,7 @@ import dueSoonDot from '../assets/items/status-filter/due-soon.svg'
 import reminderOffDot from '../assets/items/status-filter/reminder-off.svg'
 import shoppingListDot from '../assets/items/status-filter/shopping-list.svg'
 import notNeededDot from '../assets/items/status-filter/not-needed.svg'
-import { profile } from '../stores/profile'
-import { defaultAvatar } from '../assets/household-icons-by-state/avatars/index.js'
+import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
 import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
 import chevronIcon from '../assets/settings/chevron.svg'
 import emptyItemIcon from '../assets/household-icons-by-state/common/generic-item-in-shopping-list-plain.svg'
@@ -324,7 +323,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
           </div>
           <p class="inventory-subtitle">共 {{ spaceItems.length }} 項用品</p>
         </div>
-        <img class="profile-avatar" :src="profile.avatar || defaultAvatar" alt="個人頭像" />
+        <ProfileAvatarMenu :to="{ name: 'edit-profile' }" />
 
         <!-- Space Popover：浮層，不推動下方版面。 -->
         <template v-if="spaceMenuOpen">
@@ -663,15 +662,6 @@ h1 {
 }
 
 .inventory-subtitle { @include ph.page-subtitle; }
-
-.profile-avatar {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-  border-radius: t.$radius-pill;
-  object-fit: cover;
-  box-shadow: t.$shadow-raised;
-}
 
 .inventory-toolbar {
   display: flex;
