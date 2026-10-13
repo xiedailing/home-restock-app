@@ -4,11 +4,16 @@
 import { computed } from 'vue'
 import { STATUS, daysUntil, isSnoozed } from '../../models/item'
 import { useItemsStore } from '../../stores/items'
+import SwitchTrack from '../SwitchTrack.vue'
+import selectorChevron from '../../assets/add-item/selector-chevron.svg'
 
 const props = defineProps({
   item: { type: Object, required: true }, // 含 status
+  // 補貨提醒開關的顯示狀態；設定 Sheet 開啟期間先呈現開啟，由頁面決定（specs/003 FR-305）。
+  switchOn: Boolean,
 })
-const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'enable-reminder'])
+// toggle-reminder：點開關（關閉要確認、開啟開設定 Sheet，由頁面處理）；edit-date：點預計補貨日列。
+const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'toggle-reminder', 'edit-date'])
 // 讀 store 的響應式「今天」，跨日後剩餘天數與延後提示會自動更新（specs/003 KI-01）。
 const store = useItemsStore()
 
@@ -22,7 +27,6 @@ const COPY = {
 
 const copy = computed(() => COPY[props.item.status] ?? COPY[STATUS.REMINDER_OFF])
 const daysLeft = computed(() => (props.item.nextRestockDate ? daysUntil(props.item.nextRestockDate, store.today) : null))
-const formattedDate = computed(() => props.item.nextRestockDate?.replaceAll('-', '/') ?? '')
 
 // 計數至少兩位數；超過 99 天顯示實際位數（specs/003 DET-16）。
 const counter = computed(() => {
@@ -39,8 +43,10 @@ const snoozeText = computed(() => {
   const [, month, day] = props.item.snoozedUntil.split('-').map(Number)
   return `已延後提醒至 ${month}/${day}`
 })
-// 購買清單中且提醒關閉時，不顯示預計補貨日。
-const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextRestockDate && props.item.status !== STATUS.REMINDER_OFF)
+// 提醒關閉時沒有預計補貨日可顯示或編輯（001 FR-005）。
+const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextRestockDate)
+const dateLabel = computed(() => (props.item.status === STATUS.NOT_NEEDED ? '下次預計補貨日' : '預計補貨日'))
+const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
 </script>
 
 <template>
@@ -57,26 +63,39 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
       </div>
     </div>
 
-    <div v-if="counter || isDueToday" class="info-panel">
-      <div v-if="counter" class="counter-row">
-        <span class="counter-label">{{ counter.label }}</span>
-        <span class="counter-digits" :aria-label="`${counter.days} 天`">
-          <span v-for="(digit, index) in digits" :key="index" class="digit" aria-hidden="true">{{ digit }}</span>
-        </span>
-        <span class="counter-unit" aria-hidden="true">天</span>
-      </div>
-      <p v-else class="due-today">今天是預計補貨日</p>
-      <span class="panel-divider" />
-      <div class="date-row">
-        <span>預計補貨日</span>
-        <strong>{{ formattedDate }}</strong>
-      </div>
-    </div>
-    <div v-else-if="showDate" class="info-panel">
-      <div class="date-row">
-        <span>{{ item.status === STATUS.NOT_NEEDED ? '下次預計補貨日' : '預計補貨日' }}</span>
-        <strong>{{ formattedDate }}</strong>
-      </div>
+    <!-- 補貨資訊合併進狀態卡（specs/003 FR-302、RST-06）：倒數、預計補貨日、上次補貨、補貨提醒開關。 -->
+    <div class="info-panel">
+      <template v-if="counter || isDueToday">
+        <div v-if="counter" class="counter-row">
+          <span class="counter-label">{{ counter.label }}</span>
+          <span class="counter-digits" :aria-label="`${counter.days} 天`">
+            <span v-for="(digit, index) in digits" :key="index" class="digit" aria-hidden="true">{{ digit }}</span>
+          </span>
+          <span class="counter-unit" aria-hidden="true">天</span>
+        </div>
+        <p v-else class="due-today">今天是預計補貨日</p>
+        <span class="panel-divider" />
+      </template>
+      <ul class="info-rows">
+        <li v-if="showDate">
+          <button type="button" class="info-row info-row--button" @click="emit('edit-date')">
+            <span class="info-label">{{ dateLabel }}</span>
+            <strong class="info-value">{{ formatDate(item.nextRestockDate) }}</strong>
+            <img :src="selectorChevron" alt="" />
+          </button>
+        </li>
+        <!-- 只顯示；要修改請到補貨紀錄（specs/003 DET-13）。 -->
+        <li class="info-row">
+          <span class="info-label">上次補貨</span>
+          <span class="info-value" :class="{ 'info-value--empty': !item.lastRestockDate }">{{ item.lastRestockDate ? formatDate(item.lastRestockDate) : '尚無紀錄' }}</span>
+        </li>
+        <li class="info-row">
+          <span id="status-reminder-switch-label" class="info-label">補貨提醒</span>
+          <button type="button" class="reminder-switch" role="switch" :aria-checked="switchOn" aria-labelledby="status-reminder-switch-label" @click="emit('toggle-reminder')">
+            <SwitchTrack :checked="switchOn" />
+          </button>
+        </li>
+      </ul>
     </div>
 
     <div class="status-actions">
@@ -85,8 +104,6 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
       <button v-else type="button" class="btn btn-primary action-primary" @click="emit('add-to-list')">
         <span class="plus-icon" aria-hidden="true" />加入清單
       </button>
-      <!-- 提醒關閉仍可補貨與加入清單（001 FR-003、RST-02）；開啟提醒為次要動作。 -->
-      <button v-if="item.status === STATUS.REMINDER_OFF" type="button" class="action-secondary action-enable" @click="emit('enable-reminder')">開啟補貨提醒</button>
     </div>
   </section>
 </template>
@@ -165,7 +182,31 @@ h2 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
   span { color: t.$text-body; font: t.$font-weight-regular 13px / 20px t.$font-family; }
   strong { color: t.$text-main; font: t.$font-weight-bold 14px / 20px t.$font-family; }
 }
-.status-actions { display: flex; flex-wrap: wrap; gap: t.$space-8; }
+.info-rows { margin: 0; padding: 0; list-style: none; }
+.info-rows > li + li { border-top: 1px solid t.$border-color; }
+.info-row {
+  width: 100%;
+  min-height: 44px;
+  padding: t.$space-8 0;
+  display: flex;
+  align-items: center;
+  gap: t.$space-8;
+  &--button { border: 0; background: transparent; text-align: left; border-radius: t.$radius-sm; &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; } }
+  img { flex-shrink: 0; }
+}
+.info-label { flex: 1; color: t.$text-body; font: t.$font-weight-regular 14px / 20px t.$font-family; }
+.info-value { color: t.$text-main; font: t.$font-weight-bold 14px / 20px t.$font-family; &--empty { color: t.$text-sub; font-weight: t.$font-weight-regular; } }
+.reminder-switch {
+  flex: 0 0 t.$switch-width;
+  height: t.$switch-height;
+  padding: 0;
+  border: 0;
+  border-radius: t.$switch-radius;
+  background: transparent;
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+}
+.status-actions { display: flex; gap: t.$space-8; }
 .action-secondary, .action-primary {
   min-height: t.$button-height-compact;
   border: 0;
@@ -182,7 +223,6 @@ h2 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
   font: t.$font-weight-medium 15px / normal t.$font-family;
 }
 .action-primary { flex: 1.6; font: t.$font-weight-bold t.$font-size-button / normal t.$font-family; }
-.action-enable { flex: 1 1 100%; }
 // Figma Icon / Plus：12px，橫豎線各佔 25%～75%。
 .plus-icon {
   position: relative;
