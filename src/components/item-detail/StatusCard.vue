@@ -54,6 +54,8 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
         <h2 id="status-card-title">{{ copy.title }}</h2>
         <p>{{ copy.description }}</p>
         <p v-if="snoozeText" class="snooze-note">{{ snoozeText }}</p>
+        <!-- 提醒關閉仍可補貨與加入清單（001 FR-003）；開啟提醒是說明文字下的文字連結（RST-02）。 -->
+        <button v-if="item.status === STATUS.REMINDER_OFF" type="button" class="enable-link" @click="emit('enable-reminder')">開啟補貨提醒</button>
       </div>
     </div>
 
@@ -85,8 +87,6 @@ const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextR
       <button v-else type="button" class="btn btn-primary action-primary" @click="emit('add-to-list')">
         <span class="plus-icon" aria-hidden="true" />加入清單
       </button>
-      <!-- 提醒關閉仍可補貨與加入清單（001 FR-003、RST-02）；開啟提醒為次要動作。 -->
-      <button v-if="item.status === STATUS.REMINDER_OFF" type="button" class="action-secondary action-enable" @click="emit('enable-reminder')">開啟補貨提醒</button>
     </div>
   </section>
 </template>
@@ -165,7 +165,7 @@ h2 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
   span { color: t.$text-body; font: t.$font-weight-regular 13px / 20px t.$font-family; }
   strong { color: t.$text-main; font: t.$font-weight-bold 14px / 20px t.$font-family; }
 }
-.status-actions { display: flex; flex-wrap: wrap; gap: t.$space-8; }
+.status-actions { display: flex; gap: t.$space-8; }
 .action-secondary, .action-primary {
   min-height: t.$button-height-compact;
   border: 0;
@@ -182,7 +182,18 @@ h2 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
   font: t.$font-weight-medium 15px / normal t.$font-family;
 }
 .action-primary { flex: 1.6; font: t.$font-weight-bold t.$font-size-button / normal t.$font-family; }
-.action-enable { flex: 1 1 100%; }
+.enable-link {
+  margin-top: t.$space-4;
+  padding: t.$space-4 0;
+  border: 0;
+  background: transparent;
+  color: t.$primary-green;
+  font: t.$font-weight-bold 14px / 22px t.$font-family;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; border-radius: 4px; }
+}
 // Figma Icon / Plus：12px，橫豎線各佔 25%～75%。
 .plus-icon {
   position: relative;
