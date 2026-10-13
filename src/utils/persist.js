@@ -3,7 +3,7 @@
 export const STORAGE_VERSION = 1
 const PREFIX = 'home-restock:v1:'
 
-export const STORE_KEYS = { items: 'items', profile: 'profile' }
+export const STORE_KEYS = { items: 'items', profile: 'profile', notifications: 'notifications' }
 
 export function loadPersisted(name) {
   try {

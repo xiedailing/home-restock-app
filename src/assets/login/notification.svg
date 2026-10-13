@@ -1,0 +1,7 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Icon">
+<rect width="96" height="96" rx="48" fill="#EEF5EC"/>
+<path id="Bell" d="M48 26C40 26 35 32.9677 35 42.2581V52.7097L30 62H66L61 52.7097V42.2581C61 32.9677 56 26 48 26Z" fill="#3F6F3B"/>
+<ellipse id="Clapper" cx="48" cy="67" rx="5" ry="3" fill="#3F6F3B"/>
+</g>
+</svg>
