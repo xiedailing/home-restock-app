@@ -27,7 +27,11 @@ const isSettingsPage = path => path === '/settings' || path.startsWith('/setting
 watch(() => route.path, (to, from) => {
   const navPaths = ['/home', '/inventory', '/shopping', '/settings']
   const switchingMainPages = navPaths.includes(to) && navPaths.includes(from)
-  const animate = !switchingMainPages && supportsPagePresentation(to) && supportsPagePresentation(from)
+  const detailId = from.match(/^\/items\/([^/]+)$/)?.[1]
+  const returningAfterDeletion = to === '/inventory' && detailId && !itemsStore.getItem(decodeURIComponent(detailId))
+  const detailToShopping = !!detailId && from !== '/items/new' && to === '/shopping'
+  const avatarToProfile = to === '/settings/profile' && typeof route.query.returnTo === 'string'
+  const animate = !switchingMainPages && !returningAfterDeletion && !detailToShopping && !avatarToProfile && supportsPagePresentation(to) && supportsPagePresentation(from)
   animateSettingsPages.value = animate
   animateItemsPages.value = animate
   const toDepth = to.split('/').filter(Boolean).length

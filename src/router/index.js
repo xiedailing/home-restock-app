@@ -1,4 +1,4 @@
-import { supportsPagePresentation, pageScrollPositions, rememberPageScroll } from '../utils/pagePresentation'
+import { supportsScrollRestoration, pageScrollPositions, rememberPageScroll } from '../utils/pagePresentation'
 import { createRouter, createWebHistory } from 'vue-router'
 
 export const routes = [
@@ -79,7 +79,7 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
   scrollBehavior(to, from, savedPosition) {
-    if (supportsPagePresentation(to.path) && supportsPagePresentation(from.path)) {
+    if (supportsScrollRestoration(to.path) && supportsScrollRestoration(from.path)) {
       const target = savedPosition || { top: pageScrollPositions.get(to.path) || 0 }
       // Vue Router 已在 nextTick 後呼叫 scrollBehavior，直接恢復以免多繪製一幀錯誤位置。
       return { ...target, behavior: 'instant' }

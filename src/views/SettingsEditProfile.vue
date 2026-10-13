@@ -200,8 +200,8 @@ async function selectAvatar(event) {
           <button type="button" class="avatar-upload" aria-label="更換頭貼" :aria-expanded="avatarMenuOpen" aria-controls="avatar-source-menu" :disabled="loadingImage" @click="avatarMenuOpen = !avatarMenuOpen" @keydown.esc="avatarMenuOpen = false">
             <i class="fa-regular fa-camera" aria-hidden="true"></i>
           </button>
-          <input ref="cameraInput" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" capture="user" tabindex="-1" aria-label="拍照上傳頭貼" @change="selectAvatar" />
-          <input ref="albumInput" class="visually-hidden" type="file" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-label="從相簿上傳頭貼" @change="selectAvatar" />
+          <input ref="cameraInput" hidden type="file" accept="image/jpeg,image/png,image/webp" capture="user" tabindex="-1" aria-label="拍照上傳頭貼" @change="selectAvatar" />
+          <input ref="albumInput" hidden type="file" accept="image/jpeg,image/png,image/webp" tabindex="-1" aria-label="從相簿上傳頭貼" @change="selectAvatar" />
 
         </div>
         <p v-if="avatarError" class="avatar-error" role="alert">{{ avatarError }}</p>
@@ -271,7 +271,6 @@ async function selectAvatar(event) {
 .avatar-upload { position: absolute; right: -6px; bottom: -8px; display: grid; place-items: center; width: 34px; height: 34px; border: 2px solid #dce6d6; border-radius: 50%; background: t.$primary-green; box-shadow: t.$shadow-raised; color: white; font-size: 17px; cursor: pointer; }
 .avatar-upload { box-sizing: border-box; padding: 0; }
 .avatar-upload > i { display: grid; place-items: center; width: 20px; height: 20px; line-height: 1; }
-.avatar-upload input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .avatar-options { display: flex; justify-content: center; gap: 16px; width: 100%; }
 .avatar-option { position: relative; flex: 0 0 46px; height: 46px; padding: 0; border: 2px solid transparent; border-radius: 50%; background: t.$active-green; cursor: pointer; }
 .avatar-option img { display: block; width: 42px; height: 42px; border-radius: 50%; }
