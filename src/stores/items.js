@@ -1,6 +1,7 @@
-import { computed, ref, shallowRef, toRaw } from 'vue'
+import { computed, ref, shallowRef, toRaw, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { generateId } from '../utils/id.js'
+import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 import { profile } from './profile'
 import { SYSTEM_CATEGORIES, PRESET_ITEMS, getItemCategory } from '../models/itemCategories'
 import { SPACE_COLORS, limitSpaceName } from '../models/space'
@@ -25,9 +26,49 @@ import {
 // 刪除後可復原的時間，與 Toast 顯示時間相同。
 export const UNDO_DURATION_MS = 5000
 
+// 第一次使用（或存檔無效）時的示範資料。
+function createDemoState() {
+  const items = createSampleItems()
+  const spaces = DEFAULT_SPACES.map((space) => ({ ...space, ownerId: 'self', members: [] }))
+  // 展示生活日用品中，同名用品分屬不同空間的標籤效果。
+  const previewSpaces = [
+    { id: 'preview-family', name: '家庭', shared: true, color: 'blue' },
+    { id: 'preview-company', name: '公司', shared: true, color: 'orange' },
+    { id: 'preview-travel', name: '旅行', shared: false, color: 'red' },
+  ]
+  spaces.push(...previewSpaces.map(space => ({ ...space, ownerId: 'self', members: [] })))
+  for (const space of previewSpaces) {
+    items.push(
+      createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: space.id, reminderEnabled: false }),
+      createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: space.id, reminderEnabled: false }),
+    )
+  }
+
+  // 購買清單展示：目前使用者可接手小明已認購的家庭用品。
+  const takeoverPreviewSpace = spaces.find(space => space.id === 'preview-family')
+  takeoverPreviewSpace.members.push({ id: 'preview-xiaoming', name: '小明' })
+  const takeoverPreviewItem = items.find(item => item.spaceId === 'preview-family' && item.name === '垃圾袋')
+  Object.assign(takeoverPreviewItem, { inShoppingList: true, quantity: 2, addedToShoppingListDate: toDateString(), shoppingClaimantId: 'preview-xiaoming' })
+  return { items, spaces }
+}
+
+// 讀取存檔並檢查結構；任何一項不符就回傳 null，整批改用示範資料，不載入一半。
+function loadSavedState() {
+  const data = loadPersisted(STORE_KEYS.items)
+  if (!data) return null
+  const hasIds = (list) => Array.isArray(list) && list.every(entry => entry && typeof entry.id === 'string')
+  const departedValid = Array.isArray(data.departedSpaces) && data.departedSpaces.every(entry => entry?.space && typeof entry.space.id === 'string' && hasIds(entry.items))
+  const categoriesValid = Array.isArray(data.customCategories) && data.customCategories.every(name => typeof name === 'string')
+  if (!hasIds(data.items) || !hasIds(data.spaces) || !departedValid || !categoriesValid) return null
+  return data
+}
+
 export const useItemsStore = defineStore('items', () => {
-  const items = ref(createSampleItems())
-  const customCategories = ref([])
+  const saved = loadSavedState()
+  const demo = saved ? null : createDemoState()
+  const items = ref(saved?.items ?? demo.items)
+  const customCategories = ref(saved?.customCategories ?? [])
+  const spaces = ref(saved?.spaces ?? demo.spaces)
   const systemCategoryCounts = computed(() => SYSTEM_CATEGORIES.map(name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length })))
   const customCategoryCounts = computed(() => {
     const names = new Set([...customCategories.value, ...items.value.map(getItemCategory).filter(name => name && !SYSTEM_CATEGORIES.includes(name))])
@@ -46,29 +87,8 @@ export const useItemsStore = defineStore('items', () => {
     customCategories.value = customCategories.value.filter(name => !selected.has(name))
     items.value = items.value.filter(item => !selected.has(getItemCategory(item)))
   }
-  const spaces = ref(DEFAULT_SPACES.map((space) => ({ ...space, ownerId: 'self', members: [] })))
-  // 展示生活日用品中，同名用品分屬不同空間的標籤效果。
-  const previewSpaces = [
-    { id: 'preview-family', name: '家庭', shared: true, color: 'blue' },
-    { id: 'preview-company', name: '公司', shared: true, color: 'orange' },
-    { id: 'preview-travel', name: '旅行', shared: false, color: 'red' },
-  ]
-  spaces.value.push(...previewSpaces.map(space => ({ ...space, ownerId: 'self', members: [] })))
-  for (const space of previewSpaces) {
-    items.value.push(
-      createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: space.id, reminderEnabled: false }),
-      createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: space.id, reminderEnabled: false }),
-    )
-  }
-
-  // 購買清單展示：目前使用者可接手小明已認購的家庭用品。
-  const takeoverPreviewSpace = spaces.value.find(space => space.id === 'preview-family')
-  takeoverPreviewSpace.members.push({ id: 'preview-xiaoming', name: '小明' })
-  const takeoverPreviewItem = items.value.find(item => item.spaceId === 'preview-family' && item.name === '垃圾袋')
-  Object.assign(takeoverPreviewItem, { inShoppingList: true, quantity: 2, addedToShoppingListDate: toDateString(), shoppingClaimantId: 'preview-xiaoming' })
-
   // 模擬其他成員仍持有的空間資料，不提供目前使用者的列表存取。
-  const departedSpaces = ref([])
+  const departedSpaces = ref(saved?.departedSpaces ?? [])
   // 我的用品目前的空間篩選（null ＝ 所有用品）；新增用品頁依此預帶空間，不持久化。
   const inventorySpaceId = ref(null)
   // 最近一次刪除（不做 stack）：我的用品與用品詳情共用，讓詳情刪除後回到我的用品仍可復原（specs/003 DET-20）。
@@ -457,6 +477,18 @@ export const useItemsStore = defineStore('items', () => {
     const [space] = spaces.value.splice(from, 1)
     spaces.value.splice(to, 0, space)
   }
+
+  // 資料變動後寫入 localStorage（specs 外的持久化，見 docs/PERSISTENCE_DISCUSSION.md）。
+  // 最近刪除、購買完成復原記錄、今天、篩選等暫態不存。
+  const scheduleSave = createDebouncedSaver(() => {
+    savePersisted(STORE_KEYS.items, {
+      items: toRaw(items.value),
+      spaces: toRaw(spaces.value),
+      customCategories: toRaw(customCategories.value),
+      departedSpaces: toRaw(departedSpaces.value),
+    })
+  })
+  watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
 
   return {
     customCategories,
