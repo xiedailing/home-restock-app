@@ -104,7 +104,7 @@ function onFileChange(event) {
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
 
-// 圖示圓圈＋右下角相機角標（Figma Icon Edit Badge / Camera：22px 深綠圓）。
+// 圖示圓圈＋右下角相機角標（Figma Icon Edit Badge / Camera：22px 深綠圓，平面、無陰影）。
 .item-icon-edit {
   position: relative;
   display: inline-flex;
@@ -128,7 +128,6 @@ function onFileChange(event) {
   background: t.$primary-green;
   color: t.$text-inverse;
   font-size: 11px;
-  box-shadow: 2px 3px 5px rgba(42, 74, 39, .35), -1.5px -1.5px 4px rgba(255, 255, 255, .9), inset -1px -1px 2px rgba(255, 255, 255, .22), inset 1px 1.5px 2px rgba(31, 58, 29, .28);
 }
 
 .sheet-title { margin: 0; font: t.$font-weight-bold 17px / 1.4 t.$font-family; }
