@@ -26,7 +26,7 @@
 | `recentlyRemoved` 最近刪除 | 5 秒復原用，重新整理後沒有意義 |
 | `today`、午夜計時器 | 由當下時間計算 |
 | `inventorySpaceId` 我的用品目前篩選 | 規格明訂不持久化（ADD-05） |
-| `shoppingCompletionOperations` 購買完成的復原記錄 | 是 Map，只供短時間復原 |
+| `shoppingCompletionOperations` 記憶體索引 | Map 不存；用品另存 shoppingCompletionOperation，供 24 小時內取消勾選使用 |
 | Toast、Bottom Sheet 開關、各頁表單暫存 | 畫面暫態 |
 | `SettingsView` 的 sessionStorage | 已有自己的機制，保留 |
 
@@ -88,3 +88,8 @@ localStorage 是**每台電腦、每個瀏覽器各自獨立**的。在自己電
 - Q3：決定示範前由誰、在哪台電腦還原，並在學校電腦實測（含無痕模式）。
 - 設定頁補貨門檻（D4）存在哪裡確定後，再決定是否納入持久化；目前不存。
 - 008 編輯用品圖示的照片會存在 `items` 裡（256×256 JPEG，每張約 10～30 KB）；寫入失敗的提示見 `specs/008-item-icon/spec.md` FR-807。
+
+### 購買清單復原快照清理
+- 補貨快照隨用品保存；取消勾選或復原後清除。
+- 重新加入、移除、其他入口再次補貨、24 小時到期時，同時清除記憶體索引與用品快照。
+- 失效的補貨 Toast 不再撤銷舊紀錄或覆寫清單；正常用品與補貨紀錄不因清理被刪除。

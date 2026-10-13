@@ -1,5 +1,6 @@
-// 共用呈現入口：目前只啟用購買清單與設定，其他頁日後可明確加入。
-export const supportsPagePresentation = path => path === '/shopping' || path === '/settings' || path.startsWith('/settings/')
+// 主頁與用品／設定子頁共用整頁轉場及返回視角。
+// 主導覽四頁互切不播放動畫，由 App.vue 排除。
+export const supportsPagePresentation = path => ['/home', '/inventory', '/shopping', '/settings'].includes(path) || path.startsWith('/settings/') || path.startsWith('/items/')
 export const pageScrollPositions = new Map()
 export let leavingPageScroll = 0
 export function rememberPageScroll(path, top) {
