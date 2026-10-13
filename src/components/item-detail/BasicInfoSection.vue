@@ -2,12 +2,14 @@
 // 用品詳情「基本資訊」（specs/003 FR-303）：所屬空間、分類、補貨單位。
 // 點列在下方展開，選取即通知父層儲存並收合；選項與樣式同新增用品頁（specs/002）。
 import { computed, ref, watch } from 'vue'
-import { CATEGORIES, UNITS } from '../../models/item'
+import { UNITS } from '../../models/item'
+import { useItemsStore } from '../../stores/items'
 import AddSpaceSheet from '../add-item/AddSpaceSheet.vue'
 import selectorChevron from '../../assets/add-item/selector-chevron.svg'
 import pillCheck from '../../assets/add-item/pill-check.svg'
 import spaceCheck from '../../assets/add-item/space-check.svg'
 
+const itemsStore = useItemsStore()
 const CUSTOM_UNIT = 'custom'
 
 const props = defineProps({
@@ -93,7 +95,7 @@ function onSpaceCreated(space) {
         <div v-if="openPanel === 'category'" class="inline-options">
           <div class="options-well pills" role="group" aria-label="分類">
             <button
-              v-for="option in CATEGORIES"
+              v-for="option in itemsStore.categoryOptions"
               :key="option"
               type="button"
               class="pill"
