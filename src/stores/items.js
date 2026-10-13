@@ -33,6 +33,7 @@ export const useItemsStore = defineStore('items', () => {
     const names = new Set([...customCategories.value, ...items.value.map(getItemCategory).filter(name => name && !SYSTEM_CATEGORIES.includes(name))])
     return Array.from(names, name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length }))
   })
+  const categoryOptions = computed(() => [...SYSTEM_CATEGORIES, ...customCategoryCounts.value.map(category => category.name)])
   function addCategory(value) {
     const name = value.trim()
     if (!name || limitSpaceName(name) !== name) return { ok: false, message: '請輸入最多 8 個中文字或 16 個英文字母的分類名稱。' }
@@ -450,6 +451,7 @@ export const useItemsStore = defineStore('items', () => {
     customCategories,
     systemCategoryCounts,
     customCategoryCounts,
+    categoryOptions,
     addCategory,
     removeCategories,
     sharedSpaces,

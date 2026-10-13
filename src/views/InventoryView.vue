@@ -7,7 +7,7 @@ import AddSpaceSheet from '../components/add-item/AddSpaceSheet.vue'
 import AppToast from '../components/AppToast.vue'
 import { useToast } from '../composables/useToast'
 import { useItemsStore } from '../stores/items'
-import { CATEGORIES, STATUS, STATUS_LABELS } from '../models/item'
+import { STATUS, STATUS_LABELS } from '../models/item'
 import statusCheckedIcon from '../assets/items/status-filter/checked.svg'
 import statusPanel from '../assets/items/status-filter/panel.svg'
 import overdueDot from '../assets/items/status-filter/overdue.svg'
@@ -217,7 +217,7 @@ const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、�
 
 // 分類只在目前空間有用品時顯示（ADD-14）。搜尋與狀態不影響，避免輸入時 pills 跳動。
 const availableCategories = computed(() =>
-  CATEGORIES.filter((category) => spaceItems.value.some((item) => item.category === category)),
+  itemsStore.categoryOptions.filter((category) => spaceItems.value.some((item) => item.category === category)),
 )
 watch(availableCategories, (categories) => {
   if (selectedCategory.value !== null && !categories.includes(selectedCategory.value)) selectedCategory.value = null

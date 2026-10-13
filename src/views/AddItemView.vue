@@ -5,7 +5,6 @@ import { storeToRefs } from 'pinia'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import {
-  CATEGORIES,
   COMMON_ITEM_GROUPS,
   DEFAULT_SPACE_ID,
   ITEM_STATUS,
@@ -291,7 +290,7 @@ async function createItem() {
           <div v-if="openPanel === 'category'" class="inline-options">
             <div class="options-well pills" role="group" aria-label="分類">
               <button
-                v-for="option in CATEGORIES"
+                v-for="option in itemsStore.categoryOptions"
                 :key="option"
                 type="button"
                 class="pill"
@@ -437,7 +436,7 @@ async function createItem() {
     </section>
 
     <div class="bottom-cta">
-      <button type="submit" class="btn btn-primary create-button">建立用品</button>
+      <button type="submit" class="btn btn-primary create-button">新增用品</button>
     </div>
 
     <DatePickerSheet v-model="nextRestockDate" :open="datePickerOpen" :min-date="minDate" @close="datePickerOpen = false" />
