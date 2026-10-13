@@ -13,7 +13,6 @@ import {
   addMonths,
   calcDaysPerUnit,
   matchItemIconKey,
-  toDateString,
 } from '../models/item'
 import { limitSpaceName } from '../models/space'
 import { getItemIcon } from '../assets/household-icons-by-state/index.js'
@@ -37,7 +36,7 @@ const router = useRouter()
 const itemsStore = useItemsStore()
 const { spaces, inventorySpaceId } = storeToRefs(itemsStore)
 
-const today = toDateString()
+const today = computed(() => itemsStore.today)
 const initialSpaceId = spaces.value.some((space) => space.id === route.query.space) ? route.query.space : DEFAULT_SPACE_ID
 
 const name = ref('')
@@ -105,12 +104,12 @@ function selectSpace(id) {
 }
 
 // ---------- 預計補貨日 ----------
-const minDate = addDays(today, 1)
-const quickDates = [
-  { label: '下週', date: addDays(today, 7) },
-  { label: '兩週後', date: addDays(today, 14) },
-  { label: '下個月', date: addMonths(today, 1) },
-]
+const minDate = computed(() => addDays(today.value, 1))
+const quickDates = computed(() => [
+  { label: '下週', date: addDays(today.value, 7) },
+  { label: '兩週後', date: addDays(today.value, 14) },
+  { label: '下個月', date: addMonths(today.value, 1) },
+])
 const formattedDate = computed(() => nextRestockDate.value?.replaceAll('-', '/') ?? '')
 
 // ---------- 驗證 ----------
@@ -179,7 +178,10 @@ function onSpaceCreated(space) {
 }
 
 // ---------- 建立 ----------
+// 提交中旗標：router.replace 是非同步，快速連點會在跳轉前再次進來而重複建立。
+let submitting = false
 async function createItem() {
+  if (submitting) return
   submitted.value = true
   const firstError = ['name', 'category', 'unit', 'customUnit', 'date'].find((key) => errors.value[key])
   if (firstError) {
@@ -189,7 +191,9 @@ async function createItem() {
     return
   }
 
+  submitting = true
   const reminder = reminderEnabled.value
+  const baseDate = today.value
   const item = itemsStore.addItem({
     name: name.value.trim(),
     iconKey: matchItemIconKey(name.value.trim()),
@@ -199,10 +203,10 @@ async function createItem() {
     reminderEnabled: reminder,
     nextRestockDate: reminder ? nextRestockDate.value : null,
     // 001 FR-002：每單位可撐天數 ＝（預計補貨日 − 基準日）÷ 庫存量，保留小數。
-    reminderBaseDate: reminder ? today : null,
+    reminderBaseDate: reminder ? baseDate : null,
     reminderBaseQuantity: reminder ? quantity.value : null,
-    daysPerUnit: reminder ? calcDaysPerUnit(nextRestockDate.value, today, quantity.value) : null,
-    reminderEnabledDate: reminder ? today : null,
+    daysPerUnit: reminder ? calcDaysPerUnit(nextRestockDate.value, baseDate, quantity.value) : null,
+    reminderEnabledDate: reminder ? baseDate : null,
     reminderEnabledQuantity: reminder ? quantity.value : null,
   })
 
