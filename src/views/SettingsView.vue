@@ -197,7 +197,7 @@ function saveChanges() {
       <div class="profile-info">
         <p class="profile-name">{{ profile.name }}</p>
         <p class="profile-email">{{ profile.email }}</p>
-        <RouterLink :to="{ name: 'edit-profile' }" class="edit-profile-link">編輯個人檔案設定</RouterLink>
+        <RouterLink :to="{ name: 'edit-profile' }" class="edit-profile-link">編輯個人檔案</RouterLink>
       </div>
     </div>
 

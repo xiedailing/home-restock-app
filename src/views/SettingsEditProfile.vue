@@ -194,7 +194,7 @@ async function selectAvatar(event) {
   <section class="edit-profile-page" aria-labelledby="edit-profile-title">
     <header class="page-header">
       <RouterLink :to="backTarget" class="back-link" aria-label="返回原頁面"><img :src="backIcon" alt="" /></RouterLink>
-      <h1 id="edit-profile-title">個人檔案設定</h1>
+      <h1 id="edit-profile-title">編輯個人檔案</h1>
       <span class="header-spacer" aria-hidden="true"></span>
     </header>
 

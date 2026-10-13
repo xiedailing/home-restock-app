@@ -14,7 +14,12 @@ const route = useRoute()
 const router = useRouter()
 const store = useItemsStore()
 const category = computed(() => route.params.category)
-const items = computed(() => store.itemsWithStatus.filter(item => getItemCategory(item) === category.value))
+const items = computed(() => {
+  const spaceOrder = new Map(store.spaces.map((space, index) => [space.id, index]))
+  return store.itemsWithStatus
+    .filter(item => getItemCategory(item) === category.value)
+    .sort((a, b) => (spaceOrder.get(a.spaceId) ?? store.spaces.length) - (spaceOrder.get(b.spaceId) ?? store.spaces.length))
+})
 const openItem = ref(null)
 const offset = ref(0)
 const dragging = ref(false)
