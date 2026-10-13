@@ -1,4 +1,6 @@
 <script setup>
+import AppToast from '../components/AppToast.vue'
+import { useToast } from '../composables/useToast'
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useItemsStore } from '../stores/items'
 import { getItemCategory } from '../models/itemCategories'
@@ -139,21 +141,10 @@ function deleteCategories() {
   pendingCategory.value = null
   openCategory.value = null
   swipeOffset.value = 0
-  toast.value = '自訂分類已刪除'
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value = ''; undoCategory.value = null }, 5000)
+  showToast('自訂分類已刪除', undoCategory.value)
 }
 const undoCategory = ref(null)
-function restoreCategory() {
-  const undo = undoCategory.value
-  clearTimeout(toastTimer)
-  toast.value = ''
-  undoCategory.value = null
-  undo?.()
-}
-const toast = ref('')
-let toastTimer
-onBeforeUnmount(() => clearTimeout(toastTimer))
+const { toast, showToast, runUndo } = useToast()
 function addCategory() {
   if (nameLimitExceeded.value || duplicateName.value) return
   const result = store.addCategory(categoryName.value)
@@ -161,9 +152,7 @@ function addCategory() {
   if (result.ok) {
     categoryName.value = ''
     undoCategory.value = null
-    toast.value = '自訂分類已新增'
-    clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => { toast.value = ''; undoCategory.value = null }, 5000)
+    showToast('自訂分類已新增')
   }
 }
 </script>
@@ -217,7 +206,7 @@ function addCategory() {
         </form>
       </dialog>
     </Teleport>
-    <Teleport to="body"><Transition name="category-toast"><p v-if="toast" class="category-toast" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>{{ toast }}</span><button v-if="undoCategory" type="button" class="category-toast-undo" @click="restoreCategory">復原</button></p></Transition></Teleport>
+    <AppToast :toast="toast" @undo="runUndo" />
   </section>
 </template>
 <style scoped lang="scss">
@@ -268,10 +257,6 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
   p { margin: 0; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body} / 1.45 t.$font-family; overflow-wrap: anywhere; }
 }
 .category-delete-dialog-actions { display: flex; gap: t.$space-12; .btn { flex: 1; min-width: 0; min-height: 48px; font-size: t.$font-size-body; } .btn-secondary, .btn-secondary:focus, .btn-secondary:focus-visible { outline: none; } }
-.category-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; margin: 0; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; justify-content: center; gap: t.$space-8; border: 0; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-weight: t.$font-weight-medium; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; font-family: t.$font-family; i { color: t.$toast-success-accent; } }
-.category-toast-undo { flex-shrink: 0; border: 0; padding: t.$space-4; background: transparent; color: t.$toast-success-accent; font: inherit; cursor: pointer; }
-.category-toast-enter-active, .category-toast-leave-active { transition: opacity .3s ease; }
-.category-toast-enter-from, .category-toast-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .category-toast-enter-active, .category-toast-leave-active { transition: none; } }
 .category-error { margin: 0 0 t.$space-12; color: t.$accent-text; font-size: t.$font-size-caption; }
 a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }

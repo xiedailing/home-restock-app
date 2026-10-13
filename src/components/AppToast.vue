@@ -14,7 +14,7 @@ const hideBottomNav = useBottomNavHidden()
   <Teleport to="body">
     <Transition name="app-toast">
       <div v-if="toast" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav }" role="status" aria-live="polite">
-        <img :src="toastCheck" alt="" />
+        <slot name="icon"><img :src="toastCheck" alt="" /></slot>
         <span class="app-toast-message">{{ toast.message }}</span>
         <button v-if="toast.undo" type="button" class="app-toast-undo" @click="emit('undo')">{{ toast.actionLabel ?? '復原' }}</button>
       </div>
