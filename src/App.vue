@@ -25,11 +25,20 @@ const animateItemsPages = ref(route.path === '/settings/items' || route.path.sta
 const isItemsPage = path => path === '/settings/items' || path.startsWith('/settings/items/')
 const isSettingsPage = path => path === '/settings' || path.startsWith('/settings/')
 watch(() => route.path, (to, from) => {
-  animateSettingsPages.value = supportsPagePresentation(to) && supportsPagePresentation(from)
-  animateItemsPages.value = supportsPagePresentation(to) && supportsPagePresentation(from)
+  const navPaths = ['/home', '/inventory', '/shopping', '/settings']
+  const switchingMainPages = navPaths.includes(to) && navPaths.includes(from)
+  const detailId = from.match(/^\/items\/([^/]+)$/)?.[1]
+  const returningAfterDeletion = to === '/inventory' && detailId && !itemsStore.getItem(decodeURIComponent(detailId))
+  const detailToShopping = !!detailId && from !== '/items/new' && to === '/shopping'
+  const avatarToProfile = to === '/settings/profile' && typeof route.query.returnTo === 'string'
+  const animate = !switchingMainPages && !returningAfterDeletion && !detailToShopping && !avatarToProfile && supportsPagePresentation(to) && supportsPagePresentation(from)
+  animateSettingsPages.value = animate
+  animateItemsPages.value = animate
   const toDepth = to.split('/').filter(Boolean).length
   const fromDepth = from.split('/').filter(Boolean).length
-  const goingBack = toDepth < fromDepth
+  const goingBack = navPaths.includes(to) && navPaths.includes(from)
+    ? navPaths.indexOf(to) < navPaths.indexOf(from)
+    : toDepth < fromDepth
   pageTransition.value = goingBack ? 'page-back' : 'page-forward'
 }, { flush: 'sync' })
 

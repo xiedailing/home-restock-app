@@ -180,6 +180,7 @@ export const useItemsStore = defineStore('items', () => {
 
   // 001 FR-006：加入時待買數量 1；移出時清除。加入時一併取消延後（specs/005 SNZ-04）。
   function addToShoppingList(id) {
+    clearShoppingCompletion(id)
     updateItem(id, { inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), snoozedUntil: null, shoppingCompletedAt: null, shoppingCompletedQuantity: null, shoppingCompletedBy: null, shoppingClaimantId: null })
   }
 
@@ -189,6 +190,7 @@ export const useItemsStore = defineStore('items', () => {
   }
 
   function removeFromShoppingList(id) {
+    clearShoppingCompletion(id)
     updateItem(id, { inShoppingList: false, quantity: null, addedToShoppingListDate: null })
   }
 
@@ -263,6 +265,7 @@ export const useItemsStore = defineStore('items', () => {
   function completeRestock(id, { date = toDateString(), quantity = 1 } = {}) {
     const item = getItem(id)
     if (!item) return
+    clearShoppingCompletion(id)
     applyRestockRecords(id, [...item.restockRecords, createRestockRecord({ date, quantity })], {
       inShoppingList: false,
       quantity: null,
@@ -273,6 +276,16 @@ export const useItemsStore = defineStore('items', () => {
 
   // 購買清單完成後保留展示 24 小時；用品本身與補貨紀錄不刪除。
   const shoppingCompletionOperations = new Map()
+  function clearShoppingCompletion(id) {
+    shoppingCompletionOperations.delete(id)
+    const item = getItem(id)
+    if (item) updateItem(id, {
+      shoppingCompletionOperation: null,
+      shoppingCompletedAt: null,
+      shoppingCompletedQuantity: null,
+      shoppingCompletedBy: null,
+    })
+  }
   const shoppingFields = ['inShoppingList', 'quantity', 'addedToShoppingListDate', 'shoppingCompletedAt', 'shoppingCompletedQuantity', 'shoppingCompletedBy', 'shoppingClaimantId']
   const restockReminderFields = ['nextRestockDate', 'reminderBaseDate', 'reminderBaseQuantity', 'snoozedUntil']
   function pickShoppingFields(item, fields) {
@@ -282,6 +295,8 @@ export const useItemsStore = defineStore('items', () => {
     if (!operation) return
     const item = getItem(operation.id)
     if (!item) return
+    // 舊 Toast 的復原也必須失效，不能只刪除 Map 與存檔。
+    if (operation.recordId && item.shoppingCompletionOperation?.recordId !== operation.recordId) return
     const changes = {}
     for (const key of Object.keys(operation.before)) {
       // 後續操作已改過的欄位保留，不以舊值覆蓋。
@@ -290,7 +305,8 @@ export const useItemsStore = defineStore('items', () => {
     if (operation.recordId) {
       const records = item.restockRecords.filter(record => record.id !== operation.recordId)
       applyRestockRecords(item.id, records, changes)
-      if (shoppingCompletionOperations.get(item.id) === operation) shoppingCompletionOperations.delete(item.id)
+      shoppingCompletionOperations.delete(item.id)
+      updateItem(item.id, { shoppingCompletionOperation: null })
     } else {
       updateItem(item.id, changes)
     }
@@ -307,19 +323,35 @@ export const useItemsStore = defineStore('items', () => {
     updateItem(id, { shoppingCompletedAt: completedAt, shoppingCompletedQuantity: quantity, shoppingCompletedBy: 'self' })
     const operation = { id, before, after: pickShoppingFields(item, fields), recordId }
     shoppingCompletionOperations.set(id, operation)
+    updateItem(id, { shoppingCompletionOperation: operation })
     return operation
   }
 
   function reopenShoppingItem(id) {
     const item = getItem(id)
     if (!item || item.shoppingCompletedAt == null || item.shoppingCompletedBy !== 'self') return
-    undoShoppingOperation(shoppingCompletionOperations.get(id))
+    const operation = shoppingCompletionOperations.get(id) || item.shoppingCompletionOperation
+    if (operation) {
+      undoShoppingOperation(operation)
+    } else {
+      // 舊存檔只有已補貨狀態，沒有操作快照；恢復清單但保留無法確定來源的紀錄。
+      updateItem(id, {
+        inShoppingList: true,
+        quantity: item.shoppingCompletedQuantity ?? 1,
+        addedToShoppingListDate: item.addedToShoppingListDate || toDateString(),
+        shoppingClaimantId: getSpace(item.spaceId)?.shared ? 'self' : null,
+        shoppingCompletedAt: null,
+        shoppingCompletedQuantity: null,
+        shoppingCompletedBy: null,
+      })
+    }
   }
 
   function removeShoppingEntry(id) {
     const item = getItem(id)
     if (!item) return
     const before = pickShoppingFields(item, shoppingFields)
+    clearShoppingCompletion(id)
     updateItem(id, { inShoppingList: false, quantity: null, addedToShoppingListDate: null, shoppingCompletedAt: null, shoppingCompletedQuantity: null, shoppingCompletedBy: null, shoppingClaimantId: null })
     return { id, before, after: pickShoppingFields(item, shoppingFields) }
   }
@@ -346,6 +378,7 @@ export const useItemsStore = defineStore('items', () => {
   function clearExpiredShoppingItems(now = Date.now()) {
     for (const item of items.value) {
       if (item.shoppingCompletedAt != null && now - item.shoppingCompletedAt >= 24 * 60 * 60 * 1000) {
+        clearShoppingCompletion(item.id)
         updateItem(item.id, { shoppingCompletedAt: null, shoppingCompletedQuantity: null, shoppingCompletedBy: null, shoppingClaimantId: null })
       }
     }

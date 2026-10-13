@@ -46,7 +46,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', dismiss))
     <div v-if="open" ref="menu" class="account-panel" aria-label="帳號資訊">
       <p class="account-name">{{ profile.name }}</p>
       <p class="account-email">{{ profile.email }}</p>
-      <button type="button" class="profile-link" @click="openProfile">個人檔案設定</button>
+      <button type="button" class="profile-link" @click="openProfile">編輯個人檔案</button>
     </div>
   </div>
 </template>
