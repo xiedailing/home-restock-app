@@ -1,4 +1,6 @@
 <script setup>
+import AppToast from '../components/AppToast.vue'
+import { useToast } from '../composables/useToast'
 import { isValidInviteCode } from '../utils/inviteCode'
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -13,33 +15,28 @@ const router = useRouter()
 const spaceList = ref(null)
 const inviteCode = ref(typeof route.query.invite === 'string' ? route.query.invite : '')
 const validInviteCode = computed(() => isValidInviteCode(inviteCode.value))
-const notice = ref('')
+const { toast, showToast, hideToast, runUndo } = useToast()
+const noticeKind = ref('success')
 const joinSucceeded = ref(false)
 const createdSpace = computed(() => store.getSpace(route.query.createdSpaceId))
-const createdToast = ref(false)
-const exitToast = ref(false)
-let exitToastTimer
 let createdToastDelayTimer
-let createdToastTimer
 function openCreatedInvite() {
   if (!createdSpace.value?.shared) return
-  clearTimeout(createdToastTimer)
-  createdToast.value = false
+  hideToast()
   router.push({ name: 'edit-space', params: { spaceId: createdSpace.value.id }, query: { invite: '1' } })
 }
 onMounted(() => {
   if (route.query.spaceLeft) {
-    exitToast.value = true
-    exitToastTimer = setTimeout(() => { exitToast.value = false }, 3000)
+    noticeKind.value = 'exit'
+    showToast(`已退出「${route.query.spaceLeft}」空間`)
   }
   if (!route.query.spaceCreated) return
-  // 帶操作的提示保留較久，讓使用者有時間點擊邀請。
   createdToastDelayTimer = setTimeout(() => {
-    createdToast.value = true
-    createdToastTimer = setTimeout(() => { createdToast.value = false }, 6000)
+    noticeKind.value = 'success'
+    showToast('已成功新增空間', createdSpace.value?.shared ? openCreatedInvite : null, '邀請成員')
   }, 300)
 })
-onBeforeUnmount(() => { clearTimeout(createdToastDelayTimer); clearTimeout(createdToastTimer); clearTimeout(exitToastTimer) })
+onBeforeUnmount(() => clearTimeout(createdToastDelayTimer))
 const sorting = ref(false)
 const draggedSpace = ref('')
 let pressTimer
@@ -116,17 +113,14 @@ onBeforeUnmount(() => {
   document.removeEventListener('pointercancel', endPointer)
   document.removeEventListener('pointerdown', finishSorting)
 })
-let noticeTimer
 function joinSpace() {
   if (!validInviteCode.value) return
   const result = store.joinSpaceByCode(inviteCode.value)
   joinSucceeded.value = result.ok
-  notice.value = result.message
-  clearTimeout(noticeTimer)
-  noticeTimer = setTimeout(() => { notice.value = '' }, 3500)
+  noticeKind.value = result.ok ? 'success' : 'error'
+  showToast(result.message)
   if (result.ok) inviteCode.value = ''
 }
-onBeforeUnmount(() => clearTimeout(noticeTimer))
 </script>
 
 <template>
@@ -156,21 +150,8 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
         </TransitionGroup>
         <RouterLink :to="{ name: 'add-space' }" class="add-space-link">＋ 新增空間</RouterLink>
       </div>
-      <Teleport to="body">
-        <Transition name="created-success-toast">
-          <div v-if="createdToast" class="created-space-toast" :class="{ 'compact-created-toast': !createdSpace?.shared }" role="status">
-            <span class="created-message"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>已成功新增空間</span>
-            <button v-if="createdSpace?.shared" type="button" @click="openCreatedInvite">邀請成員</button>
-          </div>
-        </Transition>
-      </Teleport>
-      <Teleport to="body">
-        <Transition name="created-toast">
-          <div v-if="exitToast" class="created-space-toast exit-space-toast" role="status">
-            <span class="created-message"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>已退出「{{ route.query.spaceLeft }}」空間</span>
-          </div>
-        </Transition>
-      </Teleport>
+
+
     </section>
 
     <section aria-labelledby="join-space-title">
@@ -181,7 +162,7 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
         <input id="invite-code" v-model="inviteCode" placeholder="輸入空間邀請碼" autocomplete="off" />
         <button type="submit" class="join-button" :disabled="!validInviteCode">加入</button>
       </form>
-      <Teleport to="body"><Transition name="join-toast"><p v-if="notice" class="invite-toast" :class="{ 'is-error': !joinSucceeded }" role="status"><i :class="joinSucceeded ? 'fa-solid fa-circle-check' : 'fa-solid fa-circle-exclamation'" aria-hidden="true"></i>{{ notice }}</p></Transition></Teleport>
+      <AppToast :toast="toast" @undo="runUndo"><template v-if="noticeKind !== 'success'" #icon><i :class="noticeKind === 'exit' ? 'fa-solid fa-arrow-right-from-bracket' : 'fa-solid fa-circle-exclamation'" class="notice-icon" aria-hidden="true"></i></template></AppToast>
     </section>
 
   </section>
@@ -253,8 +234,6 @@ h2 { margin: 0 0 16px; color: #292624; font: 700 16px / 22px t.$font-family; }
 .space-sort-enter-active { transition: transform .5s ease, opacity .5s ease; }
 .space-sort-enter-from { transform: translateY(-16px); opacity: 0; }
 .space-list { overflow-x: clip; }
-.join-toast-enter-active, .join-toast-leave-active { transition: transform .5s ease; }
-.join-toast-enter-from, .join-toast-leave-to { transform: translate(-50%, 24px); }
 .sort-grip { display: grid; place-items: center; width: 32px; height: 20px; cursor: grab; touch-action: none; }
 @media (prefers-reduced-motion: reduce) { .space-sort-move, .space-sort-enter-active, .join-toast-enter-active, .join-toast-leave-active { transition: none; } }
 .space-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
@@ -302,24 +281,12 @@ h2:has(+ .section-description) { margin-bottom: t.$space-8; }
   font: 700 14px / 20px t.$font-family;
   box-shadow: t.$shadow-primary;
 }
-.invite-toast { width: max-content; position: fixed; bottom: 132px; left: 50%; transform: translateX(-50%); z-index: 1100; max-width: calc(100% - 32px); padding: 14px 24px; border: 1px solid t.$border-color; border-radius: t.$radius-pill; background: t.$card-bg; color: t.$text-main; box-shadow: t.$shadow-card; font: 700 14px / 20px t.$font-family; text-align: center; }
-.created-space-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: calc(100% - t.$toast-inset-inline * 2); min-height: 52px; padding: 8px 22px 8px 18px; display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; border: 1px solid #d4cbbe; border-radius: t.$radius-pill; background: t.$card-bg; box-shadow: t.$toast-shadow; color: t.$text-main; font: 500 14px t.$font-family; button { padding: 8px 0; border: 0; background: transparent; color: t.$primary-green; font: 700 14px t.$font-family; white-space: nowrap; } }
-.created-message { display: flex; align-items: center; gap: 10px; img { width: 22px; height: 22px; flex-shrink: 0; } }
 .exit-space-toast, .compact-created-toast { width: max-content; justify-content: center; }
 .exit-space-toast i { color: t.$primary-green; font-size: 20px; flex-shrink: 0; }
-.created-success-toast-enter-active, .created-success-toast-leave-active { transition: opacity .3s ease; }
-.created-success-toast-enter-from, .created-success-toast-leave-to { opacity: 0; }
-.created-toast-leave-active { transition: opacity .5s ease; }
-.created-toast-enter-active { transition: opacity .5s ease; }
-.created-toast-enter-from { opacity: 0; }
-.created-toast-leave-to { opacity: 0; }
 .member-count { color: t.$text-main; white-space: nowrap; }
 button { cursor: pointer; }
 .space-row:focus-visible, button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
 .join-button { cursor: pointer; &:disabled { background: #e0e0e0; color: #a6a6a6; box-shadow: none; cursor: default; } }
-.invite-toast, .created-space-toast { box-sizing: border-box; min-height: t.$toast-min-height; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); padding: t.$toast-padding-block t.$toast-padding-inline; bottom: t.$toast-bottom; border: 0; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-family: t.$font-family; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; i { color: t.$toast-success-accent; } }
-.invite-toast { display: flex; align-items: center; gap: t.$space-8; margin: 0; &.is-error i { color: t.$toast-error-accent; } }
-.created-space-toast button { color: t.$toast-success-accent; }
-.created-message i { font-size: 20px; flex-shrink: 0; }
 header h1 { letter-spacing: .5px; }
+.notice-icon { width: 22px; flex-shrink: 0; font-size: 22px; color: t.$toast-success-accent; }
 </style>

@@ -1,4 +1,6 @@
 <script setup>
+import AppToast from '../components/AppToast.vue'
+import { useToast } from '../composables/useToast'
 import { computed, ref, shallowRef, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { limitSpaceName } from '../models/space'
@@ -38,15 +40,7 @@ const nameCount = computed(() => {
   return `${Math.floor(count)}/${ascii ? 16 : 8}`
 })
 const nameInput = ref(null)
-const notice = ref('')
-let toastTimer
-let enterCount = 0
-function showNotice(message) {
-  clearTimeout(toastTimer)
-  notice.value = message
-  toastTimer = setTimeout(() => { notice.value = '' }, 5000)
-}
-onBeforeUnmount(() => clearTimeout(toastTimer))
+const { toast, showToast: showNotice } = useToast()
 async function editName() {
   name.value = profile.name
   error.value = ''
@@ -194,7 +188,7 @@ async function selectAvatar(event) {
   <section class="edit-profile-page" aria-labelledby="edit-profile-title">
     <header class="page-header">
       <RouterLink :to="backTarget" class="back-link" aria-label="返回原頁面"><img :src="backIcon" alt="" /></RouterLink>
-      <h1 id="edit-profile-title">個人檔案設定</h1>
+      <h1 id="edit-profile-title">編輯個人檔案</h1>
       <span class="header-spacer" aria-hidden="true"></span>
     </header>
 
@@ -248,7 +242,8 @@ async function selectAvatar(event) {
         <label class="avatar-crop-zoom">縮放<input v-model.number="cropZoom" type="range" min="1" max="3" step="0.01" @input="clampCrop" /></label>
         <div class="avatar-crop-actions"><button type="button" class="btn btn-secondary" @click="cancelCrop">取消</button><button type="button" class="btn btn-primary" @click="applyCrop">確認</button></div>
       </dialog>
-      <Transition name="profile-toast"><div v-if="notice" class="profile-toast" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ notice }}</div></Transition></Teleport>
+      </Teleport>
+    <AppToast :toast="toast" />
     <BottomSheet :open="avatarMenuOpen" labelledby="avatar-source-title" @close="avatarMenuOpen = false">
       <h2 id="avatar-source-title" class="avatar-sheet-title">更換頭貼</h2>
       <div id="avatar-source-menu" class="avatar-source-menu" role="group" aria-label="頭貼來源">
@@ -301,9 +296,6 @@ async function selectAvatar(event) {
 .clear-name { position: absolute; right: 12px; top: 18px; transform: translateY(-50%); }
 .nickname-input:focus { outline: 2px solid t.$primary-green; outline-offset: 0; }
 
-.profile-toast { box-sizing: border-box; position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; gap: t.$space-8; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-family: t.$font-family; font-size: t.$font-size-body-sm; font-weight: t.$font-weight-medium; line-height: t.$line-height-body; i { color: t.$toast-success-accent; flex-shrink: 0; } }
-.profile-toast-enter-active, .profile-toast-leave-active { transition: opacity .3s ease; }
-.profile-toast-enter-from, .profile-toast-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .profile-toast-enter-active, .profile-toast-leave-active { transition: none; } }
 .nickname-count { position: absolute; right: 36px; top: 18px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; pointer-events: none; }
 .nickname-length-error { margin: 4px 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }

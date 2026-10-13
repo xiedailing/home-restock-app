@@ -1,4 +1,5 @@
 <script setup>
+import AppToast from '../components/AppToast.vue'
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
@@ -14,7 +15,12 @@ const route = useRoute()
 const router = useRouter()
 const store = useItemsStore()
 const category = computed(() => route.params.category)
-const items = computed(() => store.itemsWithStatus.filter(item => getItemCategory(item) === category.value))
+const items = computed(() => {
+  const spaceOrder = new Map(store.spaces.map((space, index) => [space.id, index]))
+  return store.itemsWithStatus
+    .filter(item => getItemCategory(item) === category.value)
+    .sort((a, b) => (spaceOrder.get(a.spaceId) ?? store.spaces.length) - (spaceOrder.get(b.spaceId) ?? store.spaces.length))
+})
 const openItem = ref(null)
 const offset = ref(0)
 const dragging = ref(false)
@@ -86,7 +92,7 @@ function confirmDeletion() {
     selecting.value = false
     selectedIds.value = []
     bulkPending.value = false
-    showToast(`已刪除${Array.from(new Set(removed.map(entry => store.getSpace(entry.snapshot.spaceId)?.name || '未指定空間'))).map(name => `「${name}」`).join('、')}的${removed.length}項用品`, () => {
+    showToast(`已刪除${Array.from(new Set(removed.map(entry => store.getSpace(entry.snapshot.spaceId)?.name || '未指定空間'))).map(name => `「${name}」`).join('、')}的 ${removed.length}項用品`, () => {
       for (const entry of removed) if (!store.getItem(entry.id)) store.items.splice(Math.min(entry.index, store.items.length), 0, structuredClone(entry.snapshot))
       if (removed.some(entry => entry.id === store.recentlyRemoved?.item.id)) store.clearRecentlyRemoved()
     })
@@ -101,7 +107,7 @@ function confirmDeletion() {
   pendingItem.value = null
   openItem.value = null
   offset.value = 0
-  showToast(`已刪除「${store.getSpace(pendingSpaceId)?.name || '未指定空間'}」的${deletedName}`, () => {
+  showToast(`已刪除「${store.getSpace(pendingSpaceId)?.name || '未指定空間'}」的 ${deletedName}`, () => {
     if (store.recentlyRemoved?.item.id === deletedId) store.undoRemoveItem()
   })
 }
@@ -132,7 +138,7 @@ function confirmDeletion() {
           <div class="item-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="deleteDialog.close()">取消</button><button type="submit" class="btn btn-danger">刪除</button></div>
         </form>
       </dialog>
-      <Transition name="item-toast"><div v-if="toast" class="item-toast" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>{{ toast.message }}</span><button v-if="toast.undo" type="button" class="item-toast-undo" @click="runUndo">復原</button></div></Transition>
+      <AppToast :toast="toast" @undo="runUndo" />
     </Teleport>
   </section>
 </template>
@@ -177,12 +183,6 @@ header { position: relative; min-height: 44px; display: grid; grid-template-colu
   p { margin: 0; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body} / 1.45 t.$font-family; overflow-wrap: anywhere; }
 }
 .item-delete-actions { display: flex; gap: t.$space-12; .btn { flex: 1; min-width: 0; min-height: 48px; font-size: t.$font-size-body; } .btn-secondary, .btn-secondary:focus, .btn-secondary:focus-visible { outline: none; } }
-.item-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; box-sizing: border-box; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; margin: 0; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; border: 0; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-weight: t.$font-weight-medium; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; font-family: t.$font-family; i { color: t.$toast-success-accent; } }
-.item-toast > i { flex-shrink: 0; }
-.item-toast > span { flex: 1; }
-.item-toast-undo { flex-shrink: 0; padding: 4px; border: 0; background: transparent; color: t.$toast-success-accent; font: inherit; cursor: pointer; }
-.item-toast-enter-active, .item-toast-leave-active { transition: opacity .3s ease; }
-.item-toast-enter-from, .item-toast-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .item-toast-enter-active, .item-toast-leave-active { transition: none; } }
 .item-delete-dialog .item-delete-actions { display: flex; gap: t.$space-12; margin-top: t.$space-32; }
 .item-delete-dialog .item-delete-actions .btn { flex: 1; min-width: 0; height: t.$button-height; min-height: t.$button-height; padding: 0 t.$space-24; border: 0; border-radius: t.$radius-pill; font: t.$font-weight-medium #{t.$font-size-body} / normal t.$font-family; }

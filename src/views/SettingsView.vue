@@ -1,4 +1,8 @@
 <script setup>
+import { storeToRefs } from 'pinia'
+import { useNotificationSettingsStore } from '../stores/notificationSettings'
+import AppToast from '../components/AppToast.vue'
+import { useToast } from '../composables/useToast'
 import { isValidInviteCode } from '../utils/inviteCode'
 import { computed, ref, nextTick, onBeforeMount, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
@@ -25,7 +29,7 @@ function rememberSpaceView() {
   try {
     sessionStorage.setItem(settingsViewKey, JSON.stringify({
       remainingSpacesExpanded: remainingSpacesExpanded.value, expandedSpaceGroups: expandedSpaceGroups.value,
-      expandedReminder: expandedReminder.value, notifications: notifications.value,
+      expandedReminder: expandedReminder.value,
       reminderModes: reminderModes.value, customDays: customDays.value,
       restockDays: restockDays.value, shoppingDays: shoppingDays.value,
     }))
@@ -39,7 +43,6 @@ onBeforeMount(() => {
   remainingSpacesExpanded.value = !!saved.remainingSpacesExpanded
   expandedSpaceGroups.value = saved.expandedSpaceGroups || { personal: true, shared: true }
   expandedReminder.value = saved.expandedReminder || ''
-  notifications.value = saved.notifications
   reminderModes.value = saved.reminderModes
   customDays.value = saved.customDays
   restockDays.value = saved.restockDays
@@ -66,7 +69,7 @@ function joinSpace() {
   showNotice(result.message, !result.ok)
   if (result.ok) inviteCode.value = ''
 }
-const notifications = ref(true)
+const { pushEnabled: notifications } = storeToRefs(useNotificationSettingsStore())
 const restockDays = ref(5)
 const shoppingDays = ref(5)
 const expandedReminder = ref('')
@@ -77,7 +80,7 @@ onMounted(() => {
   document.addEventListener('pointerdown', closeReminderOutside)
   if (route.query.spaceCreated) {
     const created = store.getSpace(route.query.createdSpaceId)
-    createdToastTimer = setTimeout(() => showNotice('已成功新增空間', false, created?.shared ? 'invite' : '', created?.shared ? 6000 : 5000), 300)
+    createdToastTimer = setTimeout(() => showNotice('已成功新增空間', false, created?.shared ? 'invite' : '', 5000), 300)
   } else if (route.query.spaceLeft) showNotice(`已退出「${route.query.spaceLeft}」空間`, false, 'exit')
 })
 onBeforeUnmount(() => document.removeEventListener('pointerdown', closeReminderOutside))
@@ -152,7 +155,7 @@ const dialog = ref(null)
 const editing = ref('')
 const duplicateJoinName = ref('')
 
-const notice = ref('')
+const { toast, showToast, hideToast, runUndo } = useToast()
 const noticeIsWarning = ref(false)
 const noticeAction = ref('')
 let createdToastTimer
@@ -160,13 +163,15 @@ function openCreatedInvite() {
   const created = store.getSpace(route.query.createdSpaceId)
   if (!created?.shared) return
   rememberSpaceView()
-  clearTimeout(toastTimer)
-  notice.value = ''
+  hideToast()
   router.push({ name: 'edit-space', params: { spaceId: created.id }, query: { from: 'settings', invite: '1' } })
 }
-let toastTimer
-function showNotice(message, warning = false, action = '', duration = 5000) { noticeAction.value = action; noticeIsWarning.value = warning; clearTimeout(toastTimer); notice.value = message; toastTimer = setTimeout(() => { notice.value = '' }, duration) }
-onBeforeUnmount(() => { clearTimeout(toastTimer); clearTimeout(createdToastTimer) })
+function showNotice(message, warning = false, action = '') {
+  noticeAction.value = action
+  noticeIsWarning.value = warning
+  showToast(message, action === 'invite' ? openCreatedInvite : null, '邀請成員')
+}
+onBeforeUnmount(() => clearTimeout(createdToastTimer))
 const dialogTitle = computed(() => editing.value === 'logout' ? '確認登出' : '已有相同名稱的空間')
 
 function openEditor(type) {
@@ -177,7 +182,7 @@ function openEditor(type) {
 function saveChanges() {
   if (editing.value === 'logout') {
     emit('logout')
-    showNotice('登出功能尚未串接登入服務。')
+    router.replace({ name: 'login' })
   }
   dialog.value.close()
 }
@@ -197,7 +202,7 @@ function saveChanges() {
       <div class="profile-info">
         <p class="profile-name">{{ profile.name }}</p>
         <p class="profile-email">{{ profile.email }}</p>
-        <RouterLink :to="{ name: 'edit-profile' }" class="edit-profile-link">編輯個人檔案設定</RouterLink>
+        <RouterLink :to="{ name: 'edit-profile' }" class="edit-profile-link">編輯個人檔案</RouterLink>
       </div>
     </div>
 
@@ -273,7 +278,7 @@ function saveChanges() {
     </section>
 
     <button type="button" class="btn btn-danger-subtle logout-button" @click="openEditor('logout')">登出</button>
-    <Teleport to="body"><Transition name="profile-toast"><div v-if="notice" class="profile-toast" :class="{ 'is-warning': noticeIsWarning, 'with-action': noticeAction === 'invite' }" role="status"><i :class="noticeIsWarning ? 'fa-solid fa-circle-exclamation' : noticeAction === 'exit' ? 'fa-solid fa-arrow-right-from-bracket' : 'fa-solid fa-circle-check'" aria-hidden="true"></i><span>{{ notice }}</span><button v-if="noticeAction === 'invite'" type="button" class="notice-action" @click="openCreatedInvite">邀請成員</button></div></Transition></Teleport>
+    <AppToast :toast="toast" @undo="runUndo"><template v-if="noticeIsWarning || noticeAction === 'exit'" #icon><i :class="noticeIsWarning ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-arrow-right-from-bracket'" class="notice-icon" aria-hidden="true"></i></template></AppToast>
 
     <dialog ref="dialog" class="settings-dialog" :class="{ 'duplicate-space-dialog': editing === 'duplicate-space' }" aria-labelledby="settings-dialog-title">
       <form @submit.prevent="saveChanges">
@@ -498,17 +503,12 @@ button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -3px
 .settings-dialog .btn-secondary:focus, .settings-dialog .btn-secondary:focus-visible { outline: none; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
 
-.profile-toast { box-sizing: border-box; position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; gap: t.$space-8; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-family: t.$font-family; font-size: t.$font-size-body-sm; font-weight: t.$font-weight-medium; line-height: t.$line-height-body; i { color: t.$toast-success-accent; flex-shrink: 0; } }
 .notification-section { position: relative; > .settings-row { padding-bottom: t.$space-4; } &::after { content: ''; position: absolute; bottom: 0; left: t.$space-16; right: t.$space-16; height: 1px; background: t.$border-color; } > .settings-row::after { display: none; } }
 .notification-hint-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s ease; &.expanded { grid-template-rows: 1fr; } }
 .notification-hint-inner { min-height: 0; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .notification-hint-collapse { transition: none; } }
 .phone-notification-hint { margin: 0; padding: 0 t.$space-16 t.$space-12; color: t.$text-sub; font-size: t.$font-size-caption; line-height: t.$line-height-body; }
-.profile-toast.with-action { width: max-content; }
 .notice-action { margin-left: auto; flex-shrink: 0; border: 0; background: transparent; color: t.$toast-success-accent; font: inherit; }
-.profile-toast.is-warning i { color: t.$toast-error-accent; }
-.profile-toast-enter-active, .profile-toast-leave-active { transition: opacity .3s ease; }
-.profile-toast-enter-from, .profile-toast-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .profile-toast-enter-active, .profile-toast-leave-active { transition: none; } }
 .reminder-collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s ease; &.expanded { grid-template-rows: 1fr; } }
 .reminder-collapse-content { min-height: 0; overflow: hidden; }
@@ -554,4 +554,5 @@ button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -3px
   text-align: left;
 }
 .settings-dialog .dialog-actions .btn-secondary:focus, .settings-dialog .dialog-actions .btn-secondary:focus-visible { outline: none; }
+.notice-icon { width: 22px; flex-shrink: 0; font-size: 22px; color: t.$toast-success-accent; }
 </style>
