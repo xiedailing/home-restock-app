@@ -11,6 +11,14 @@ const state = reactive({
 })
 export const profile = readonly(state)
 
+// 展示版登入完成後與現有個人檔案共用資料；不代表後端身分驗證。
+export function completeDemoLogin({ email, name, avatar }) {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) throw new Error('請輸入正確的 Email 格式。')
+  updateProfile({ name, avatar })
+  state.email = normalizedEmail
+}
+
 export function updateProfile({ name, avatar }) {
   const trimmedName = name.trim()
   if (!trimmedName || trimmedName.length > 30) {

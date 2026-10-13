@@ -2,7 +2,8 @@ import { supportsPagePresentation, pageScrollPositions, rememberPageScroll } fro
 import { createRouter, createWebHistory } from 'vue-router'
 
 export const routes = [
-  { path: '/', redirect: '/home' },
+  { path: '/', redirect: '/login' },
+  { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { title: '登入', hideBottomNav: true } },
   {
     path: '/home',
     name: 'home',

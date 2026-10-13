@@ -1,4 +1,6 @@
 <script setup>
+import { storeToRefs } from 'pinia'
+import { useNotificationSettingsStore } from '../stores/notificationSettings'
 import { isValidInviteCode } from '../utils/inviteCode'
 import { computed, ref, nextTick, onBeforeMount, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
@@ -25,7 +27,7 @@ function rememberSpaceView() {
   try {
     sessionStorage.setItem(settingsViewKey, JSON.stringify({
       remainingSpacesExpanded: remainingSpacesExpanded.value, expandedSpaceGroups: expandedSpaceGroups.value,
-      expandedReminder: expandedReminder.value, notifications: notifications.value,
+      expandedReminder: expandedReminder.value,
       reminderModes: reminderModes.value, customDays: customDays.value,
       restockDays: restockDays.value, shoppingDays: shoppingDays.value,
     }))
@@ -39,7 +41,6 @@ onBeforeMount(() => {
   remainingSpacesExpanded.value = !!saved.remainingSpacesExpanded
   expandedSpaceGroups.value = saved.expandedSpaceGroups || { personal: true, shared: true }
   expandedReminder.value = saved.expandedReminder || ''
-  notifications.value = saved.notifications
   reminderModes.value = saved.reminderModes
   customDays.value = saved.customDays
   restockDays.value = saved.restockDays
@@ -66,7 +67,7 @@ function joinSpace() {
   showNotice(result.message, !result.ok)
   if (result.ok) inviteCode.value = ''
 }
-const notifications = ref(true)
+const { pushEnabled: notifications } = storeToRefs(useNotificationSettingsStore())
 const restockDays = ref(5)
 const shoppingDays = ref(5)
 const expandedReminder = ref('')
@@ -177,7 +178,7 @@ function openEditor(type) {
 function saveChanges() {
   if (editing.value === 'logout') {
     emit('logout')
-    showNotice('登出功能尚未串接登入服務。')
+    router.replace({ name: 'login' })
   }
   dialog.value.close()
 }
