@@ -1,13 +1,16 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { limitSpaceName } from '../models/space'
 import { useItemsStore } from '../stores/items'
+import backIcon from '../assets/add-item/back-chevron.svg'
 import chevron from '../assets/settings/chevron.svg'
 import SwitchTrack from '../components/SwitchTrack.vue'
 import SpaceColorPicker from '../components/SpaceColorPicker.vue'
 
 const router = useRouter()
+const route = useRoute()
+const backTarget = computed(() => ({ name: 'settings' }))
 const itemsStore = useItemsStore()
 const name = ref('')
 const shared = ref(false)
@@ -44,16 +47,17 @@ function addSpace() {
     error.value = '名稱過長，請縮短至 8 個中文字或 16 個英文字母以內。'
     return
   }
+  if (itemsStore.hasSpaceName(spaceName)) { error.value = '已有相同名稱的空間，請使用其他名稱。'; return }
   const space = itemsStore.addSpace({ name: spaceName, shared: shared.value, color: color.value })
-  router.push({ name: 'spaces', query: { spaceCreated: space.name, createdSpaceId: space.id } })
+  router.push({ name: 'settings', query: { spaceCreated: space.name, createdSpaceId: space.id } })
 }
 </script>
 
 <template>
-  <form class="add-space-page" @submit.prevent="addSpace">
+  <form novalidate class="add-space-page" @submit.prevent="addSpace">
     <header class="space-header">
-      <RouterLink :to="{ name: 'spaces' }" class="back-button" aria-label="返回空間管理">
-        <img :src="chevron" alt="" />
+      <RouterLink :to="backTarget" class="back-button" :aria-label="backTarget.name === 'settings' ? '返回設定' : '返回空間管理'">
+        <img :src="backIcon" alt="" />
       </RouterLink>
       <h1>新增空間</h1>
       <span aria-hidden="true" />
@@ -62,13 +66,14 @@ function addSpace() {
     <section aria-labelledby="space-settings-title">
       <h2 id="space-settings-title">空間設定</h2>
       <div class="space-fields">
-        <div class="space-row">
-          <label for="space-name">空間名稱</label>
+        <div class="space-row space-name-row">
+          <label for="space-name">空間名稱 <span v-if="!name.trim()" class="required-hint">*</span></label>
           <div class="name-field">
-          <input :class="{ 'limit-exceeded': nameLimitExceeded }" @focus="nameFocused = true" @blur="nameFocused = false" id="space-name" v-model="name" placeholder="輸入名稱" required
+          <input :class="{ 'limit-exceeded': nameLimitExceeded || !!error }" @focus="nameFocused = true" @blur="nameFocused = false" id="space-name" v-model="name" placeholder="輸入名稱" required
             :aria-invalid="!!error || nameLimitExceeded" :aria-describedby="error ? 'space-error' : undefined" @input="error = ''; updateNameInput($event)" @compositionend="updateNameInput" @keydown.space="!$event.isComposing && $event.keyCode !== 229 && $event.preventDefault()" />
           <span v-if="nameFocused || nameLimitExceeded" class="name-count">{{ nameCountHint }}</span>
-          <p v-if="nameLimitExceeded" class="name-length-error">名稱過長，請縮短。</p>
+          <p v-if="nameLimitExceeded && !error" class="name-length-error">名稱過長，請縮短。</p>
+          <p v-if="error" id="space-error" class="space-error" role="alert">{{ error }}</p>
           </div>
         </div>
         <div class="space-row sharing-row">
@@ -88,7 +93,6 @@ function addSpace() {
           <SpaceColorPicker v-model="color" />
         </fieldset>
       </div>
-      <p v-if="error" id="space-error" class="space-error" role="alert">{{ error }}</p>
     </section>
     <button type="submit" class="btn btn-primary add-space-button">新增空間</button>
   </form>
@@ -97,6 +101,8 @@ function addSpace() {
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
 @use '../assets/scss/space-layout' as layout;
+.required-hint { color: t.$accent-text; font: t.$font-weight-bold #{t.$font-size-button} / 22px t.$font-family; white-space: nowrap; }
+
 
 .add-space-page {
   width: 100%;
@@ -125,14 +131,14 @@ function addSpace() {
   border-radius: 50%;
   background: t.$input-bg;
   box-shadow: t.$shadow-raised;
-  img { width: 24px; height: 24px; transform: rotate(180deg); }
+  img { width: 24px; height: 24px; }
 }
 h2 { margin: 0 0 t.$space-16; font: 700 16px / 22px t.$font-family; }
 .space-fields {
   padding: t.$space-16;
   border: 1px solid rgba(237, 234, 227, .4);
-  border-radius: 20px;
-  background: #fbfaf6;
+  border-radius: t.$radius-card;
+  background: t.$card-bg;
   box-shadow: t.$shadow-card;
   overflow: hidden;
 }
@@ -161,11 +167,11 @@ h2 { margin: 0 0 t.$space-16; font: 700 16px / 22px t.$font-family; }
     &::placeholder { color: t.$text-disabled; }
   }
 }
+.space-name-row { align-items: flex-start; > label { display: flex; align-items: center; gap: t.$space-4; height: 36px; white-space: nowrap; } }
 .name-field { position: relative; width: 196px; max-width: 65%; min-width: 0; }
 .name-length-error { margin: 4px 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }
 .name-count { position: absolute; right: t.$space-12; top: 18px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; white-space: nowrap; pointer-events: none; }
 .space-row input:focus { outline: 2px solid t.$primary-green; outline-offset: 2px; }
-.space-row input.limit-exceeded { outline: 2px solid t.$accent-text; outline-offset: 2px; }
 .space-switch {
   flex: 0 0 t.$switch-width;
   width: t.$switch-width;
@@ -198,8 +204,21 @@ h2 { margin: 0 0 t.$space-16; font: 700 16px / 22px t.$font-family; }
 @media (prefers-reduced-motion: reduce) {
   .sharing-hint-wrapper { transition: none; }
 }
-.space-error { margin: 8px 0; font-size: 13px; color: t.$danger; }
+.space-error { margin: t.$space-8 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }
 .add-space-button { width: 100%; max-width: 314px; min-height: 48px; margin: auto auto 0; font: 700 16px / 22px t.$font-family; }
 button { cursor: pointer; }
 button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+.color-field :deep(.color-picker) { display: flex; flex-direction: column; }
+.color-field :deep(.color-hint) { display: none; }
+.space-error, .name-length-error {
+  margin-block: t.$space-12;
+  box-sizing: border-box;
+  padding: t.$space-8 t.$space-12;
+  border-radius: t.$radius-md;
+  background: t.$accent-soft;
+  color: t.$accent-text;
+  font: t.$font-weight-regular #{t.$font-size-metadata} / normal t.$font-family;
+  text-align: left;
+}
+.space-name-row .space-error, .space-name-row .name-length-error { margin-bottom: 0; }
 </style>

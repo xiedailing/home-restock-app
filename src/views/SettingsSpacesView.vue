@@ -3,6 +3,7 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import { getSpaceColor } from '../models/space'
+import backIcon from '../assets/add-item/back-chevron.svg'
 import chevron from '../assets/settings/chevron.svg'
 
 const store = useItemsStore()
@@ -131,7 +132,7 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
   <section class="spaces-page" aria-labelledby="spaces-page-title">
     <header class="spaces-header">
       <RouterLink :to="{ name: 'settings' }" class="back-button" aria-label="返回設定">
-        <img :src="chevron" alt="" />
+        <img :src="backIcon" alt="" />
       </RouterLink>
       <h1 id="spaces-page-title">空間管理</h1>
       <span aria-hidden="true" />
@@ -215,14 +216,14 @@ onBeforeUnmount(() => clearTimeout(noticeTimer))
   border-radius: 50%;
   background: t.$input-bg;
   box-shadow: t.$shadow-raised;
-  img { width: 24px; height: 24px; transform: rotate(180deg); }
+  img { width: 24px; height: 24px; }
 }
 h2 { margin: 0 0 16px; color: #292624; font: 700 16px / 22px t.$font-family; }
 .spaces-card {
   padding: 16px;
   border: 1px solid rgba(237, 234, 227, .4);
-  border-radius: 20px;
-  background: #fbfaf6;
+  border-radius: t.$radius-card;
+  background: t.$card-bg;
   box-shadow: t.$shadow-card;
 }
 .space-list { padding-bottom: 0; margin-bottom: t.$space-16; @include layout.divider; }
@@ -298,14 +299,14 @@ h2:has(+ .section-description) { margin-bottom: t.$space-8; }
   background: t.$primary-green;
   color: white;
   font: 700 14px / 20px t.$font-family;
-  box-shadow: -2px -2px 5px rgba(255,255,255,.9), 3px 4px 7px rgba(42,74,39,.35), inset 1px 1.5px 2px rgba(31,58,29,.28), inset -1px -1px 2px rgba(255,255,255,.22);
+  box-shadow: t.$shadow-primary;
 }
-.invite-toast { position: fixed; bottom: 132px; left: 50%; transform: translateX(-50%); z-index: 1100; max-width: calc(100% - 32px); padding: 14px 24px; border: 1px solid t.$border-color; border-radius: t.$radius-pill; background: t.$card-bg; color: t.$text-main; box-shadow: t.$shadow-card; font: 700 14px / 20px t.$font-family; text-align: center; }
-.created-space-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: t.$toast-max-width; max-width: calc(100% - t.$toast-inset-inline * 2); min-height: 52px; padding: 8px 22px 8px 18px; display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; border: 1px solid #d4cbbe; border-radius: t.$radius-pill; background: t.$card-bg; box-shadow: 0 -2px 8px rgba(255,255,255,.8), 0 8px 24px rgba(140,136,127,.36), 0 2px 6px rgba(107,102,92,.2); color: t.$text-main; font: 500 14px t.$font-family; button { padding: 8px 0; border: 0; background: transparent; color: t.$primary-green; font: 700 14px t.$font-family; white-space: nowrap; } }
+.invite-toast { width: max-content; position: fixed; bottom: 132px; left: 50%; transform: translateX(-50%); z-index: 1100; max-width: calc(100% - 32px); padding: 14px 24px; border: 1px solid t.$border-color; border-radius: t.$radius-pill; background: t.$card-bg; color: t.$text-main; box-shadow: t.$shadow-card; font: 700 14px / 20px t.$font-family; text-align: center; }
+.created-space-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: calc(100% - t.$toast-inset-inline * 2); min-height: 52px; padding: 8px 22px 8px 18px; display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; border: 1px solid #d4cbbe; border-radius: t.$radius-pill; background: t.$card-bg; box-shadow: t.$toast-shadow; color: t.$text-main; font: 500 14px t.$font-family; button { padding: 8px 0; border: 0; background: transparent; color: t.$primary-green; font: 700 14px t.$font-family; white-space: nowrap; } }
 .created-message { display: flex; align-items: center; gap: 10px; img { width: 22px; height: 22px; flex-shrink: 0; } }
 .exit-space-toast, .compact-created-toast { width: max-content; justify-content: center; }
 .exit-space-toast i { color: t.$primary-green; font-size: 20px; flex-shrink: 0; }
-.created-success-toast-enter-active, .created-success-toast-leave-active { transition: opacity .5s ease; }
+.created-success-toast-enter-active, .created-success-toast-leave-active { transition: opacity .3s ease; }
 .created-success-toast-enter-from, .created-success-toast-leave-to { opacity: 0; }
 .created-toast-leave-active { transition: opacity .5s ease; }
 .created-toast-enter-active { transition: opacity .5s ease; }

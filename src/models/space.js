@@ -3,7 +3,7 @@ export const SPACE_COLORS = [
   { id: 'green', label: '森林綠', light: '#eef3ea', dark: '#3f6f3b' },
   { id: 'blue', label: '柔霧藍', light: '#e3ecf8', dark: '#3f5f8f' },
   { id: 'orange', label: '暖杏橘', light: '#ffebd6', dark: '#a85a10' },
-  { id: 'red', label: '珊瑚紅', light: '#fbe3df', dark: '#b3392b' },
+  { id: 'red', label: '柔霧紫', light: '#ede5f4', dark: '#795293' },
   { id: 'gray', label: '鼠尾草灰', light: '#f6f5f1', dark: '#636c65' },
 ]
 export function getSpaceColor(color) {

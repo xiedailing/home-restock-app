@@ -5,6 +5,7 @@ import { limitSpaceName } from '../models/space'
 import { useItemsStore } from '../stores/items'
 import InviteMemberSheet from '../components/InviteMemberSheet.vue'
 import SpaceColorPicker from '../components/SpaceColorPicker.vue'
+import backIcon from '../assets/add-item/back-chevron.svg'
 import chevron from '../assets/settings/chevron.svg'
 import SwitchTrack from '../components/SwitchTrack.vue'
 import { DEFAULT_SPACE_ID } from '../models/item'
@@ -13,6 +14,7 @@ import { defaultAvatar, avatarOptions } from '../assets/household-icons-by-state
 const route = useRoute()
 const router = useRouter()
 const store = useItemsStore()
+const backTarget = computed(() => ({ name: 'settings', query: { restoreView: 'spaces' } }))
 const space = computed(() => store.getSpace(route.params.spaceId))
 // 其他成員實際加入後才鎖定共用；只有自己時仍可切回私人。
 const otherMembers = computed(() => space.value?.members || [])
@@ -79,7 +81,7 @@ function updateNameInput(event) {
 function showColorToast(message = '空間代表色已更新') {
   clearTimeout(colorToastTimer)
   colorToast.value = message
-  colorToastTimer = setTimeout(() => { colorToast.value = '' }, 3000)
+  colorToastTimer = setTimeout(() => { colorToast.value = '' }, 5000)
 }
 onBeforeUnmount(() => { clearTimeout(colorToastTimer); clearTimeout(inviteEntryTimer) })
 async function editName() {
@@ -109,10 +111,11 @@ function toggleShared() {
   store.updateSpace(route.params.spaceId, { shared })
   showColorToast(shared ? '多人共享已開啟' : '多人共享已關閉')
 }
+const nameDuplicate = computed(() => !!draftName.value.trim() && store.hasSpaceName(draftName.value, route.params.spaceId))
 function saveName(event) {
   if (!editingName.value || event?.isComposing) return
   if (event?.type === 'focusout' && event.relatedTarget?.closest('.name-input-wrapper')) return
-  if (nameLimitExceeded.value) return
+  if (nameLimitExceeded.value || nameDuplicate.value) return
   if (draftName.value.trim() && draftName.value.trim() !== space.value.name) {
     store.updateSpace(route.params.spaceId, { name: draftName.value })
     showColorToast('空間名稱已更新')
@@ -129,15 +132,15 @@ function confirmLeave() {
   const name = space.value?.name
   if (!store.leaveSpace(route.params.spaceId)) return
   leaveDialog.value.close()
-  router.push({ name: 'spaces', query: { spaceLeft: name } })
+  router.push({ name: 'settings', query: { spaceLeft: name } })
 }
 </script>
 
 <template>
   <section class="edit-space-page">
     <header class="space-header">
-      <RouterLink :to="{ name: 'spaces' }" class="back-button" aria-label="返回空間管理"><img :src="chevron" alt="" /></RouterLink>
-      <h1>編輯空間</h1>
+      <RouterLink :to="backTarget" class="back-button" :aria-label="backTarget.name === 'settings' ? '返回設定' : '返回空間管理'"><img :src="backIcon" alt="" /></RouterLink>
+      <h1>{{ space?.name || '編輯空間' }}</h1>
       <button v-if="space && space.id !== DEFAULT_SPACE_ID" type="button" class="leave-button" aria-label="退出空間" @click="openLeaveDialog">
         <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i>
       </button>
@@ -155,6 +158,7 @@ function confirmLeave() {
               class="name-input" :aria-invalid="nameLimitExceeded" :class="{ 'limit-exceeded': nameLimitExceeded }" :placeholder="originalName"
               @input="nameEnterCount = 0; updateNameInput($event)" @compositionend="updateNameInput" @keydown.space="!$event.isComposing && $event.keyCode !== 229 && $event.preventDefault()" @keydown.enter.prevent="handleNameEnter" @keydown.esc.prevent="editingName = false" />
             <span class="name-count-value">{{ nameCountHint }}</span>
+            <p v-if="nameDuplicate" class="name-length-error">已有相同名稱的空間，請使用其他名稱。</p>
             <p v-if="nameLimitExceeded" class="name-length-error">名稱過長，請縮短。</p>
             <button type="button" class="clear-name-button" aria-label="清除空間名稱"
               @mousedown.prevent @click="clearDraftName">
@@ -205,7 +209,7 @@ function confirmLeave() {
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     </template>
     <p v-else>找不到此空間，請返回空間管理。</p>
-    <InviteMemberSheet :open="inviteSheetOpen" :space="space" @close="inviteSheetOpen = false" @copied="showColorToast" />
+    <InviteMemberSheet hide-close-button :open="inviteSheetOpen" :space="space" @close="inviteSheetOpen = false" @copied="showColorToast" />
     <Teleport to="body">
       <Transition name="color-toast">
       <p v-if="colorToast" class="color-toast" role="status">
@@ -238,9 +242,9 @@ function confirmLeave() {
 .name-count-value { position: absolute; right: 36px; top: 18px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; white-space: nowrap; pointer-events: none; }
 .edit-space-page { max-width: 358px; width: 100%; margin-inline: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 16px; text-align: left; color: t.$text-main; font-family: t.$font-family; }
 .space-header { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; h1 { margin: 0; text-align: center; font: 700 17px / 24px t.$font-family; } }
-.back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; transform: rotate(180deg); } }
+.back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; } }
 h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
-.space-card { padding: t.$space-16; border: 1px solid rgba(237,234,227,.4); border-radius: 20px; background: #fbfaf6; box-shadow: t.$shadow-card; overflow: hidden; }
+.space-card { padding: t.$space-16; border: 1px solid rgba(237,234,227,.4); border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; overflow: hidden; }
 .info-row { display: flex; align-items: center; gap: t.$space-8; width: 100%; @include layout.row(60px, t.$space-16); color: t.$text-body; font: 400 14px / 20px t.$font-family; > span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 20px; height: 20px; } }
 .name-row { flex-wrap: wrap; column-gap: t.$space-8; row-gap: 0; background: transparent; border: 0; @include layout.divider; text-align: left; }
 .name-main-row { display: flex; align-items: flex-start; gap: t.$space-8; width: 100%; min-height: 36px; }
@@ -255,7 +259,6 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
 .name-input { width: 100%; max-width: 100%; min-width: 0; height: 36px; padding: 0 76px 0 12px; border: 0; border-radius: t.$radius-input; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-main; font: 400 15px / 21px t.$font-family; &::placeholder { color: t.$text-disabled; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; } }
 .name-length-error { margin: 4px 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }
 .name-count { margin: 6px 0 0; color: t.$text-disabled; font-size: t.$font-size-caption; }
-.name-input.limit-exceeded { outline: 2px solid t.$accent-text; outline-offset: 2px; }
 .name-edit-button { padding: 0; border: 0; background: transparent; display: grid; place-items: center; }
 .name-edit-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; color: t.$text-disabled; font-size: 16px; flex-shrink: 0; }
 .info-row strong.disabled-value { color: t.$text-disabled; }
@@ -346,18 +349,41 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
 .leave-button { width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: t.$text-sub; font-size: 20px; display: grid; place-items: center; }
 .leave-dialog:focus { outline: none; }
 .leave-dialog {
-  width: min(310px, calc(100% - 48px));
-  padding: 28px 18px 24px;
+  width: min(300px, calc(100% - t.$space-16 * 2));
+  margin: auto;
+  max-height: calc(100dvh - t.$space-16 * 2);
+  padding: t.$space-24 18px;
   border: 0;
   border-radius: t.$radius-card;
   background: t.$card-bg;
-  box-shadow: t.$shadow-card;
+  color: t.$text-main;
+  box-shadow: 0 14px 16px rgba(140, 136, 127, .2);
   text-align: center;
-  h2 { font: 700 18px / 26px t.$font-family; }
-  p { margin: 12px 0 32px; color: t.$text-sub; font: 400 14px / 22px t.$font-family; }
-  &::backdrop { background: rgba(29,29,31,.5); }
+  &::backdrop { background: rgba(t.$text-main, .35); }
+  &:focus { outline: none; }
+  h2 { margin: 0 0 t.$space-8; font: t.$font-weight-bold #{t.$font-size-card-title} / 1.45 t.$font-family; overflow-wrap: anywhere; }
+  p { margin: 0; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body} / 1.45 t.$font-family; overflow-wrap: anywhere; }
 }
 .leave-actions { display: flex; gap: 12px; button { flex: 1; min-height: 48px; } }
 button { cursor: pointer; }
 button:focus-visible, a:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+.color-field :deep(.color-picker) { display: flex; flex-direction: column; }
+.color-field :deep(.color-hint) { display: none; }
+.leave-dialog .leave-actions { display: flex; gap: t.$space-12; margin-top: t.$space-32; }
+.leave-dialog .leave-actions .btn { flex: 1; min-width: 0; height: t.$button-height; min-height: t.$button-height; padding: 0 t.$space-24; border: 0; border-radius: t.$radius-pill; font: t.$font-weight-medium #{t.$font-size-body} / normal t.$font-family; }
+.leave-dialog .leave-actions .btn-secondary { background: t.$input-bg; color: t.$text-button-secondary; box-shadow: t.$shadow-raised; }
+.leave-dialog .leave-actions button:focus { outline: none; }
+.leave-dialog .leave-actions button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+.name-length-error {
+  margin-block: t.$space-12;
+  box-sizing: border-box;
+  padding: t.$space-8 t.$space-12;
+  border-radius: t.$radius-md;
+  background: t.$accent-soft;
+  color: t.$accent-text;
+  font: t.$font-weight-regular #{t.$font-size-metadata} / normal t.$font-family;
+  text-align: left;
+}
+.name-row .name-length-error { margin-bottom: 0; }
+.leave-dialog .leave-actions .btn-secondary:focus, .leave-dialog .leave-actions .btn-secondary:focus-visible { outline: none; }
 </style>

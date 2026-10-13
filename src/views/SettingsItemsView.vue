@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useItemsStore } from '../stores/items'
+import { getItemCategory } from '../models/itemCategories'
 import { limitSpaceName } from '../models/space'
 import backIcon from '../assets/settings/category-back.svg'
 import chevron from '../assets/settings/category-chevron.svg'
@@ -57,7 +58,7 @@ const deleteMessage = computed(() => {
   if (!pendingCategory.value) return ''
   const category = store.customCategoryCounts.find(category => category.name === pendingCategory.value)
   return category?.count
-    ? `「${category.name}」內的${category.count}項用品也會一併刪除，無法復原。`
+    ? `「${category.name}」內的${category.count}項用品也會一併刪除。`
     : `即將刪除「${pendingCategory.value}」。`
 })
 function requestDeletion(name) {
@@ -126,14 +127,29 @@ function handleRowClick(event) {
 function revealCategory(name) { openCategory.value = name; swipeOffset.value = -actionWidth }
 function deleteCategories() {
   if (!pendingCategory.value) return
-  store.removeCategories([pendingCategory.value])
+  const name = pendingCategory.value
+  const categoryIndex = store.customCategories.indexOf(name)
+  const removedItems = store.items.map((item, index) => ({ item, index })).filter(entry => getItemCategory(entry.item) === name).map(entry => ({ index: entry.index, snapshot: store.snapshotItem(entry.item.id) }))
+  undoCategory.value = () => {
+    if (!store.customCategories.includes(name)) store.customCategories.splice(categoryIndex < 0 ? store.customCategories.length : Math.min(categoryIndex, store.customCategories.length), 0, name)
+    for (const entry of removedItems) if (!store.getItem(entry.snapshot.id)) store.items.splice(Math.min(entry.index, store.items.length), 0, structuredClone(entry.snapshot))
+  }
+  store.removeCategories([name])
   deleteDialog.value.close()
   pendingCategory.value = null
   openCategory.value = null
   swipeOffset.value = 0
   toast.value = '自訂分類已刪除'
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value = '' }, 3000)
+  toastTimer = setTimeout(() => { toast.value = ''; undoCategory.value = null }, 5000)
+}
+const undoCategory = ref(null)
+function restoreCategory() {
+  const undo = undoCategory.value
+  clearTimeout(toastTimer)
+  toast.value = ''
+  undoCategory.value = null
+  undo?.()
 }
 const toast = ref('')
 let toastTimer
@@ -144,9 +160,10 @@ function addCategory() {
   error.value = result.ok ? '' : result.message
   if (result.ok) {
     categoryName.value = ''
+    undoCategory.value = null
     toast.value = '自訂分類已新增'
     clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => { toast.value = '' }, 3000)
+    toastTimer = setTimeout(() => { toast.value = ''; undoCategory.value = null }, 5000)
   }
 }
 </script>
@@ -200,7 +217,7 @@ function addCategory() {
         </form>
       </dialog>
     </Teleport>
-    <Teleport to="body"><Transition name="category-toast"><p v-if="toast" class="category-toast" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>{{ toast }}</p></Transition></Teleport>
+    <Teleport to="body"><Transition name="category-toast"><p v-if="toast" class="category-toast" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>{{ toast }}</span><button v-if="undoCategory" type="button" class="category-toast-undo" @click="restoreCategory">復原</button></p></Transition></Teleport>
   </section>
 </template>
 <style scoped lang="scss">
@@ -210,22 +227,21 @@ function addCategory() {
 .management-header { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; h1 { margin: 0; text-align: center; font: 700 17px / 24px t.$font-family; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; } }
 h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
-.category-card { overflow: hidden; border: 1px solid rgba(237,234,227,.4); border-radius: 20px; background: #fbfaf6; box-shadow: t.$shadow-card; }
+.category-card { overflow: hidden; border: 1px solid rgba(237,234,227,.4); border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; }
 .category-row { cursor: pointer; display: flex; align-items: center; gap: 4px; @include layout.row; margin-left: 16px; padding-right: t.$space-16; border-bottom: 0; text-decoration: none; color: t.$text-body; font: 400 14px / 20px t.$font-family; span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 16px; height: 16px; } &:last-child { border-bottom: 0; } }
 .system-category-card .category-row { position: relative; border-bottom: 0; &:not(:last-child)::after { content: ""; position: absolute; bottom: 0; left: 0; right: t.$space-16; height: 1px; background: t.$border-color; } }
 .custom-card { padding-inline: t.$space-16; .category-row { margin-left: 0; padding-right: 0; } }
 .empty-category { margin: 0; @include layout.row; display: flex; align-items: center; @include layout.divider; color: t.$text-disabled; font-size: 14px; }
-.category-form { display: flex; align-items: flex-start; gap: 8px; padding-block: t.$space-16; input { width: 100%; min-width: 0; height: 48px; padding: 4px 52px 4px 14px; border: 0; border-radius: t.$radius-pill; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-main; font: 400 14px / 20px t.$font-family; &::placeholder { color: t.$text-disabled; } } button { flex: 0 0 64px; margin-top: 6px; height: 36px; border: 0; border-radius: t.$radius-pill; background: t.$primary-green; color: white; font: 700 14px / 20px t.$font-family; box-shadow: -2px -2px 5px rgba(255,255,255,.9), 3px 4px 7px rgba(42,74,39,.35), inset 1px 1.5px 2px rgba(31,58,29,.28), inset -1px -1px 2px rgba(255,255,255,.22); cursor: pointer; &:disabled { background: #e0e0e0; color: #a6a6a6; box-shadow: none; cursor: default; } } }
+.category-form { display: flex; align-items: flex-start; gap: 8px; padding-block: t.$space-16; input { width: 100%; min-width: 0; height: 48px; padding: 4px 52px 4px 14px; border: 0; border-radius: t.$radius-pill; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-main; font: 400 14px / 20px t.$font-family; &::placeholder { color: t.$text-disabled; } } button { flex: 0 0 64px; margin-top: 6px; height: 36px; border: 0; border-radius: t.$radius-pill; background: t.$primary-green; color: white; font: 700 14px / 20px t.$font-family; box-shadow: t.$shadow-primary; cursor: pointer; &:disabled { background: #e0e0e0; color: #a6a6a6; box-shadow: none; cursor: default; } } }
 .category-input-wrapper { position: relative; flex: 1; min-width: 0; }
 .category-name-count { position: absolute; top: 24px; right: 14px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; pointer-events: none; }
-.category-form input.limit-exceeded { outline: 2px solid t.$accent-text; outline-offset: 2px; }
 .category-length-error { margin: 4px 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }
 .management-hint { margin: 0; color: t.$text-sub; font-size: 12px; }
 .custom-heading { display: flex; flex-direction: column; gap: t.$space-8; }
 .custom-title { position: relative; height: 24px; display: flex; align-items: center; justify-content: space-between; min-height: 24px; i { display: inline-grid; place-items: center; width: 20px; height: 20px; color: t.$text-sub; font-size: 16px; flex-shrink: 0; } }
 .swipe-category { margin-inline: -16px; position: relative; overflow: hidden; @include layout.divider; touch-action: pan-y; }
 .swipe-category::after { z-index: 2; }
-.swipe-content { position: relative; z-index: 1; background: #fbfaf6; border-bottom: 0; transition: transform .5s ease; user-select: none; &.dragging { transition: none; } }
+.swipe-content { position: relative; z-index: 1; background: t.$card-bg; border-bottom: 0; transition: transform .5s ease; user-select: none; &.dragging { transition: none; } }
 .custom-card .swipe-content { padding-inline: t.$space-16; }
 .category-sort-move { transition: transform .5s ease; }
 @media (prefers-reduced-motion: reduce) { .category-sort-move { transition: none; } }
@@ -235,12 +251,45 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
 .swipe-delete { position: absolute; inset: 0 0 0 auto; width: 88px; border: 0; background: t.$danger; color: t.$text-inverse; font: 500 14px / 20px t.$font-family; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .swipe-content { transition: none; } }
 
-.category-delete-dialog { box-sizing: border-box; width: min(300px, calc(100% - 48px)); max-height: calc(100dvh - 48px); padding: t.$space-24 18px; border: 0; border-radius: t.$radius-card; background: t.$card-bg; color: t.$text-main; font-family: t.$font-family; text-align: center; box-shadow: 0 -2px 8px rgba(255,255,255,.18), 0 16px 36px rgba(43,42,38,.28); h2 { margin: 0; font-size: 18px; line-height: 1.45; } p { margin: t.$space-8 0 t.$space-24; color: t.$text-sub; font-size: t.$font-size-body; line-height: 1.45; } &::backdrop { background: rgba(29,29,31,.5); } &:focus { outline: none; } }
+.category-delete-dialog {
+  width: min(300px, calc(100% - t.$space-16 * 2));
+  margin: auto;
+  max-height: calc(100dvh - t.$space-16 * 2);
+  padding: t.$space-24 18px;
+  border: 0;
+  border-radius: t.$radius-card;
+  background: t.$card-bg;
+  color: t.$text-main;
+  box-shadow: 0 14px 16px rgba(140, 136, 127, .2);
+  text-align: center;
+  &::backdrop { background: rgba(t.$text-main, .35); }
+  &:focus { outline: none; }
+  h2 { margin: 0 0 t.$space-8; font: t.$font-weight-bold #{t.$font-size-card-title} / 1.45 t.$font-family; overflow-wrap: anywhere; }
+  p { margin: 0; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body} / 1.45 t.$font-family; overflow-wrap: anywhere; }
+}
 .category-delete-dialog-actions { display: flex; gap: t.$space-12; .btn { flex: 1; min-width: 0; min-height: 48px; font-size: t.$font-size-body; } .btn-secondary, .btn-secondary:focus, .btn-secondary:focus-visible { outline: none; } }
-.category-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; margin: 0; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; justify-content: center; gap: t.$space-8; border: 0; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-weight: t.$font-weight-bold; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; font-family: t.$font-family; pointer-events: none; i { color: t.$toast-success-accent; } }
-.category-toast-enter-active, .category-toast-leave-active { transition: opacity .5s ease; }
+.category-toast { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1100; width: max-content; max-width: min(t.$toast-max-width, calc(100% - t.$toast-inset-inline * 2)); min-height: t.$toast-min-height; margin: 0; padding: t.$toast-padding-block t.$toast-padding-inline; display: flex; align-items: center; justify-content: center; gap: t.$space-8; border: 0; border-radius: t.$radius-pill; background: t.$toast-background; color: t.$toast-text; box-shadow: t.$toast-shadow; font-weight: t.$font-weight-medium; font-size: t.$font-size-body-sm; line-height: t.$line-height-body; font-family: t.$font-family; i { color: t.$toast-success-accent; } }
+.category-toast-undo { flex-shrink: 0; border: 0; padding: t.$space-4; background: transparent; color: t.$toast-success-accent; font: inherit; cursor: pointer; }
+.category-toast-enter-active, .category-toast-leave-active { transition: opacity .3s ease; }
 .category-toast-enter-from, .category-toast-leave-to { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { .category-toast-enter-active, .category-toast-leave-active { transition: none; } }
 .category-error { margin: 0 0 t.$space-12; color: t.$accent-text; font-size: t.$font-size-caption; }
 a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+.category-delete-dialog .category-delete-dialog-actions { display: flex; gap: t.$space-12; margin-top: t.$space-32; }
+.category-delete-dialog .category-delete-dialog-actions .btn { flex: 1; min-width: 0; height: t.$button-height; min-height: t.$button-height; padding: 0 t.$space-24; border: 0; border-radius: t.$radius-pill; font: t.$font-weight-medium #{t.$font-size-body} / normal t.$font-family; }
+.category-delete-dialog .category-delete-dialog-actions .btn-secondary { background: t.$input-bg; color: t.$text-button-secondary; box-shadow: t.$shadow-raised; }
+.category-delete-dialog .category-delete-dialog-actions button:focus { outline: none; }
+.category-delete-dialog .category-delete-dialog-actions button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+.category-error, .category-length-error {
+  margin-block: t.$space-12;
+  box-sizing: border-box;
+  padding: t.$space-8 t.$space-12;
+  border-radius: t.$radius-md;
+  background: t.$accent-soft;
+  color: t.$accent-text;
+  font: t.$font-weight-regular #{t.$font-size-metadata} / normal t.$font-family;
+  text-align: left;
+}
+.category-form:has(+ .category-error) { padding-bottom: 0; }
+.category-delete-dialog .category-delete-dialog-actions .btn-secondary:focus, .category-delete-dialog .category-delete-dialog-actions .btn-secondary:focus-visible { outline: none; }
 </style>

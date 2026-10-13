@@ -56,6 +56,7 @@ function addSpace(close) {
     error.value = '名稱過長，請縮短至 8 個中文字或 16 個英文字母以內。'
     return
   }
+  if (itemsStore.hasSpaceName(spaceName)) { error.value = '已有相同名稱的空間，請使用其他名稱。'; return }
   const space = itemsStore.addSpace({ name: spaceName, shared: shared.value, color: color.value })
   emit('created', space)
   close()
