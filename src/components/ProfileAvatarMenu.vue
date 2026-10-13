@@ -57,7 +57,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', dismiss))
 .profile-avatar-menu { position: relative; flex-shrink: 0; }
 .avatar-trigger {
   display: flex; padding: 0; border: 0; border-radius: t.$radius-pill; @include avatar.background; cursor: pointer;
-  img { width: 45px; height: 45px; border-radius: inherit; object-fit: cover; }
+  img { width: 45px; height: 45px; border-radius: inherit; object-fit: cover; box-shadow: t.$shadow-raised; }
   &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 3px; }
 }
 .account-panel {

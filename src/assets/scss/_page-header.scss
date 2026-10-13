@@ -2,9 +2,10 @@
 
 // 分頁頂部 header 共用排版（以購買清單為基準）：標題在左、avatar 在右。
 // 父層已用 gap 提供下方間距時（首頁、我的用品），$margin-bottom 傳 0 避免重複。
+// 靠上對齊：有副標題的分頁 header 較高，置中會讓標題與 avatar 在切換分頁時上下跳動。
 @mixin page-header($margin-bottom: t.$space-16) {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: t.$space-16;
   min-height: 45px;

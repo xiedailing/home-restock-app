@@ -50,7 +50,7 @@ export const routes = [
     path: '/settings/profile',
     name: 'edit-profile',
     component: () => import('../views/SettingsEditProfile.vue'),
-    meta: { title: '個人檔案設定', hideBottomNav: true },
+    meta: { title: '編輯個人檔案', hideBottomNav: true },
   },
   {
     path: '/settings/spaces',
