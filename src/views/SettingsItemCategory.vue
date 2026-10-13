@@ -190,4 +190,5 @@ header { position: relative; min-height: 44px; display: grid; grid-template-colu
 .item-delete-dialog .item-delete-actions button:focus { outline: none; }
 .item-delete-dialog .item-delete-actions button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
 .item-delete-dialog .item-delete-actions .btn-secondary:focus, .item-delete-dialog .item-delete-actions .btn-secondary:focus-visible { outline: none; }
+header h1 { letter-spacing: .5px; }
 </style>

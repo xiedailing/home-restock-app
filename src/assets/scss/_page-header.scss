@@ -11,11 +11,11 @@
   margin-bottom: $margin-bottom;
 }
 
-@mixin page-title {
+@mixin page-title($letter-spacing: .5px) {
   margin: 0;
   color: t.$text-main;
   font: t.$font-weight-bold #{t.$font-size-page-title} / #{t.$line-height-page-title} t.$font-family;
-  letter-spacing: 0;
+  letter-spacing: $letter-spacing;
 }
 
 @mixin page-subtitle {

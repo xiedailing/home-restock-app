@@ -221,4 +221,5 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   text-align: left;
 }
 .space-name-row .space-error, .space-name-row .name-length-error { margin-bottom: 0; }
+header h1 { letter-spacing: .5px; }
 </style>
