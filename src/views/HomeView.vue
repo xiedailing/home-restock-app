@@ -17,6 +17,12 @@ import RestockSheet from '../components/item-detail/RestockSheet.vue'
 import logoIcon from '../assets/logo.svg'
 import emptyIcon from '../assets/household-icons-by-state/common/generic-item-in-stock.svg'
 
+// 點 logo 彈一下（麻糬 squash & stretch）；動畫中再點不重播，結束後由 animationend 還原。
+const logoBouncing = ref(false)
+function bounceLogo() {
+  logoBouncing.value = true
+}
+
 const router = useRouter()
 const itemsStore = useItemsStore()
 const { restockReminders, shoppingList, spaces } = storeToRefs(itemsStore)
@@ -117,7 +123,7 @@ function onRestockConfirm(restock) {
     <div class="home-top">
       <header class="home-header">
         <div class="home-brand">
-          <img class="home-logo" :src="logoIcon" alt="" />
+          <img class="home-logo" :class="{ 'is-bouncing': logoBouncing }" :src="logoIcon" alt="" @click="bounceLogo" @animationend="logoBouncing = false" />
           <h1 id="home-title">補補</h1>
         </div>
         <ProfileAvatarMenu :to="{ name: 'edit-profile' }" />
@@ -217,7 +223,23 @@ function onRestockConfirm(restock) {
 h1 { @include ph.page-title; }
 // 副標題移除後，logo＋標題與 45px 的 avatar 垂直置中（header 本身仍靠上對齊）。
 .home-brand { display: flex; align-items: center; align-self: center; gap: t.$space-8; }
-.home-logo { display: block; width: 43px; height: 32px; flex-shrink: 0; }
+.home-logo {
+  display: block; width: 43px; height: 32px; flex-shrink: 0;
+  cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  transform-origin: 50% 100%; // 以底部為支點，像黏在地上彈
+  &.is-bouncing { animation: mochi-bounce .7s both; }
+}
+@keyframes mochi-bounce {
+  0%   { transform: scale(1, 1); }
+  20%  { transform: scale(1.15, .82); }                 // 壓扁
+  45%  { transform: translateY(-5px) scale(.92, 1.1); } // 彈起拉長
+  65%  { transform: scale(1.06, .95); }                 // 落地回彈
+  82%  { transform: scale(.98, 1.02); }
+  100% { transform: scale(1, 1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-logo.is-bouncing { animation: none; }
+}
 
 .reminder-section { display: flex; flex-direction: column; gap: 25px; padding-top: t.$space-4; }
 .section-header { display: flex; align-items: center; gap: 10px; min-height: 24px; }
