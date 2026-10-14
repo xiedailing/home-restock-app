@@ -14,6 +14,7 @@ import ShoppingSummaryCard from '../components/home/ShoppingSummaryCard.vue'
 import RecentUpdateCard from '../components/home/RecentUpdateCard.vue'
 import ReminderCard from '../components/home/ReminderCard.vue'
 import RestockSheet from '../components/item-detail/RestockSheet.vue'
+import logoIcon from '../assets/logo.svg'
 import emptyIcon from '../assets/household-icons-by-state/common/generic-item-in-stock.svg'
 
 const router = useRouter()
@@ -115,9 +116,9 @@ function onRestockConfirm(restock) {
   <section class="home-page" :class="{ 'home-page--selecting': selecting }" aria-labelledby="home-title">
     <div class="home-top">
       <header class="home-header">
-        <div>
+        <div class="home-brand">
+          <img class="home-logo" :src="logoIcon" alt="" />
           <h1 id="home-title">補補</h1>
-          <p class="home-subtitle">所有空間的補貨總覽</p>
         </div>
         <ProfileAvatarMenu :to="{ name: 'edit-profile' }" />
       </header>
@@ -214,7 +215,9 @@ function onRestockConfirm(restock) {
 // 下方間距由 .home-top 的 gap 提供。
 .home-header { @include ph.page-header(0); }
 h1 { @include ph.page-title; }
-.home-subtitle { @include ph.page-subtitle; }
+// 副標題移除後，logo＋標題與 45px 的 avatar 垂直置中（header 本身仍靠上對齊）。
+.home-brand { display: flex; align-items: center; align-self: center; gap: t.$space-8; }
+.home-logo { display: block; width: 43px; height: 32px; flex-shrink: 0; }
 
 .reminder-section { display: flex; flex-direction: column; gap: 25px; padding-top: t.$space-4; }
 .section-header { display: flex; align-items: center; gap: 10px; min-height: 24px; }
