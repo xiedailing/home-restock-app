@@ -1,15 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { limitSpaceName } from '../models/space'
+import { useRouter } from 'vue-router'
+import { formatNameCount, limitSpaceName } from '../models/space'
 import { useItemsStore } from '../stores/items'
 import backIcon from '../assets/add-item/back-chevron.svg'
-import chevron from '../assets/settings/chevron.svg'
 import SwitchTrack from '../components/SwitchTrack.vue'
 import SpaceColorPicker from '../components/SpaceColorPicker.vue'
 
 const router = useRouter()
-const route = useRoute()
 const backTarget = computed(() => ({ name: 'settings' }))
 const itemsStore = useItemsStore()
 const name = ref('')
@@ -19,12 +17,7 @@ const error = ref('')
 
 const nameLimitExceeded = computed(() => limitSpaceName(name.value.trim()) !== name.value.trim())
 const nameFocused = ref(false)
-const nameCountHint = computed(() => {
-  const text = name.value
-  const asciiOnly = /^[\x00-\x7F]*$/.test(text) && text.length > 0
-  const count = asciiOnly ? Array.from(text).length : Array.from(text).reduce((total, char) => total + (char.codePointAt(0) <= 127 ? 0.5 : 1), 0)
-  return `${Math.floor(count)}/${asciiOnly ? 16 : 8}`
-})
+const nameCountHint = computed(() => formatNameCount(name.value))
 function updateNameInput(event) {
   // 組字期間保留輸入法內容，選字完成後移除所有空白。
   if (event.isComposing) return

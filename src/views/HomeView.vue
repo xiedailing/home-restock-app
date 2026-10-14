@@ -4,7 +4,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
-import { useItemsStore } from '../stores/items'
+import { SHOPPING_COMPLETED_KEEP_MS, useItemsStore } from '../stores/items'
 import { SNOOZE_DAYS } from '../models/item'
 import { useToast } from '../composables/useToast'
 import { bottomNavHiddenByPage } from '../composables/useBottomNav'
@@ -29,19 +29,18 @@ const { restockReminders, shoppingList, spaces } = storeToRefs(itemsStore)
 const { toast, showToast, runUndo } = useToast()
 
 // 最近更新卡：最近一筆自己完成的購買；與購買清單「已補貨」區同樣只保留 24 小時（HOME-11）。
-const COMPLETED_KEEP_MS = 24 * 60 * 60 * 1000
 const now = ref(Date.now())
 let expiryTimer
 const recentItem = computed(() =>
   itemsStore.items
-    .filter((item) => item.shoppingCompletedAt != null && item.shoppingCompletedBy === 'self' && now.value - item.shoppingCompletedAt < COMPLETED_KEEP_MS)
+    .filter((item) => item.shoppingCompletedAt != null && item.shoppingCompletedBy === 'self' && now.value - item.shoppingCompletedAt < SHOPPING_COMPLETED_KEEP_MS)
     .sort((a, b) => b.shoppingCompletedAt - a.shoppingCompletedAt)[0] ?? null,
 )
 // 到期時重新判斷，卡片自動回到空狀態；回到分頁時也重算。
 function refreshNow() {
   clearTimeout(expiryTimer)
   now.value = Date.now()
-  if (recentItem.value) expiryTimer = setTimeout(refreshNow, recentItem.value.shoppingCompletedAt + COMPLETED_KEEP_MS - now.value)
+  if (recentItem.value) expiryTimer = setTimeout(refreshNow, recentItem.value.shoppingCompletedAt + SHOPPING_COMPLETED_KEEP_MS - now.value)
 }
 watch(() => itemsStore.items.map((item) => item.shoppingCompletedAt), refreshNow)
 onMounted(() => { refreshNow(); document.addEventListener('visibilitychange', refreshNow) })

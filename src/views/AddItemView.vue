@@ -9,11 +9,10 @@ import {
   DEFAULT_SPACE_ID,
   ITEM_STATUS,
   UNITS,
-  addDays,
-  addMonths,
   calcDaysPerUnit,
   matchItemIconKey,
 } from '../models/item'
+import { useRestockDates } from '../composables/useRestockDates'
 import { limitSpaceName } from '../models/space'
 import { getItemIcon } from '../assets/household-icons-by-state/index.js'
 import ItemIconEditor from '../components/ItemIconEditor.vue'
@@ -124,12 +123,7 @@ function selectSpace(id) {
 }
 
 // ---------- 預計補貨日 ----------
-const minDate = computed(() => addDays(today.value, 1))
-const quickDates = computed(() => [
-  { label: '下週', date: addDays(today.value, 7) },
-  { label: '兩週後', date: addDays(today.value, 14) },
-  { label: '下個月', date: addMonths(today.value, 1) },
-])
+const { minDate, quickDates } = useRestockDates(today)
 const formattedDate = computed(() => nextRestockDate.value?.replaceAll('-', '/') ?? '')
 
 // ---------- 驗證 ----------

@@ -4,8 +4,6 @@
 import { generateId } from '../utils/id.js'
 
 export const CATEGORIES = ['生活日用品', '清潔', '洗衣', '廚房', '個人護理', '寵物用品']
-// Figma 預設分類（我的用品篩選 834:5231、用品詳情 902:9485；「洗浴清潔」已改名為「清潔」）；我的用品一律顯示，其他分類有用品時才顯示。
-export const DEFAULT_CATEGORIES = ['生活日用品', '清潔', '洗衣', '廚房', '個人護理']
 
 export const UNITS = ['件', '瓶', '包', '串', '條', '捲', '個']
 export const DEFAULT_UNIT = '件'
@@ -271,13 +269,3 @@ export function createSampleItems(today = toDateString()) {
   ]
 }
 
-export const ITEM_STATUS_LABELS = Object.freeze({
-  [ITEM_STATUS.IN_SHOPPING_LIST]: '在購物清單',
-  [ITEM_STATUS.RESTOCK_NEEDED]: '需要補貨',
-  [ITEM_STATUS.IN_STOCK]: '庫存充足',
-  [ITEM_STATUS.DUE_SOON]: '接近補貨日',
-})
-
-export function normalizeItemStatus(status) {
-  return getIconState(status)
-}

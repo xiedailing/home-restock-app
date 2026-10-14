@@ -4,7 +4,7 @@ import { useToast } from '../composables/useToast'
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useItemsStore } from '../stores/items'
 import { getItemCategory } from '../models/itemCategories'
-import { limitSpaceName } from '../models/space'
+import { formatNameCount, limitSpaceName } from '../models/space'
 import backIcon from '../assets/settings/category-back.svg'
 import chevron from '../assets/settings/category-chevron.svg'
 const store = useItemsStore()
@@ -14,12 +14,7 @@ const duplicateName = computed(() => [...store.systemCategoryCounts, ...store.cu
 const nameError = computed(() => duplicateName.value ? '已有重複分類名稱' : error.value)
 const nameFocused = ref(false)
 const nameLimitExceeded = computed(() => limitSpaceName(categoryName.value.trim()) !== categoryName.value.trim())
-const nameCount = computed(() => {
-  const text = categoryName.value
-  const ascii = /^[\x00-\x7F]+$/.test(text)
-  const count = Array.from(text).reduce((sum, char) => sum + (ascii || char.codePointAt(0) > 127 ? 1 : .5), 0)
-  return `${Math.floor(count)}/${ascii ? 16 : 8}`
-})
+const nameCount = computed(() => formatNameCount(categoryName.value))
 const deleteDialog = ref(null)
 const visibleSystemCategories = computed(() => store.systemCategoryCounts.filter(category => category.count > 0))
 const pendingCategory = ref(null)

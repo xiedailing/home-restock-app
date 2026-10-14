@@ -30,10 +30,6 @@ const { items, itemsWithStatus, spaces, inventorySpaceId: selectedSpaceId, recen
 
 // 搜尋字串僅留在頁面層，不進 store、不持久化。
 const searchQuery = ref('')
-// 記住的空間已被退出時，回到所有用品。
-watch(spaces, (list) => {
-  if (selectedSpaceId.value !== null && !list.some((space) => space.id === selectedSpaceId.value)) selectedSpaceId.value = null
-}, { immediate: true, deep: true })
 const spaceMenuOpen = ref(false)
 
 // 新增空間：同新增用品頁的 Sheet；建立後切到新空間並顯示 Toast。

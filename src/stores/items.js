@@ -28,6 +28,8 @@ import {
 // 刪除後可復原的時間，與 Toast 顯示時間相同。
 export const UNDO_DURATION_MS = 5000
 
+// 購買清單完成後保留展示的時間；購買清單、首頁「最近更新」與 store 的清除共用。
+export const SHOPPING_COMPLETED_KEEP_MS = 24 * 60 * 60 * 1000
 // 第一次使用（或存檔無效）時的示範資料。
 function createDemoState() {
   const items = createSampleItems()
@@ -377,7 +379,7 @@ export const useItemsStore = defineStore('items', () => {
 
   function clearExpiredShoppingItems(now = Date.now()) {
     for (const item of items.value) {
-      if (item.shoppingCompletedAt != null && now - item.shoppingCompletedAt >= 24 * 60 * 60 * 1000) {
+      if (item.shoppingCompletedAt != null && now - item.shoppingCompletedAt >= SHOPPING_COMPLETED_KEEP_MS) {
         clearShoppingCompletion(item.id)
         updateItem(item.id, { shoppingCompletedAt: null, shoppingCompletedQuantity: null, shoppingCompletedBy: null, shoppingClaimantId: null })
       }
@@ -454,6 +456,8 @@ export const useItemsStore = defineStore('items', () => {
 
   // 展示用邀請碼；正式版可將查詢替換為 API。
   function joinSpaceByCode(code) {
+    // 我的用品正在篩選這個空間時，回到所有用品。
+    if (inventorySpaceId.value === spaceId) inventorySpaceId.value = null
     const normalized = code.trim().toUpperCase()
     if (!normalized) return { ok: false, message: '請先輸入空間邀請碼' }
     if (!isValidInviteCode(normalized)) return { ok: false, message: '邀請碼格式不正確' }
