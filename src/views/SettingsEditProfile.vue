@@ -40,6 +40,7 @@ const nameCount = computed(() => {
   return `${Math.floor(count)}/${ascii ? 16 : 8}`
 })
 const nameInput = ref(null)
+let enterCount = 0
 const { toast, showToast: showNotice } = useToast()
 async function editName() {
   name.value = profile.name
