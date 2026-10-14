@@ -6,7 +6,7 @@ import { loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 const saved = loadPersisted(STORE_KEYS.profile)
 const state = reactive({
   name: typeof saved?.name === 'string' && saved.name.trim() ? saved.name : 'bubu1028',
-  email: 'bubu1028@gmail.com',
+  email: typeof saved?.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saved.email.trim()) ? saved.email.trim().toLowerCase() : 'bubu1028@gmail.com',
   avatar: typeof saved?.avatar === 'string' ? saved.avatar : '',
 })
 export const profile = readonly(state)
@@ -17,6 +17,11 @@ export function completeDemoLogin({ email, name, avatar }) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) throw new Error('請輸入正確的 Email 格式。')
   updateProfile({ name, avatar })
   state.email = normalizedEmail
+  persistProfile()
+}
+
+function persistProfile() {
+  savePersisted(STORE_KEYS.profile, { name: state.name, email: state.email, avatar: state.avatar })
 }
 
 export function updateProfile({ name, avatar }) {
@@ -26,5 +31,5 @@ export function updateProfile({ name, avatar }) {
   }
   state.name = trimmedName
   state.avatar = avatar
-  savePersisted(STORE_KEYS.profile, { name: state.name, avatar: state.avatar })
+  persistProfile()
 }

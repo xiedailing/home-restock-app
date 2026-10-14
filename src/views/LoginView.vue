@@ -18,7 +18,7 @@ const notificationSettings = useNotificationSettingsStore()
 const step = ref('welcome')
 const email = ref('')
 const name = ref('')
-const avatar = ref(profile.avatar)
+const avatar = ref(avatarOptions[0].value)
 const code = ref('')
 const error = ref('')
 const notice = ref('')
@@ -202,7 +202,7 @@ p { margin: 0; }
 .avatar-preview { position: absolute; left: 0; width: 104px; height: 104px; object-fit: cover; border-radius: t.$radius-pill; @include avatar.background; box-shadow: t.$shadow-raised; }
 .avatar-camera { position: absolute; right: -6px; top: 78px; display: grid; place-items: center; width: 34px; height: 34px; border: 0; padding: 0; border-radius: t.$radius-pill; background: t.$primary-green; color: t.$text-inverse; box-shadow: t.$shadow-primary; }
 .avatar-options { display: flex; gap: 18px; button { width: 45px; height: 45px; padding: 0; border: 2px solid transparent; border-radius: t.$radius-pill; @include avatar.background; box-shadow: t.$shadow-raised; img { width: 41px; height: 41px; border-radius: inherit; } &[aria-pressed='true'] { border-color: t.$primary-green; box-shadow: t.$shadow-inset; } } }
-label { display: block; margin-bottom: 8px; color: t.$text-sub; font-size: t.$font-size-body-sm; font-weight: t.$font-weight-medium; }
+label { display: block; margin-bottom: 8px; color: t.$text-sub; font-size: t.$font-size-body-sm; font-weight: t.$font-weight-medium; text-align: left; }
 .notifications-step { display: flex; flex-direction: column; margin-top: auto; padding-top: t.$space-24; }
 .text-button { font-size: t.$font-size-body-sm; font-weight: t.$font-weight-bold; margin-top: 8px; }
 .photo-options button { width: 100%; min-height: 56px; padding: 16px 8px; border: 0; border-bottom: 1px solid t.$border-color; background: transparent; color: t.$text-main; text-align: left; font-family: t.$font-family; }
