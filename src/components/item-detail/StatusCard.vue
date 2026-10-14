@@ -19,7 +19,7 @@ const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'toggle-reminde
 // 讀 store 的響應式「今天」，跨日後剩餘天數與延後提示會自動更新（specs/003 KI-01）。
 const store = useItemsStore()
 
-const reminderStatus = computed(() => getReminderStatus(props.item, store.today))
+const reminderStatus = computed(() => getReminderStatus(props.item, store.today, store.remindWithinDays))
 
 const COPY = {
   [STATUS.NOT_NEEDED]: { title: '尚未到補貨時間', description: '接近下次補貨日時，我們會提醒你。', icon: 'check' },

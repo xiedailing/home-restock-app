@@ -1,12 +1,3 @@
-<!-- <script setup>
-import HelloWorld from './components/HelloWorld.vue'
-</script>
-
-<template>
-  <HelloWorld />
-</template> -->
-
-<!-- src/App.vue -->
 <script setup>
 import { useRoute, useRouter } from 'vue-router'
 import { ref, watch } from 'vue'
@@ -22,8 +13,6 @@ const hideBottomNav = useBottomNavHidden()
 const pageTransition = ref('page-forward')
 const animateSettingsPages = ref(false)
 const animateItemsPages = ref(route.path === '/settings/items' || route.path.startsWith('/settings/items/'))
-const isItemsPage = path => path === '/settings/items' || path.startsWith('/settings/items/')
-const isSettingsPage = path => path === '/settings' || path.startsWith('/settings/')
 watch(() => route.path, (to, from) => {
   const navPaths = ['/home', '/inventory', '/shopping', '/settings']
   const switchingMainPages = navPaths.includes(to) && navPaths.includes(from)

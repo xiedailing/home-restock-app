@@ -10,8 +10,6 @@ import pillCheck from '../../assets/add-item/pill-check.svg'
 import spaceCheck from '../../assets/add-item/space-check.svg'
 
 const itemsStore = useItemsStore()
-const CUSTOM_UNIT = 'custom'
-
 const props = defineProps({
   item: { type: Object, required: true },
   spaces: { type: Array, required: true },

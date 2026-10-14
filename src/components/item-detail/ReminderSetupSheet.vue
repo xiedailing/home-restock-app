@@ -5,7 +5,8 @@
 import { computed, ref, watch } from 'vue'
 import BottomSheet from '../BottomSheet.vue'
 import DatePickerSheet from '../add-item/DatePickerSheet.vue'
-import { addDays, addMonths, toDateString } from '../../models/item'
+import { toDateString } from '../../models/item'
+import { useRestockDates } from '../../composables/useRestockDates'
 import pillCheck from '../../assets/add-item/pill-check.svg'
 import calendarIcon from '../../assets/add-item/calendar.svg'
 import dateChevron from '../../assets/add-item/date-chevron.svg'
@@ -22,12 +23,7 @@ const quantity = ref(1)
 const date = ref(null)
 const datePickerOpen = ref(false)
 const today = ref(toDateString())
-const minDate = computed(() => addDays(today.value, 1))
-const quickDates = computed(() => [
-  { label: '下週', date: addDays(today.value, 7) },
-  { label: '兩週後', date: addDays(today.value, 14) },
-  { label: '下個月', date: addMonths(today.value, 1) },
-])
+const { minDate, quickDates } = useRestockDates(today)
 const formattedDate = computed(() => date.value?.replaceAll('-', '/') ?? '')
 
 // 每次開啟都重新帶入，不保留上次未完成的輸入。

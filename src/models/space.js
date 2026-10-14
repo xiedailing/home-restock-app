@@ -23,6 +23,16 @@ export function limitSpaceName(value) {
   return result
 }
 
+// 名稱輸入框旁的字數提示：全英數上限 16、含中文上限 8（英數算 0.5），與 limitSpaceName 的額度一致。
+export function formatNameCount(text) {
+  const characters = Array.from(text)
+  const asciiOnly = characters.length > 0 && characters.every(character => character.codePointAt(0) <= 127)
+  const count = asciiOnly
+    ? characters.length
+    : characters.reduce((total, character) => total + (character.codePointAt(0) <= 127 ? 0.5 : 1), 0)
+  return `${Math.floor(count)}/${asciiOnly ? 16 : 8}`
+}
+
 export function formatSpaceLabel(name) {
   const characters = Array.from(name)
   return characters.length > 4 ? characters.slice(0, 4).join('') + '…' : name

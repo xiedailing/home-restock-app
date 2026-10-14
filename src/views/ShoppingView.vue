@@ -3,7 +3,7 @@ import AppToast from '../components/AppToast.vue'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
-import { useItemsStore } from '../stores/items'
+import { SHOPPING_COMPLETED_KEEP_MS, useItemsStore } from '../stores/items'
 import { getSpaceColor, formatSpaceLabel } from '../models/space'
 import SpaceTag from '../components/SpaceTag.vue'
 import { useToast } from '../composables/useToast'
@@ -84,13 +84,6 @@ function claimOperation(item, takeOver = false) {
 }
 const showClaimAll = computed(() => activeTab.value === 'shared' && unclaimedSpaceItems.value.length > 0)
 const unclaimedSpaceItems = computed(() => sharedItems.value.filter(item => item.inShoppingList && !item.shoppingClaimantId))
-function claimAll() {
-  if (!unclaimedSpaceItems.value.length) return
-  const ids = unclaimedSpaceItems.value.map(item => item.id)
-  const operations = ids.map(id => claimOperation(store.getItem(id))).filter(Boolean)
-  sharedExpandedItems.value = sharedExpandedItems.value.filter(id => !ids.includes(id))
-  showToast(`已認購「${store.getSpace(selectedSpace.value)?.name || '未指定空間'}」的 ${operations.length}項用品`)
-}
 const claimAllDialog = ref(null)
 const claimAllRequest = ref(null)
 function requestClaimAll() {
@@ -125,7 +118,6 @@ const sharedGroups = computed(() => [
 ].filter(group => group.items.length))
 const hasMyItems = computed(() => personalGroups.value.some(group => group.items.length))
 const myPendingItems = computed(() => [...personalItems.value, ...claimedItems.value])
-const showRestockAll = computed(() => activeTab.value === 'personal' && myPendingItems.value.length > 0)
 const restockAllDialog = ref(null)
 const restockAllIds = ref([])
 function requestRestockAll(items = myPendingItems.value) {
@@ -152,7 +144,7 @@ function restockAll(ids = myPendingItems.value.map(item => item.id)) {
 const collapsedGroups = ref([])
 function claimItem(item, takeOver = false) {
   const previousClaimant = item.shoppingClaimantId
-  const operation = claimOperation(item, takeOver)
+  claimOperation(item, takeOver)
   if (previousClaimant !== 'self' && item.shoppingClaimantId === 'self') {
     if (!previousClaimant) sharedExpandedItems.value = sharedExpandedItems.value.filter(id => id !== item.id)
     showToast(`已${takeOver ? '接手認購' : '認購'}「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`)
@@ -209,7 +201,7 @@ let expiryTimer
 function scheduleExpiry() {
   clearTimeout(expiryTimer)
   store.clearExpiredShoppingItems()
-  const times = store.items.filter(item => item.shoppingCompletedAt != null).map(item => item.shoppingCompletedAt + 24 * 60 * 60 * 1000)
+  const times = store.items.filter(item => item.shoppingCompletedAt != null).map(item => item.shoppingCompletedAt + SHOPPING_COMPLETED_KEEP_MS)
   if (times.length) expiryTimer = setTimeout(scheduleExpiry, Math.max(0, Math.min(...times) - Date.now()))
 }
 watch(() => store.items.map(item => item.shoppingCompletedAt), scheduleExpiry)

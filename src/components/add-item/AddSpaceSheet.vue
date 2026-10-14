@@ -1,10 +1,10 @@
 <script setup>
 // 新增用品頁的「＋ 新增空間」Sheet；欄位、驗證與樣式複製自 SettingsAddSpace.vue（設定頁由組員維護，不共用以免互相影響）。
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import BottomSheet from '../BottomSheet.vue'
 import SwitchTrack from '../SwitchTrack.vue'
 import SpaceColorPicker from '../SpaceColorPicker.vue'
-import { limitSpaceName } from '../../models/space'
+import { formatNameCount, limitSpaceName } from '../../models/space'
 import { useItemsStore } from '../../stores/items'
 
 defineProps({ open: Boolean })
@@ -19,12 +19,7 @@ const nameInput = ref(null)
 
 const nameLimitExceeded = computed(() => limitSpaceName(name.value.trim()) !== name.value.trim())
 const nameFocused = ref(false)
-const nameCountHint = computed(() => {
-  const text = name.value
-  const asciiOnly = /^[\x00-\x7F]*$/.test(text) && text.length > 0
-  const count = asciiOnly ? Array.from(text).length : Array.from(text).reduce((total, char) => total + (char.codePointAt(0) <= 127 ? 0.5 : 1), 0)
-  return `${count}/${asciiOnly ? 16 : 8}`
-})
+const nameCountHint = computed(() => formatNameCount(name.value))
 
 function reset() {
   name.value = ''
