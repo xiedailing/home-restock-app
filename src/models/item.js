@@ -75,11 +75,11 @@ export function matchItemIconKey(name = '') {
   return match
 }
 
-// 剩餘天數 <= 此值時顯示「該補貨了」
+// 剩餘天數 <= 提醒門檻 T 時顯示「該補貨了」。預設 5，設定頁可調 1～20（001 D4、D4-c）；
+// 實際使用的值存在 notificationSettings store 的 restockDays，各函式以參數接收。
 export const REMIND_WITHIN_DAYS = 5
-// 系統推算的下次預計補貨日至少離補貨日這麼多天，避免剛補完貨就立刻變成「該補貨了」（001 FR-003、RST-01）。
-// 不限制使用者自己選的日期。
-export const MIN_RESTOCK_INTERVAL_DAYS = REMIND_WITHIN_DAYS + 1
+export const MIN_REMIND_DAYS = 1
+export const MAX_REMIND_DAYS = 20
 
 // 「暫時不用補貨」延後的天數（specs/005 SNZ-01）。
 export const SNOOZE_DAYS = 7
@@ -206,9 +206,10 @@ export function calcDaysPerUnit(nextRestockDate, baseDate, baseQuantity) {
   return daysUntil(nextRestockDate, baseDate) / baseQuantity
 }
 
-// 001 FR-003：下次預計補貨日 ＝ 補貨日 ＋ 數量 × 每單位可撐天數，四捨五入到整天，且不少於 MIN_RESTOCK_INTERVAL_DAYS 天。
-export function calcNextRestockDate(date, quantity, daysPerUnit) {
-  return addDays(date, Math.max(MIN_RESTOCK_INTERVAL_DAYS, Math.round(quantity * daysPerUnit)))
+// 001 FR-003：下次預計補貨日 ＝ 補貨日 ＋ 數量 × 每單位可撐天數，四捨五入到整天。
+// 系統推算的日期至少離補貨日「T ＋ 1」天，避免剛補完貨就立刻變成「該補貨了」（RST-01）；不限制使用者自己選的日期。
+export function calcNextRestockDate(date, quantity, daysPerUnit, remindWithinDays = REMIND_WITHIN_DAYS) {
+  return addDays(date, Math.max(remindWithinDays + 1, Math.round(quantity * daysPerUnit)))
 }
 
 // 最新一筆：日期最晚者；同一天時取較晚新增者（specs/003 DET-04）。
@@ -225,18 +226,18 @@ export function sortRecordsNewestFirst(records) {
 }
 
 // 提醒狀態：只看提醒開關與預計補貨日，不看購買清單（用品詳情的補貨提醒區使用，RST-07）。
-export function getReminderStatus(item, today = toDateString()) {
+export function getReminderStatus(item, today = toDateString(), remindWithinDays = REMIND_WITHIN_DAYS) {
   if (!item.reminderEnabled || !item.nextRestockDate) return STATUS.REMINDER_OFF
   const days = daysUntil(item.nextRestockDate, today)
   if (days < 0) return STATUS.OVERDUE
-  if (days <= REMIND_WITHIN_DAYS) return STATUS.DUE_SOON
+  if (days <= remindWithinDays) return STATUS.DUE_SOON
   return STATUS.NOT_NEEDED
 }
 
 // 主要顯示狀態：已在購買清單優先，否則為提醒狀態。狀態由資料推算，不存進 item。
-export function getStatus(item, today = toDateString()) {
+export function getStatus(item, today = toDateString(), remindWithinDays = REMIND_WITHIN_DAYS) {
   if (item.inShoppingList) return STATUS.IN_SHOPPING_LIST
-  return getReminderStatus(item, today)
+  return getReminderStatus(item, today, remindWithinDays)
 }
 
 // 延後中：今天早於延後到期日。不影響狀態，只用於首頁補貨提醒與詳情提示（specs/005 SNZ-03）。

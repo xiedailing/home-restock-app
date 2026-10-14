@@ -31,7 +31,7 @@ function rememberSpaceView() {
       remainingSpacesExpanded: remainingSpacesExpanded.value, expandedSpaceGroups: expandedSpaceGroups.value,
       expandedReminder: expandedReminder.value,
       reminderModes: reminderModes.value, customDays: customDays.value,
-      restockDays: restockDays.value, shoppingDays: shoppingDays.value,
+      shoppingDays: shoppingDays.value,
     }))
   } catch { /* 無法使用 sessionStorage 時仍可正常導覽。 */ }
 }
@@ -45,7 +45,6 @@ onBeforeMount(() => {
   expandedReminder.value = saved.expandedReminder || ''
   reminderModes.value = saved.reminderModes
   customDays.value = saved.customDays
-  restockDays.value = saved.restockDays
   shoppingDays.value = saved.shoppingDays
 
 })
@@ -69,8 +68,9 @@ function joinSpace() {
   showNotice(result.message, !result.ok)
   if (result.ok) inviteCode.value = ''
 }
-const { pushEnabled: notifications } = storeToRefs(useNotificationSettingsStore())
-const restockDays = ref(5)
+// restockDays 是補貨建議的提醒門檻 T，存在 store 並實際影響首頁與用品狀態（specs/001 D4）。
+// 購買清單提醒天數（FR-006）尚未接上，只留在本頁。
+const { pushEnabled: notifications, restockDays } = storeToRefs(useNotificationSettingsStore())
 const shoppingDays = ref(5)
 const expandedReminder = ref('')
 function closeReminderOutside(event) {
@@ -84,14 +84,16 @@ onMounted(() => {
   } else if (route.query.spaceLeft) showNotice(`已退出「${route.query.spaceLeft}」空間`, false, 'exit')
 })
 onBeforeUnmount(() => document.removeEventListener('pointerdown', closeReminderOutside))
-const reminderModes = ref({ restock: '5', shopping: '5' })
+// 補貨建議的選項依 store 目前的天數還原：5、7 對應快速選項，其他為自訂天數。
+const restockIsPreset = restockDays.value === 5 || restockDays.value === 7
+const reminderModes = ref({ restock: restockIsPreset ? String(restockDays.value) : 'custom', shopping: '5' })
 const reminderOptions = [
   { value: '5', label: '提前5天' },
   { value: '7', label: '提前7天' },
   { value: 'custom', label: '自訂天數' },
   { value: 'off', label: '不要提醒' },
 ]
-const customDays = ref({ restock: '', shopping: '' })
+const customDays = ref({ restock: restockIsPreset ? '' : String(restockDays.value), shopping: '' })
 function reminderSummary(type) {
   if (!notifications.value) return '不要提醒'
   const mode = reminderModes.value[type]

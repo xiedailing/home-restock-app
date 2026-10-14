@@ -5,6 +5,7 @@ import { generateId } from '../utils/id.js'
 import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 import { avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 import { profile } from './profile'
+import { useNotificationSettingsStore } from './notificationSettings'
 import { SYSTEM_CATEGORIES, PRESET_ITEMS, getItemCategory } from '../models/itemCategories'
 import { SPACE_COLORS, limitSpaceName } from '../models/space'
 import {
@@ -27,9 +28,9 @@ import {
 
 // 刪除後可復原的時間，與 Toast 顯示時間相同。
 export const UNDO_DURATION_MS = 5000
-
 // 購買清單完成後保留展示的時間；購買清單、首頁「最近更新」與 store 的清除共用。
 export const SHOPPING_COMPLETED_KEEP_MS = 24 * 60 * 60 * 1000
+
 // 第一次使用（或存檔無效）時的示範資料。
 function createDemoState() {
   const items = createSampleItems()
@@ -111,8 +112,12 @@ export const useItemsStore = defineStore('items', () => {
     })
   }
 
+  // 補貨建議的提醒門檻 T（設定頁可調）；狀態判斷與預計補貨日推算都以它為準。
+  const notificationSettings = useNotificationSettingsStore()
+  const remindWithinDays = computed(() => notificationSettings.restockDays)
+
   const itemsWithStatus = computed(() =>
-    items.value.map((item) => ({ ...item, status: getStatus(item, today.value) })),
+    items.value.map((item) => ({ ...item, status: getStatus(item, today.value, remindWithinDays.value) })),
   )
   const shoppingList = computed(() => items.value.filter((item) => item.inShoppingList))
   // 首頁補貨提醒（specs/004 FR-401）：補貨時間已過在前、過期越久越前，接著該補貨了、剩餘天數越少越前。
@@ -253,7 +258,7 @@ export const useItemsStore = defineStore('items', () => {
     const basisChanged = after && (after.id !== before?.id || after.date !== before.date || after.quantity !== before.quantity)
     if (item.reminderEnabled && item.daysPerUnit !== null && basisChanged) {
       Object.assign(changes, {
-        nextRestockDate: calcNextRestockDate(after.date, after.quantity, item.daysPerUnit),
+        nextRestockDate: calcNextRestockDate(after.date, after.quantity, item.daysPerUnit, remindWithinDays.value),
         reminderBaseDate: after.date,
         reminderBaseQuantity: after.quantity,
         // 預計補貨日已重算，舊的延後沒有意義（specs/005 SNZ-04）。
@@ -451,13 +456,13 @@ export const useItemsStore = defineStore('items', () => {
     if (space.members?.length) departedSpaces.value.push({ space, items: remainingItems })
     items.value = items.value.filter(item => item.spaceId !== spaceId)
     spaces.value = spaces.value.filter(existing => existing.id !== spaceId)
+    // 我的用品正在篩選這個空間時，回到所有用品。
+    if (inventorySpaceId.value === spaceId) inventorySpaceId.value = null
     return true
   }
 
   // 展示用邀請碼；正式版可將查詢替換為 API。
   function joinSpaceByCode(code) {
-    // 我的用品正在篩選這個空間時，回到所有用品。
-    if (inventorySpaceId.value === spaceId) inventorySpaceId.value = null
     const normalized = code.trim().toUpperCase()
     if (!normalized) return { ok: false, message: '請先輸入空間邀請碼' }
     if (!isValidInviteCode(normalized)) return { ok: false, message: '邀請碼格式不正確' }
@@ -540,6 +545,7 @@ export const useItemsStore = defineStore('items', () => {
     inventorySpaceId,
     recentlyRemoved,
     today,
+    remindWithinDays,
     itemsWithStatus,
     shoppingList,
     restockReminders,

@@ -34,7 +34,7 @@
 - 購買清單 Flow 04～06 由組員負責，以上兩條需與組員對齊。
 
 ## 現有程式觀察（本機 repo，2026-10-09）
-- `src/models/item.js`：`REMIND_WITHIN_DAYS = 5` 是固定常數，沒有接到設定頁；狀態判斷先看 `inShoppingList`，再看提醒開關與日期，順序與規格一致。
+- `src/models/item.js`：`REMIND_WITHIN_DAYS = 5` 只是預設值，實際門檻 T 由設定頁寫入 `notificationSettings.restockDays`（2026-10-14 已接上）；狀態判斷先看 `inShoppingList`，再看提醒開關與日期，順序與規格一致。
 - `src/stores/items.js:63-64,69`：`completeRestock()` 在沒有 `cycleDays` 時，會用上次補貨日或建立日推算週期（最少 7 天）。**與決策衝突，尚未修改。**
 - `completeRestock()` 沒有任何 UI 呼叫；`src/views/ShoppingView.vue` 沒有打勾或完成補貨功能，並讀取 model 不存在的 `item.quantity`。
 - 新增／編輯用品尚未實作（`src/App.vue:28` 是 `alert` 佔位）。
