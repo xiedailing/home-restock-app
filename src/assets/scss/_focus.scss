@@ -1,0 +1,6 @@
+// 無障礙焦點框只在鍵盤（Tab）操作時顯示（見 utils/keyboardNav.js）。
+// 滑鼠／觸控操作時，按鈕、連結、卡片等不顯示綠框；輸入框維持點擊就顯示焦點。
+// 用 !important 蓋過各元件自己的 :focus-visible 樣式，不必逐一修改。
+html:not(.keyboard-nav) :focus-visible:not(input, textarea, select) {
+  outline: none !important;
+}

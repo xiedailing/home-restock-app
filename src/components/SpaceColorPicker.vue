@@ -138,7 +138,8 @@ watch(color, () => revealSavedColor(true))
   cursor: pointer;
   input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   &.selected { outline: 2px solid t.$primary-green; outline-offset: -2px; box-shadow: t.$shadow-inset; }
-  &:focus-within { outline: 2px solid t.$primary-green; outline-offset: 2px; }
+  // 只在鍵盤（Tab）操作時顯示焦點框，滑鼠點選不出現。
+  html.keyboard-nav &:has(input:focus-visible) { outline: 2px solid t.$primary-green; outline-offset: 2px; }
 }
 .color-swatch { display: block; width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(to bottom, var(--color-light) 50%, var(--color-dark) 50%); pointer-events: none; }
 .color-check { position: absolute; right: 1px; bottom: 1px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: t.$primary-green; color: white; font: 700 10px / 1 sans-serif; pointer-events: none; }
