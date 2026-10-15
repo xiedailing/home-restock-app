@@ -67,6 +67,17 @@ export const useItemsStore = defineStore('items', () => {
   const items = ref(saved?.items ?? demo.items)
   const customCategories = ref(saved?.customCategories ?? [])
   const spaces = ref(saved?.spaces ?? demo.spaces)
+  // 一次性新增共享清單展示用品；使用者之後刪除時不再自動補回。
+  const demoSeeds = new Set(Array.isArray(saved?.demoSeeds) ? saved.demoSeeds : [])
+  const familyAlcoholSeed = 'family-unclaimed-alcohol-v1'
+  const needsFamilyAlcoholSeed = !demoSeeds.has(familyAlcoholSeed)
+  if (needsFamilyAlcoholSeed) {
+    const family = spaces.value.find(space => space.shared && space.name === '家庭')
+    if (family && !items.value.some(item => item.spaceId === family.id && item.name === '酒精')) {
+      items.value.push(createItem({ name: '酒精', iconKey: 'rubbing-alcohol', category: '清潔', unit: '瓶', spaceId: family.id, reminderEnabled: false, inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), shoppingClaimantId: null }))
+    }
+    demoSeeds.add(familyAlcoholSeed)
+  }
   const systemCategoryCounts = computed(() => SYSTEM_CATEGORIES.map(name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length })))
   const customCategoryCounts = computed(() => {
     const names = new Set([...customCategories.value, ...items.value.map(getItemCategory).filter(name => name && !SYSTEM_CATEGORIES.includes(name))])
@@ -522,6 +533,7 @@ export const useItemsStore = defineStore('items', () => {
   const persistFailed = ref(false)
   const scheduleSave = createDebouncedSaver(() => {
     persistFailed.value = !savePersisted(STORE_KEYS.items, {
+      demoSeeds: [...demoSeeds],
       items: toRaw(items.value),
       spaces: toRaw(spaces.value),
       customCategories: toRaw(customCategories.value),
@@ -529,6 +541,7 @@ export const useItemsStore = defineStore('items', () => {
     })
   })
   watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
+  if (needsFamilyAlcoholSeed) scheduleSave()
 
   return {
     persistFailed,
