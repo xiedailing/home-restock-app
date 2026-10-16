@@ -19,6 +19,15 @@
   letter-spacing: $letter-spacing;
 }
 
+// 標題左側 logo＋標題；與右側 45px 的 avatar 垂直置中（header 本身仍靠上對齊）。
+@mixin page-brand {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: t.$space-8;
+  min-width: 0;
+}
+
 @mixin page-subtitle {
   margin: 2px 0 0;
   color: t.$text-sub;

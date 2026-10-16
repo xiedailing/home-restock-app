@@ -76,7 +76,7 @@ function finish(pushEnabled) {
   completeDemoLogin({ email: email.value, name: name.value, avatar: avatar.value })
   notificationSettings.setPushEnabled(pushEnabled)
   go('preparing')
-  finishTimer = setTimeout(() => router.replace({ name: 'home' }), 600)
+  finishTimer = setTimeout(() => router.replace({ name: 'inventory' }), 600)
 }
 function skipProfile() {
   name.value = profile.name

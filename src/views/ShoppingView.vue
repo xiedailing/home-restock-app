@@ -3,6 +3,7 @@ import AppToast from '../components/AppToast.vue'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
+import BrandLogo from '../components/BrandLogo.vue'
 import { SHOPPING_COMPLETED_KEEP_MS, useItemsStore } from '../stores/items'
 import { getSpaceColor, formatSpaceLabel } from '../models/space'
 import SpaceTag from '../components/SpaceTag.vue'
@@ -217,7 +218,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 </script>
 <template>
   <section class="shopping-page" aria-labelledby="shopping-title">
-    <header class="shopping-header"><h1 id="shopping-title">購買清單</h1><ProfileAvatarMenu :to="{ name: 'edit-profile', query: { from: 'shopping' } }" /></header>
+    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title">購買清單</h1></div><ProfileAvatarMenu :to="{ name: 'edit-profile', query: { from: 'shopping' } }" /></header>
     <div class="shopping-tabs" role="tablist" aria-label="購買清單類型">
       <button id="personal-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'personal'" aria-controls="personal-shopping-panel" @click="activeTab = 'personal'">我的清單</button>
       <button id="shared-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'shared'" aria-controls="shared-shopping-panel" @click="activeTab = 'shared'">共享清單</button>
@@ -319,6 +320,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 .shopping-page.with-claim-all { padding-bottom: calc(t.$button-height + t.$space-32); }
 .claim-all-bar { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1000; width: min(273.6px, calc((100% - 48px) * .8)); .btn { width: 100%; min-height: t.$button-height; } }
 .shopping-header { @include ph.page-header; align-items: center; }
+.page-brand { @include ph.page-brand; }
 h1 { @include ph.page-title; }
 .inline-claim-all { margin-bottom: t.$space-16; .btn { width: 100%; min-height: t.$button-height; background: t.$primary-soft; color: t.$primary-green; box-shadow: t.$shadow-raised; } .btn:disabled { background: t.$text-disabled; color: t.$text-inverse; box-shadow: none; opacity: 1; } }
 .shopping-tabs { display: flex; box-sizing: border-box; min-height: 46px; padding: 3px; margin-bottom: t.$space-16; border-radius: t.$radius-popover; background: t.$surface-bg; button { flex: 1; min-width: 0; min-height: 40px; padding: 0 t.$space-8; border: 0; border-radius: t.$radius-popover; background: transparent; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; cursor: pointer; &[aria-selected="true"] { background: t.$primary-soft; color: t.$primary-green; font-weight: t.$font-weight-medium; box-shadow: t.$shadow-added; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; } } }

@@ -17,6 +17,7 @@ import chevron from '../assets/settings/chevron.svg'
 import reminderChevronUp from '../assets/settings/reminder-chevron-up.svg'
 import reminderCheck from '../assets/settings/reminder-check.svg'
 import SwitchTrack from '../components/SwitchTrack.vue'
+import BrandLogo from '../components/BrandLogo.vue'
 
 // 先使用畫面範例資料，之後可改由帳號／設定 store 提供。
 const emit = defineEmits(['open-categories', 'logout'])
@@ -194,7 +195,7 @@ function saveChanges() {
 <template>
   <section class="settings-page" :class="{ 'restoring-view': restoringView }" aria-labelledby="settings-title">
     <header class="settings-header">
-      <h1 id="settings-title">設定</h1>
+      <div class="page-brand"><BrandLogo /><h1 id="settings-title">設定</h1></div>
     </header>
 
     <div class="profile">
@@ -320,6 +321,7 @@ function saveChanges() {
 .settings-header {
   @include header.page-header(0);
   h1 { @include header.page-title; }
+  .page-brand { @include header.page-brand; }
 }
 
 .profile {

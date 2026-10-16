@@ -27,7 +27,8 @@ import {
 } from '../models/item'
 
 // 刪除後可復原的時間，與 Toast 顯示時間相同。
-export const UNDO_DURATION_MS = 5000
+// 可用性測試 2026-10-15：5 秒太快，延長為 8 秒；Toast 另外在觸碰、滑鼠停留或聚焦時暫停倒數。
+export const UNDO_DURATION_MS = 8000
 // 購買清單完成後保留展示的時間；購買清單、首頁「最近更新」與 store 的清除共用。
 export const SHOPPING_COMPLETED_KEEP_MS = 24 * 60 * 60 * 1000
 
