@@ -11,15 +11,15 @@ import { SPACE_COLORS, limitSpaceName } from '../models/space'
 import {
   DEFAULT_SPACES,
   DEFAULT_SPACE_ID,
-  calcDaysPerUnit,
-  calcNextRestockDate,
   createItem,
   createRestockRecord,
   createSampleItems,
   daysUntil,
   getLatestRecord,
+  getNextRestockDate,
   getStatus,
   isSnoozed,
+  sampleHistory,
   SNOOZE_DAYS,
   STATUS,
   addDays,
@@ -75,7 +75,7 @@ export const useItemsStore = defineStore('items', () => {
   if (needsFamilyAlcoholSeed) {
     const family = spaces.value.find(space => space.shared && space.name === '家庭')
     if (family && !items.value.some(item => item.spaceId === family.id && item.name === '酒精')) {
-      items.value.push(createItem({ name: '酒精', iconKey: 'rubbing-alcohol', category: '清潔', unit: '瓶', spaceId: family.id, reminderEnabled: false, inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), shoppingClaimantId: null }))
+      items.value.push(createItem({ name: '酒精', iconKey: 'rubbing-alcohol', category: '清潔', unit: '瓶', spaceId: family.id, reminderEnabled: false, ...sampleHistory(toDateString(), 10, 30), inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), shoppingClaimantId: null }))
     }
     demoSeeds.add(familyAlcoholSeed)
   }
@@ -128,8 +128,14 @@ export const useItemsStore = defineStore('items', () => {
   const notificationSettings = useNotificationSettingsStore()
   const remindWithinDays = computed(() => notificationSettings.restockDays)
 
+  // 下次預計補貨日不儲存，由補貨紀錄即時推算（specs/009 FR-912）；各畫面讀這裡的 nextRestockDate。
+  // 紀錄涵蓋不到兩個不同日期時為 null。它也跟著提醒門檻 T 改變（至少 T ＋ 1 天的下限）。
   const itemsWithStatus = computed(() =>
-    items.value.map((item) => ({ ...item, status: getStatus(item, today.value, remindWithinDays.value) })),
+    items.value.map((item) => ({
+      ...item,
+      nextRestockDate: getNextRestockDate(item, remindWithinDays.value),
+      status: getStatus(item, today.value, remindWithinDays.value),
+    })),
   )
   const shoppingList = computed(() => items.value.filter((item) => item.inShoppingList))
   // 首頁補貨提醒（specs/004 FR-401）：補貨時間已過在前、過期越久越前，接著該補貨了、剩餘天數越少越前。
@@ -224,59 +230,22 @@ export const useItemsStore = defineStore('items', () => {
     updateItem(id, { snoozedUntil: addDays(toDateString(), SNOOZE_DAYS) })
   }
 
-  // 001 FR-005：開啟提醒時以（今天，庫存量）重新建立計算基準。
-  function enableReminder(id, { quantity, nextRestockDate }) {
-    const today = toDateString()
-    updateItem(id, {
-      reminderEnabled: true,
-      nextRestockDate,
-      reminderBaseDate: today,
-      reminderBaseQuantity: quantity,
-      daysPerUnit: calcDaysPerUnit(nextRestockDate, today, quantity),
-      reminderEnabledDate: today,
-      reminderEnabledQuantity: quantity,
-      snoozedUntil: null,
-    })
+  // specs/009 FR-913：重新開啟不再填寫，直接用補貨紀錄重算；推算日已過就直接是「該補貨了」。
+  function enableReminder(id) {
+    updateItem(id, { reminderEnabled: true, snoozedUntil: null })
   }
 
-  // 001 FR-002（D1-a）：只改日期；以原基準日與基準數量重算每單位可撐天數。
-  function updateNextRestockDate(id, nextRestockDate) {
-    const item = getItem(id)
-    if (!item) return
-    updateItem(id, {
-      nextRestockDate,
-      daysPerUnit: calcDaysPerUnit(nextRestockDate, item.reminderBaseDate, item.reminderBaseQuantity),
-      snoozedUntil: null,
-    })
-  }
-
-  // 重算依據：最新一筆，且不早於最近一次開啟提醒的日期（specs/003 DET-03）。
-  function getBasisRecord(item, records) {
-    const latest = getLatestRecord(records)
-    if (!latest || (item.reminderEnabledDate && latest.date < item.reminderEnabledDate)) return null
-    return latest
-  }
-
-  // 套用新的紀錄清單：上次補貨日一律等於最新一筆；重算依據改變或被修改時，提醒開啟才重算
-  //（001 FR-003、FR-004）。修改較舊紀錄、補登較早日期、沒有重算依據時，保留目前日期。
+  // 套用新的紀錄清單：上次補貨日一律等於最新一筆。下次預計補貨日由紀錄即時推算（specs/009 FR-912），
+  // 任何紀錄的新增、修改、刪除都用全部紀錄重算；預計補貨日因此改變時，舊的延後沒有意義（specs/005 SNZ-04）。
   function applyRestockRecords(id, records, extraChanges = {}) {
     const item = getItem(id)
     if (!item) return
     // 從 reactive 陣列取出的紀錄是 Proxy；存成原始物件，snapshotItem 的 structuredClone 才不會失敗。
     const restockRecords = records.map((record) => ({ ...toRaw(record) }))
     const changes = { restockRecords, lastRestockDate: getLatestRecord(restockRecords)?.date ?? null, ...extraChanges }
-    const before = getBasisRecord(item, item.restockRecords)
-    const after = getBasisRecord(item, restockRecords)
-    const basisChanged = after && (after.id !== before?.id || after.date !== before.date || after.quantity !== before.quantity)
-    if (item.reminderEnabled && item.daysPerUnit !== null && basisChanged) {
-      Object.assign(changes, {
-        nextRestockDate: calcNextRestockDate(after.date, after.quantity, item.daysPerUnit, remindWithinDays.value),
-        reminderBaseDate: after.date,
-        reminderBaseQuantity: after.quantity,
-        // 預計補貨日已重算，舊的延後沒有意義（specs/005 SNZ-04）。
-        snoozedUntil: null,
-      })
-    }
+    const before = getNextRestockDate(item, remindWithinDays.value)
+    const after = getNextRestockDate({ restockRecords }, remindWithinDays.value)
+    if (before !== after) changes.snoozedUntil = null
     updateItem(id, changes)
   }
 
@@ -306,7 +275,8 @@ export const useItemsStore = defineStore('items', () => {
     })
   }
   const shoppingFields = ['inShoppingList', 'quantity', 'addedToShoppingListDate', 'shoppingCompletedAt', 'shoppingCompletedQuantity', 'shoppingCompletedBy', 'shoppingClaimantId']
-  const restockReminderFields = ['nextRestockDate', 'reminderBaseDate', 'reminderBaseQuantity', 'snoozedUntil']
+  // 預計補貨日由紀錄推算、不儲存，復原時只需還原延後設定。
+  const restockReminderFields = ['snoozedUntil']
   function pickShoppingFields(item, fields) {
     return Object.fromEntries(fields.map(key => [key, item[key]]))
   }
@@ -577,7 +547,6 @@ export const useItemsStore = defineStore('items', () => {
     disableReminder,
     snoozeReminder,
     enableReminder,
-    updateNextRestockDate,
     completeRestock,
     completeShoppingItem,
     reopenShoppingItem,

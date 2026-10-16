@@ -2,22 +2,25 @@
 // 用品詳情「補貨提醒」區（specs/003 FR-302）：提醒狀態、倒數、預計補貨日、上次補貨、提醒開關，加上下方的主要操作。
 // 提醒區跟著「提醒設定」走，不看購買清單（getReminderStatus）；主要顯示狀態 Badge 在頁面上方（getStatus，RST-07）。
 // 視覺只分兩種提醒狀態（001 D6）：該補貨了圖示暖橘；補貨時間已過圖示與倒數紅色。不用驚嘆號、不用外框。
+// 補貨紀錄涵蓋不到兩個不同日期時推算不出預計補貨日：不顯示提醒卡與開關，改顯示一行提示（specs/009 FR-913）。
 import { computed } from 'vue'
-import { STATUS, daysUntil, getReminderStatus, isSnoozed } from '../../models/item'
+import { STATUS, countRecordDates, daysUntil, getReminderStatus, isSnoozed } from '../../models/item'
 import { useItemsStore } from '../../stores/items'
 import SwitchTrack from '../SwitchTrack.vue'
-import selectorChevron from '../../assets/add-item/selector-chevron.svg'
 
 const props = defineProps({
   item: { type: Object, required: true },
-  // 補貨提醒開關的顯示狀態；設定 Sheet 開啟期間先呈現開啟，由頁面決定（specs/003 FR-305）。
+  // 補貨提醒開關的顯示狀態（specs/003 FR-305）。
   switchOn: Boolean,
 })
-// toggle-reminder：點開關（關閉要確認、開啟開設定 Sheet，由頁面處理）；edit-date：點預計補貨日列；
+// toggle-reminder：點開關（關閉要確認、開啟直接重算，由頁面處理）；
 // restock：記錄補貨；add-to-list：加入清單；view-list：已在清單時前往購買清單。
-const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'toggle-reminder', 'edit-date'])
+const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'toggle-reminder'])
 // 讀 store 的響應式「今天」，跨日後剩餘天數與延後提示會自動更新（specs/003 KI-01）。
 const store = useItemsStore()
+
+// 還差幾個不同日期的紀錄才推算得出預計補貨日；0 ＝ 已經夠了。
+const recordsNeeded = computed(() => Math.max(0, 2 - countRecordDates(props.item.restockRecords)))
 
 const reminderStatus = computed(() => getReminderStatus(props.item, store.today, store.remindWithinDays))
 
@@ -50,14 +53,14 @@ const snoozeText = computed(() => {
   const [, month, day] = props.item.snoozedUntil.split('-').map(Number)
   return `已延後提醒至 ${month}/${day}`
 })
-// 提醒關閉時沒有預計補貨日可顯示或編輯（001 FR-005）。
+// 提醒關閉時不顯示預計補貨日（001 FR-005）。預計補貨日只顯示、不能修改（specs/009 FR-912）。
 const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextRestockDate)
 const dateLabel = computed(() => (reminderStatus.value === STATUS.NOT_NEEDED ? '下次預計補貨日' : '預計補貨日'))
 const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
 </script>
 
 <template>
-  <section class="reminder-section" aria-labelledby="reminder-section-title">
+  <section v-if="recordsNeeded === 0" class="reminder-section" aria-labelledby="reminder-section-title">
     <h2 id="reminder-section-title" class="reminder-heading">補貨提醒</h2>
     <div class="status-card" :class="`status-card--${reminderStatus}`">
       <div class="status-header">
@@ -75,12 +78,9 @@ const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
       <div class="status-body">
         <p v-if="isDueToday" class="due-today">今天是預計補貨日</p>
         <ul class="info-rows">
-          <li v-if="showDate">
-            <button type="button" class="info-row info-row--button" @click="emit('edit-date')">
-              <span class="info-label">{{ dateLabel }}</span>
-              <strong class="info-value">{{ formatDate(item.nextRestockDate) }}</strong>
-              <img :src="selectorChevron" alt="" />
-            </button>
+          <li v-if="showDate" class="info-row">
+            <span class="info-label">{{ dateLabel }}</span>
+            <strong class="info-value">{{ formatDate(item.nextRestockDate) }}</strong>
           </li>
           <!-- 只顯示；要修改請到補貨紀錄（specs/003 DET-13）。 -->
           <li class="info-row">
@@ -98,6 +98,7 @@ const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
       </div>
     </div>
   </section>
+  <p v-else class="reminder-hint">再補貨 {{ recordsNeeded }} 次，就能推算下次補貨日</p>
 
   <div class="status-actions">
     <button type="button" class="action-secondary" @click="emit('restock')">記錄補貨</button>
@@ -113,6 +114,8 @@ const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
 
 .reminder-section { display: flex; flex-direction: column; gap: t.$space-8; }
 .reminder-heading { margin: 0; padding: 0 t.$space-4; font: t.$font-weight-bold 16px / 22px t.$font-family; }
+// 紀錄不足、推算不出預計補貨日時的一行提示。
+.reminder-hint { margin: 0; padding: 0 t.$space-4; color: t.$text-sub; font: t.$font-weight-regular 14px / 20px t.$font-family; }
 
 .status-card {
   --icon-bg: #{t.$success-subtle};

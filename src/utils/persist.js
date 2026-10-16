@@ -1,6 +1,6 @@
 // localStorage 持久化：所有讀寫都包 try/catch，無痕模式、禁用儲存或空間已滿時照常運作，只是不保存。
 // 存檔格式帶版本號；版本不符或 JSON 損壞時回傳 null，由呼叫端改用示範資料。
-export const STORAGE_VERSION = 1
+export const STORAGE_VERSION = 2
 const PREFIX = 'home-restock:v1:'
 
 export const STORE_KEYS = { items: 'items', profile: 'profile', notifications: 'notifications' }

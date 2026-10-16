@@ -1,7 +1,7 @@
 <script setup>
 // 補貨紀錄列表（specs/003 FR-307）：用品詳情區塊與完整列表頁共用。
 // 點一筆開「編輯補貨紀錄」Sheet；儲存或刪除後 emit edited，由頁面顯示可復原的 Toast。
-// 最近一次開啟提醒顯示為「開始追蹤」起點：依日期排入列表、不可點，不算補貨紀錄（specs/003 DET-21）。
+// 不再有「開始追蹤」起點：預計補貨日改由補貨紀錄推算，沒有手填的庫存量與開啟日（specs/009 FR-913）。
 import { computed, ref } from 'vue'
 import { sortRecordsNewestFirst } from '../../models/item'
 import { useItemsStore } from '../../stores/items'
@@ -15,20 +15,9 @@ const props = defineProps({
 const emit = defineEmits(['edited'])
 const itemsStore = useItemsStore()
 
-// 起點排在同一天的補貨紀錄下方；超出 limit 的部分（含較早的起點）不顯示。
 const entries = computed(() => {
-  const { reminderEnabledDate: date, reminderEnabledQuantity: quantity } = props.item
-  const start = date && quantity ? { start: true, date, quantity } : null
-  const result = []
-  let recordCount = 0
-  for (const record of sortRecordsNewestFirst(props.item.restockRecords)) {
-    if (props.limit !== null && recordCount >= props.limit) return result
-    if (start && start.date > record.date && !result.includes(start)) result.push(start)
-    result.push(record)
-    recordCount += 1
-  }
-  if (start && !result.includes(start)) result.push(start)
-  return result
+  const records = sortRecordsNewestFirst(props.item.restockRecords)
+  return props.limit === null ? records : records.slice(0, props.limit)
 })
 const editingRecord = ref(null)
 const sheetOpen = ref(false)
@@ -58,13 +47,8 @@ function remove() {
 <template>
   <div class="record-card">
     <ul v-if="entries.length" class="record-list">
-      <li v-for="entry in entries" :key="entry.start ? 'start' : entry.id">
-        <div v-if="entry.start" class="record-row record-row--start">
-          <span class="record-dot record-dot--start" aria-hidden="true" />
-          <span class="record-date">{{ entry.date.replaceAll('-', '/') }}</span>
-          <span class="record-quantity">開始追蹤・家裡有 {{ entry.quantity }} {{ item.unit }}</span>
-        </div>
-        <button v-else type="button" class="record-row" @click="openRecord(entry)">
+      <li v-for="entry in entries" :key="entry.id">
+        <button type="button" class="record-row" @click="openRecord(entry)">
           <span class="record-dot" aria-hidden="true" />
           <span class="record-date">{{ entry.date.replaceAll('-', '/') }}</span>
           <span class="record-quantity">+{{ entry.quantity }} {{ item.unit }}</span>
@@ -124,13 +108,6 @@ function remove() {
   height: 8px;
   border-radius: 50%;
   background: t.$border-active;
-  // 起點：空心圓，與補貨紀錄區分。
-  &--start { box-sizing: border-box; border: 1.5px solid t.$text-disabled; background: transparent; }
-}
-.record-row--start {
-  cursor: default;
-  .record-date, .record-quantity { color: t.$text-sub; }
-  .record-date { font-weight: t.$font-weight-regular; }
 }
 .record-date { flex: 1; color: t.$text-main; font: t.$font-weight-medium 15px / normal t.$font-family; }
 .record-quantity { color: t.$text-body; font: t.$font-weight-regular 14px / normal t.$font-family; }

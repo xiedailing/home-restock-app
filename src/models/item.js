@@ -170,17 +170,9 @@ export function createItem(input = {}) {
     category: input.category ?? null,
     unit: input.unit ?? DEFAULT_UNIT,
     spaceId: input.spaceId ?? DEFAULT_SPACE_ID,
+    // 提醒開關：預設開啟，但補貨紀錄涵蓋兩個以上不同日期才會推算並提醒（specs/009 FR-913）。
+    // 下次預計補貨日不儲存，由補貨紀錄即時推算（specs/009 FR-912、getNextRestockDate）。
     reminderEnabled: input.reminderEnabled ?? true,
-    nextRestockDate: input.nextRestockDate ?? null,
-    cycleDays: input.cycleDays ?? null,
-    // 計算基準（001 FR-002）：開啟提醒時為（設定日，庫存量），補貨後更新。
-    reminderBaseDate: input.reminderBaseDate ?? null,
-    reminderBaseQuantity: input.reminderBaseQuantity ?? null,
-    daysPerUnit: input.daysPerUnit ?? null,
-    // 最近一次開啟提醒的日期；補貨後不變。早於此日的紀錄不作為重算依據（specs/003 DET-03）。
-    reminderEnabledDate: input.reminderEnabledDate ?? null,
-    // 開啟提醒時填的庫存量；與開啟日一起顯示為補貨紀錄的「開始追蹤」起點（specs/003 DET-21）。
-    reminderEnabledQuantity: input.reminderEnabledQuantity ?? null,
     lastRestockDate: input.lastRestockDate ?? null,
     inShoppingList: input.inShoppingList ?? false,
     shoppingClaimantId: input.shoppingClaimantId ?? null,
@@ -207,15 +199,48 @@ export function createRestockRecord(input = {}) {
   }
 }
 
-// 001 FR-002：每單位可撐天數 ＝（預計補貨日 − 基準日）÷ 基準數量，保留小數。
+// 舊新增用品頁（AddItemView）仍引用；新增用品頁改版後移除（specs/009 FR-912：不再手填預計補貨日）。
 export function calcDaysPerUnit(nextRestockDate, baseDate, baseQuantity) {
   return daysUntil(nextRestockDate, baseDate) / baseQuantity
 }
 
-// 001 FR-003：下次預計補貨日 ＝ 補貨日 ＋ 數量 × 每單位可撐天數，四捨五入到整天。
-// 系統推算的日期至少離補貨日「T ＋ 1」天，避免剛補完貨就立刻變成「該補貨了」（RST-01）；不限制使用者自己選的日期。
-export function calcNextRestockDate(date, quantity, daysPerUnit, remindWithinDays = REMIND_WITHIN_DAYS) {
-  return addDays(date, Math.max(remindWithinDays + 1, Math.round(quantity * daysPerUnit)))
+// ---------- 依補貨紀錄推算下次預計補貨日（specs/009 FR-912、UT-25）----------
+
+// 整理紀錄：依日期由舊到新排序；同一天的多筆合併成一筆（數量相加）。
+export function groupRecordsByDate(records = []) {
+  const byDate = new Map()
+  for (const { date, quantity } of records) byDate.set(date, (byDate.get(date) ?? 0) + quantity)
+  return [...byDate].map(([date, quantity]) => ({ date, quantity })).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// 紀錄涵蓋幾個不同的日期；兩個以上才推算得出下次補貨日。
+export function countRecordDates(records = []) {
+  return new Set(records.map((record) => record.date)).size
+}
+
+// 每單位可撐天數 ＝（最新一筆日期 − 第一筆日期）÷（除了最新一筆以外，所有紀錄的數量加總），保留小數。
+// 不足兩個不同日期時回傳 null。
+export function calcDaysPerUnitFromRecords(records = []) {
+  const days = groupRecordsByDate(records)
+  if (days.length < 2) return null
+  const consumed = days.slice(0, -1).reduce((sum, day) => sum + day.quantity, 0)
+  if (consumed <= 0) return null
+  return daysUntil(days.at(-1).date, days[0].date) / consumed
+}
+
+// 下次預計補貨日 ＝ 最新一筆日期 ＋ 最新一筆數量 × 每單位可撐天數，四捨五入到整天。
+// 至少離最新一筆「T ＋ 1」天，避免剛補完貨就立刻變成「該補貨了」（001 RST-01）。
+// 不足兩個不同日期時回傳 null。
+export function calcNextRestockDateFromRecords(records = [], remindWithinDays = REMIND_WITHIN_DAYS) {
+  const daysPerUnit = calcDaysPerUnitFromRecords(records)
+  if (daysPerUnit === null) return null
+  const latest = groupRecordsByDate(records).at(-1)
+  return addDays(latest.date, Math.max(remindWithinDays + 1, Math.round(latest.quantity * daysPerUnit)))
+}
+
+// 用品的下次預計補貨日：只看補貨紀錄，不看提醒開關（開關由 getReminderStatus 判斷）。
+export function getNextRestockDate(item, remindWithinDays = REMIND_WITHIN_DAYS) {
+  return calcNextRestockDateFromRecords(item.restockRecords, remindWithinDays)
 }
 
 // 最新一筆：日期最晚者；同一天時取較晚新增者（specs/003 DET-04）。
@@ -233,8 +258,9 @@ export function sortRecordsNewestFirst(records) {
 
 // 提醒狀態：只看提醒開關與預計補貨日，不看購買清單（用品詳情的補貨提醒區使用，RST-07）。
 export function getReminderStatus(item, today = toDateString(), remindWithinDays = REMIND_WITHIN_DAYS) {
-  if (!item.reminderEnabled || !item.nextRestockDate) return STATUS.REMINDER_OFF
-  const days = daysUntil(item.nextRestockDate, today)
+  const nextRestockDate = getNextRestockDate(item, remindWithinDays)
+  if (!item.reminderEnabled || !nextRestockDate) return STATUS.REMINDER_OFF
+  const days = daysUntil(nextRestockDate, today)
   if (days < 0) return STATUS.OVERDUE
   if (days <= remindWithinDays) return STATUS.DUE_SOON
   return STATUS.NOT_NEEDED
@@ -251,28 +277,28 @@ export function isSnoozed(item, today = toDateString()) {
   return !!item.snoozedUntil && today < item.snoozedUntil
 }
 
-// 示範資料：取自「我的用品」設計稿，日期相對今天計算。
-// 計算基準以（預計補貨日 − 週期，數量 1）補上，每單位可撐天數即為週期（specs/003 DET-02）。
-function sampleReminder(today, daysLeft, cycleDays) {
-  const baseDate = addDays(today, daysLeft - cycleDays)
-  return {
-    nextRestockDate: addDays(today, daysLeft),
-    cycleDays,
-    reminderBaseDate: baseDate,
-    reminderBaseQuantity: 1,
-    daysPerUnit: cycleDays,
-    reminderEnabledDate: baseDate,
-    reminderEnabledQuantity: 1,
-  }
+// 示範資料：日期相對今天計算，展示當天看到的狀態才會對（specs/009 FR-914、UT-27）。
+// 依「下次預計補貨日」反推補貨紀錄：每筆數量 1、間隔 cycleDays 天，最新一筆在（今天 ＋ daysLeft − cycleDays）。
+// 照 FR-912 推算，下次預計補貨日就是（今天 ＋ daysLeft）；cycleDays 要大於提醒門檻 T，否則會被 T ＋ 1 的下限蓋過。
+export function sampleHistory(today, daysLeft, cycleDays, recordCount = 3) {
+  const latest = addDays(today, daysLeft - cycleDays)
+  const restockRecords = Array.from({ length: recordCount }, (_, index) =>
+    createRestockRecord({ date: addDays(latest, -cycleDays * (recordCount - 1 - index)), quantity: 1 }))
+  return { restockRecords, lastRestockDate: latest }
 }
 
+// 涵蓋的狀態：該補貨了（已過期）、該補貨了（快到）、購買清單中、不需補貨、提醒開關關閉、不足兩筆。
 export function createSampleItems(today = toDateString()) {
+  const onlyOnce = addDays(today, -25)
   return [
-    createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, ...sampleReminder(today, -2, 30) }),
-    createItem({ name: '洗衣精', iconKey: 'laundry-detergent', category: '洗衣', unit: '瓶', spaceId: DEFAULT_SPACE_ID, ...sampleReminder(today, 5, 45) }),
-    createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, ...sampleReminder(today, 3, 21), inShoppingList: true, quantity: 1, addedToShoppingListDate: today }),
-    createItem({ name: '洗碗精', iconKey: 'dish-soap', category: '廚房', unit: '瓶', spaceId: DEFAULT_SPACE_ID, ...sampleReminder(today, 20, 40) }),
-    createItem({ name: '狗狗糧食', iconKey: 'dog-food', category: '寵物用品', unit: '包', spaceId: DEFAULT_SPACE_ID, reminderEnabled: false }),
+    createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, ...sampleHistory(today, -2, 30) }),
+    createItem({ name: '洗衣精', iconKey: 'laundry-detergent', category: '洗衣', unit: '瓶', spaceId: DEFAULT_SPACE_ID, ...sampleHistory(today, 5, 45) }),
+    createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, ...sampleHistory(today, 3, 21), inShoppingList: true, quantity: 1, addedToShoppingListDate: today }),
+    createItem({ name: '洗碗精', iconKey: 'dish-soap', category: '廚房', unit: '瓶', spaceId: DEFAULT_SPACE_ID, ...sampleHistory(today, 20, 40) }),
+    // 提醒開關關閉：有紀錄但不提醒。
+    createItem({ name: '海綿', iconKey: 'sponge', category: '清潔', unit: '個', spaceId: DEFAULT_SPACE_ID, reminderEnabled: false, ...sampleHistory(today, 40, 60) }),
+    // 只有 1 筆紀錄：推算不出下次補貨日，詳情頁顯示提示。
+    createItem({ name: '狗狗糧食', iconKey: 'dog-food', category: '寵物用品', unit: '包', spaceId: DEFAULT_SPACE_ID, restockRecords: [createRestockRecord({ date: onlyOnce, quantity: 1 })], lastRestockDate: onlyOnce }),
   ]
 }
 
