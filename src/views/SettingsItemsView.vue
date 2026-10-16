@@ -1,22 +1,25 @@
 <script setup>
-import AppToast from '../components/AppToast.vue'
-import { useToast } from '../composables/useToast'
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useItemsStore } from '../stores/items'
-import { getItemCategory } from '../models/itemCategories'
+import { useCatalogStore } from '../stores/catalog'
+import { SYSTEM_CATEGORIES } from '../models/itemCategories'
+import { categoryCounts } from '../components/settings/globalItemPreview'
 import { formatNameCount, limitSpaceName } from '../models/space'
 import backIcon from '../assets/settings/category-back.svg'
 import chevron from '../assets/settings/category-chevron.svg'
 const store = useItemsStore()
+const catalog = useCatalogStore()
+const systemCounts = computed(() => categoryCounts(catalog.allItems, SYSTEM_CATEGORIES))
+const customCounts = computed(() => categoryCounts(catalog.allItems, [...new Set([...store.categoryOptions, ...catalog.allItems.map(item => item.category)])].filter(name => !SYSTEM_CATEGORIES.includes(name))))
 const categoryName = ref('')
 const error = ref('')
-const duplicateName = computed(() => [...store.systemCategoryCounts, ...store.customCategoryCounts].some(category => category.name === categoryName.value.trim()))
+const duplicateName = computed(() => [...systemCounts.value, ...customCounts.value].some(category => category.name === categoryName.value.trim()))
 const nameError = computed(() => duplicateName.value ? '已有重複分類名稱' : error.value)
 const nameFocused = ref(false)
 const nameLimitExceeded = computed(() => limitSpaceName(categoryName.value.trim()) !== categoryName.value.trim())
 const nameCount = computed(() => formatNameCount(categoryName.value))
 const deleteDialog = ref(null)
-const visibleSystemCategories = computed(() => store.systemCategoryCounts.filter(category => category.count > 0))
+const visibleSystemCategories = systemCounts
 const pendingCategory = ref(null)
 const openCategory = ref(null)
 const swipeOffset = ref(0)
@@ -51,13 +54,7 @@ onMounted(() => document.addEventListener('pointerdown', finishSorting))
 onBeforeUnmount(() => { cancelPress(); document.removeEventListener('pointerdown', finishSorting) })
 const actionWidth = 88
 const deleteTitle = '刪除分類？'
-const deleteMessage = computed(() => {
-  if (!pendingCategory.value) return ''
-  const category = store.customCategoryCounts.find(category => category.name === pendingCategory.value)
-  return category?.count
-    ? `「${category.name}」內的${category.count}項用品也會一併刪除。`
-    : `即將刪除「${pendingCategory.value}」。`
-})
+const deleteMessage = computed(() => `分類「${pendingCategory.value || ''}」的刪除功能尚未開放，既有用品與補貨紀錄會保留。`)
 function requestDeletion(name) {
   pendingCategory.value = name
   deleteDialog.value.showModal()
@@ -79,7 +76,7 @@ function moveSwipe(event) {
   if (sorting.value && draggedCategory.value) {
     event.preventDefault()
     const targetIndex = sortCenters.reduce((nearest, center, index) => Math.abs(event.clientY - center) < Math.abs(event.clientY - sortCenters[nearest]) ? index : nearest, 0)
-    const names = store.customCategoryCounts.map(category => category.name)
+    const names = customCounts.value.map(category => category.name)
     const from = names.indexOf(draggedCategory.value)
     if (from !== targetIndex && from >= 0) {
       names.splice(targetIndex, 0, names.splice(from, 1)[0])
@@ -122,32 +119,12 @@ function handleRowClick(event) {
   }
 }
 function revealCategory(name) { openCategory.value = name; swipeOffset.value = -actionWidth }
-function deleteCategories() {
-  if (!pendingCategory.value) return
-  const name = pendingCategory.value
-  const categoryIndex = store.customCategories.indexOf(name)
-  const removedItems = store.items.map((item, index) => ({ item, index })).filter(entry => getItemCategory(entry.item) === name).map(entry => ({ index: entry.index, snapshot: store.snapshotItem(entry.item.id) }))
-  undoCategory.value = () => {
-    if (!store.customCategories.includes(name)) store.customCategories.splice(categoryIndex < 0 ? store.customCategories.length : Math.min(categoryIndex, store.customCategories.length), 0, name)
-    for (const entry of removedItems) if (!store.getItem(entry.snapshot.id)) store.items.splice(Math.min(entry.index, store.items.length), 0, structuredClone(entry.snapshot))
-  }
-  store.removeCategories([name])
-  deleteDialog.value.close()
-  pendingCategory.value = null
-  openCategory.value = null
-  swipeOffset.value = 0
-  showToast('自訂分類已刪除', undoCategory.value)
-}
-const undoCategory = ref(null)
-const { toast, showToast, runUndo } = useToast()
 function addCategory() {
   if (nameLimitExceeded.value || duplicateName.value) return
   const result = store.addCategory(categoryName.value)
   error.value = result.ok ? '' : result.message
   if (result.ok) {
     categoryName.value = ''
-    undoCategory.value = null
-    showToast('自訂分類已新增')
   }
 }
 </script>
@@ -157,6 +134,7 @@ function addCategory() {
       <RouterLink :to="{ name: 'settings' }" class="back-button" aria-label="返回設定"><img :src="backIcon" alt="" /></RouterLink>
       <h1>用品管理</h1><span />
     </header>
+    <p class="management-hint">管理所有空間可選用的用品；編輯與刪除功能尚未開放。</p>
     <h2>系統分類</h2>
     <div v-if="visibleSystemCategories.length" class="category-card system-category-card">
       <RouterLink v-for="category in visibleSystemCategories" :key="category.name" class="category-row" :to="{ name: 'item-category', params: { category: category.name } }">
@@ -171,9 +149,9 @@ function addCategory() {
       <p class="management-hint">可自行新增分類並管理用品</p>
     </div>
     <div class="category-card custom-card">
-      <p v-if="!store.customCategoryCounts.length" class="empty-category">尚無自訂分類</p>
+      <p v-if="!customCounts.length" class="empty-category">尚無自訂分類</p>
       <TransitionGroup name="category-sort" tag="div">
-      <div v-for="category in store.customCategoryCounts" :key="category.name" :data-category-name="category.name" class="swipe-category" :class="{ sorting, 'sort-dragging': draggedCategory === category.name }" @contextmenu.prevent @pointerdown="startSwipe($event, category.name)" @pointermove="moveSwipe" @pointerup="finishSwipe" @pointercancel="finishSwipe">
+      <div v-for="category in customCounts" :key="category.name" :data-category-name="category.name" class="swipe-category" :class="{ sorting, 'sort-dragging': draggedCategory === category.name }" @contextmenu.prevent @pointerdown="startSwipe($event, category.name)" @pointermove="moveSwipe" @pointerup="finishSwipe" @pointercancel="finishSwipe">
         <button type="button" v-if="!sorting" class="swipe-delete" :tabindex="rowOffset(category.name) < 0 ? 0 : -1" :aria-hidden="rowOffset(category.name) === 0" :aria-label="`刪除${category.name}分類`" @click="requestDeletion(category.name)">刪除</button>
         <RouterLink class="category-row swipe-content" :class="{ dragging }" :style="{ transform: `translateX(${rowOffset(category.name)}px)` }" :to="{ name: 'item-category', params: { category: category.name } }" draggable="false" @click.capture="handleRowClick" @keydown.left.prevent="revealCategory(category.name)" @keydown.right.prevent="swipeOffset = 0"><i v-if="sorting" class="fa-solid fa-grip sort-grip" aria-hidden="true"></i><span>{{ category.name }}</span><strong>{{ category.count }} 項</strong><img v-if="!sorting" :src="chevron" alt="" /></RouterLink>
       </div>
@@ -191,17 +169,16 @@ function addCategory() {
     </div>
     <Teleport to="body">
       <dialog ref="deleteDialog" class="category-delete-dialog" aria-labelledby="category-delete-title" aria-describedby="category-delete-message" @click="event => { if (event.target === deleteDialog) deleteDialog.close() }">
-        <form @submit.prevent="deleteCategories">
+        <form @submit.prevent>
           <h2 id="category-delete-title">{{ deleteTitle }}</h2>
           <p id="category-delete-message">{{ deleteMessage }}</p>
           <div class="category-delete-dialog-actions">
             <button type="button" class="btn btn-secondary" autofocus @click="deleteDialog.close()">取消</button>
-            <button type="submit" class="btn btn-danger">刪除</button>
+            <button type="button" class="btn btn-danger" disabled>刪除（尚未開放）</button>
           </div>
         </form>
       </dialog>
     </Teleport>
-    <AppToast :toast="toast" @undo="runUndo" />
   </section>
 </template>
 <style scoped lang="scss">

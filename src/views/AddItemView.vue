@@ -1,7 +1,7 @@
 <script setup>
 // 全域用品新增頁（009 FR-909）：不建立空間用品或補貨紀錄。
 import { computed, nextTick, onMounted, onBeforeUnmount, ref } from 'vue'
-import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import { useCatalogStore } from '../stores/catalog'
 import { ITEM_STATUS, UNITS, matchItemIconKey } from '../models/item'
@@ -15,9 +15,12 @@ import pillCheck from '../assets/add-item/pill-check.svg'
 const router = useRouter()
 const itemsStore = useItemsStore()
 const catalog = useCatalogStore()
+const route = useRoute()
+const fromItemManagement = route.query.from === 'item-management'
+const initialCategory = fromItemManagement && typeof route.query.category === 'string' && itemsStore.categoryOptions.includes(route.query.category) ? route.query.category : null
 const CUSTOM_UNIT = 'custom'
 const name = ref('')
-const category = ref(null)
+const category = ref(initialCategory)
 const unitChoice = ref(null)
 const customUnit = ref('')
 const unit = computed(() => unitChoice.value === CUSTOM_UNIT ? customUnit.value.trim() : unitChoice.value ?? '')
@@ -77,7 +80,7 @@ function finishCustomUnit() {
 }
 
 // 保留既有放棄確認，圖片或手動圖示選擇也算有修改。
-const isDirty = computed(() => !!(name.value.trim() || category.value || unitChoice.value || customUnit.value.trim() || iconManual.value || iconPhoto.value))
+const isDirty = computed(() => !!(name.value.trim() || category.value !== initialCategory || unitChoice.value || customUnit.value.trim() || iconManual.value || iconPhoto.value))
 const discardDialog = ref(null)
 let allowLeave = false
 let pendingRoute = null
@@ -119,6 +122,7 @@ async function createItem() {
     const created = catalog.addCatalogItem({ name: name.value.trim(), iconKey: iconKey.value,
       iconPhoto: iconPhoto.value, iconManual: iconManual.value, category: category.value, unit: unit.value })
     if (!created) { saveError.value = duplicateName.value ? '' : '無法新增用品，請確認欄位後再試一次。'; submitting.value = false; return }
+    if (fromItemManagement) catalog.clearJustAddedId()
     allowLeave = true
     router.back()
   } catch {
