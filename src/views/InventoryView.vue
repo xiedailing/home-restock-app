@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import ItemListRow from '../components/items/ItemListRow.vue'
@@ -200,6 +200,19 @@ watch(availableCategories, (categories) => {
   if (selectedCategory.value !== null && !categories.includes(selectedCategory.value)) selectedCategory.value = null
 })
 
+// 類別 pills 還能往右捲時，右側顯示霧狀漸層提示；捲到最右邊就淡出。
+const categoryPills = ref(null)
+const categoryScrolledToEnd = ref(true)
+
+function updateCategoryScrollEnd() {
+  const el = categoryPills.value
+  categoryScrolledToEnd.value = !el || el.scrollLeft + el.clientWidth >= el.scrollWidth - 1
+}
+
+watch([categoryPills, availableCategories], () => nextTick(updateCategoryScrollEnd), { flush: 'post' })
+onMounted(() => window.addEventListener('resize', updateCategoryScrollEnd))
+onUnmounted(() => window.removeEventListener('resize', updateCategoryScrollEnd))
+
 function filterByCategory(list, category) {
   return category === null ? list : list.filter((item) => getItemCategory(item) === category)
 }
@@ -309,8 +322,12 @@ function clearFilters() {
         </div>
 
         <!-- 用品類別：只列目前空間有用品的類別；只有一種類別時不需要篩選。 -->
-        <div v-if="availableCategories.length > 1" class="category-strip">
-          <ul class="category-pills" aria-label="用品類別">
+        <div
+          v-if="availableCategories.length > 1"
+          class="category-strip"
+          :class="{ 'category-strip--at-end': categoryScrolledToEnd }"
+        >
+          <ul ref="categoryPills" class="category-pills" aria-label="用品類別" @scroll.passive="updateCategoryScrollEnd">
             <li v-for="option in categoryOptionsList" :key="option ?? 'all'">
               <button
                 type="button"
@@ -613,7 +630,26 @@ function clearFilters() {
 
 .search-icon { display: block; flex: 0 0 20px; }
 
-.category-strip { min-width: 0; }
+.category-strip {
+  position: relative;
+  min-width: 0;
+
+  // 右側霧狀漸層（頁首底色），上下延伸到 pills 陰影的範圍；不擋點擊。
+  &::after {
+    content: '';
+    position: absolute;
+    top: -16px;
+    right: 0;
+    bottom: -16px;
+    width: 40px;
+    background: linear-gradient(to right, rgba(t.$bg-main, 0), t.$bg-main);
+    opacity: 1;
+    transition: opacity .2s ease;
+    pointer-events: none;
+  }
+
+  &--at-end::after { opacity: 0; }
+}
 
 // 上下各留 16px 讓 pill 陰影不被裁切，並以負 margin 抵銷。
 .category-pills {
