@@ -14,6 +14,7 @@ import {
   createItem,
   createRestockRecord,
   createSampleItems,
+  countRecordDates,
   daysUntil,
   getLatestRecord,
   getNextRestockDate,
@@ -260,6 +261,55 @@ export const useItemsStore = defineStore('items', () => {
       addedToShoppingListDate: null,
       snoozedUntil: null,
     })
+  }
+
+  // specs/009 FR-907：補貨頁一次記錄多個用品。每項先在所選空間找「名稱相同」的空間用品
+  // （忽略前後空白、英文大小寫不分，同 UT-16），找不到就依全域用品建立，再呼叫 completeRestock。
+  // 回傳 { results, undo }：undo 還原這次所有用品的紀錄，並移除這次新建立的空間用品
+  // （直接移除，不經 removeItem，才不會觸發「我的用品」的刪除 Toast）。
+  function findSpaceItemByName(spaceId, name) {
+    const key = name.trim().toLowerCase()
+    return items.value.find((item) => item.spaceId === spaceId && item.name.trim().toLowerCase() === key)
+  }
+
+  // entries：[{ name, iconKey, iconPhoto, iconManual, category, unit, quantity }]
+  function recordRestockBatch(entries, { spaceId, date }) {
+    const createdIds = []
+    const snapshots = []
+    const results = []
+    for (const entry of entries) {
+      let item = findSpaceItemByName(spaceId, entry.name)
+      if (item) {
+        snapshots.push(snapshotItem(item.id))
+      } else {
+        item = addItem({
+          name: entry.name,
+          iconKey: entry.iconKey,
+          iconPhoto: entry.iconPhoto,
+          iconManual: entry.iconManual,
+          category: entry.category,
+          unit: entry.unit,
+          spaceId,
+        })
+        createdIds.push(item.id)
+      }
+      const datesBefore = countRecordDates(item.restockRecords)
+      completeRestock(item.id, { date, quantity: entry.quantity })
+      const datesAfter = countRecordDates(getItem(item.id).restockRecords)
+      results.push({
+        id: item.id,
+        name: entry.name,
+        unit: entry.unit,
+        quantity: entry.quantity,
+        // 第 2 個不同日期：開始推算下次補貨日（FR-907、FR-912）。
+        startedInferring: datesBefore === 1 && datesAfter === 2,
+      })
+    }
+    function undo() {
+      for (const snapshot of snapshots) restoreItem(snapshot)
+      if (createdIds.length) items.value = items.value.filter((item) => !createdIds.includes(item.id))
+    }
+    return { results, undo }
   }
 
   // 購買清單完成後保留展示 24 小時；用品本身與補貨紀錄不刪除。
@@ -548,6 +598,7 @@ export const useItemsStore = defineStore('items', () => {
     snoozeReminder,
     enableReminder,
     completeRestock,
+    recordRestockBatch,
     completeShoppingItem,
     reopenShoppingItem,
     removeShoppingEntry,

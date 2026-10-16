@@ -4,7 +4,11 @@
 import { useBottomNavHidden } from '../composables/useBottomNav'
 import toastCheck from '../assets/settings/toast-check-on-dark.svg'
 
-defineProps({ toast: { type: Object, default: null } })
+// placement：預設在畫面下方；補貨頁的頁內提示放上方，才不會蓋住底部的「記錄」面板。
+defineProps({
+  toast: { type: Object, default: null },
+  placement: { type: String, default: 'bottom' },
+})
 const emit = defineEmits(['undo'])
 // 有 Bottom Nav 時改放在 Nav 上方（specs/004 HOME-07）。
 const hideBottomNav = useBottomNavHidden()
@@ -13,7 +17,7 @@ const hideBottomNav = useBottomNavHidden()
 <template>
   <Teleport to="body">
     <Transition name="app-toast">
-      <div v-if="toast" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav }" role="status" aria-live="polite" @pointerenter="toast.pause?.()" @pointerleave="toast.resume?.()" @focusin="toast.pause?.()" @focusout="toast.resume?.()">
+      <div v-if="toast" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav && placement !== 'top', 'app-toast--top': placement === 'top' }" role="status" aria-live="polite" @pointerenter="toast.pause?.()" @pointerleave="toast.resume?.()" @focusin="toast.pause?.()" @focusout="toast.resume?.()">
         <slot name="icon"><img :src="toastCheck" alt="" /></slot>
         <span class="app-toast-message">{{ toast.message }}</span>
         <button v-if="toast.undo" type="button" class="app-toast-undo" @click="emit('undo')">{{ toast.actionLabel ?? '復原' }}</button>
@@ -49,6 +53,7 @@ const hideBottomNav = useBottomNavHidden()
   img { width: 22px; height: 22px; flex-shrink: 0; }
   // Bottom Nav 頂端在 116px（bottom 34 + 高 82），再留 16px，同我的用品刪除 Toast。
   &--above-nav { bottom: t.$toast-bottom; }
+  &--top { top: 80px; bottom: auto; }
 }
 .app-toast-message { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-toast-undo {

@@ -1,19 +1,19 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import ItemListRow from '../components/items/ItemListRow.vue'
 import AddSpaceSheet from '../components/add-item/AddSpaceSheet.vue'
+import SpacePill from '../components/SpacePill.vue'
+import CategoryPills from '../components/CategoryPills.vue'
 import AppToast from '../components/AppToast.vue'
 import { useToast } from '../composables/useToast'
 import { useItemsStore } from '../stores/items'
 import { DEFAULT_SPACE_ID, STATUS, getReminderStatus } from '../models/item'
-import { getSpaceColor } from '../models/space'
 import { getItemCategory } from '../models/itemCategories'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
 import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
-import chevronIcon from '../assets/settings/chevron.svg'
 import emptyItemIcon from '../assets/household-icons-by-state/common/generic-item-in-shopping-list-plain.svg'
 
 // Figma 原始搜尋 SVG；嵌入資料網址，避免依賴會過期的素材 URL。
@@ -30,13 +30,11 @@ const selectedSpaceId = computed({
 
 // 搜尋字串僅留在頁面層，不進 store、不持久化。
 const searchQuery = ref('')
-const spaceMenuOpen = ref(false)
 
 // 新增空間：同新增用品頁的 Sheet；建立後切到新空間並顯示 Toast。
 const addSpaceOpen = ref(false)
 const { toast, showToast, runUndo } = useToast()
 function openAddSpace() {
-  spaceMenuOpen.value = false
   addSpaceOpen.value = true
 }
 function onSpaceCreated(space) {
@@ -118,7 +116,7 @@ function openItemDetail(item) {
 }
 
 function openAddItem() {
-  router.push({ name: 'add-item', query: selectedSpaceId.value ? { space: selectedSpaceId.value } : {} })
+  router.push({ name: 'restock-record', query: selectedSpaceId.value ? { space: selectedSpaceId.value } : {} })
 }
 
 function onDocumentPointerDown(event) {
@@ -132,14 +130,6 @@ const selectedSpace = computed(
   () => spaces.value.find((space) => space.id === selectedSpaceId.value)
     ?? spaces.value.find((space) => space.id === DEFAULT_SPACE_ID),
 )
-const selectedSpaceName = computed(() => selectedSpace.value?.name ?? '')
-
-const spaceOptions = computed(() => spaces.value)
-
-// 空間代表色圓點：取色方式同 SpaceTag（getSpaceColor），圓點用較深的 dark 色才看得清楚。
-function spaceDotColor(space) {
-  return getSpaceColor(space?.color).dark
-}
 
 function filterBySpace(list, spaceId) {
   return spaceId === null ? list : list.filter((item) => item.spaceId === spaceId)
@@ -147,8 +137,7 @@ function filterBySpace(list, spaceId) {
 
 // 空間是主要瀏覽 context；切換時（含切回所有用品）重置搜尋，不保留「搜尋 AND 空間」。
 function selectSpace(spaceId) {
-  spaceMenuOpen.value = false
-  // 重新點選同一空間只關閉浮層，不重置搜尋。
+  // 重新點選同一空間不重置搜尋（浮層由 SpacePill 自己關閉）。
   if (spaceId === selectedSpaceId.value) return
   selectedSpaceId.value = spaceId
   searchQuery.value = ''
@@ -195,23 +184,9 @@ const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、�
 const availableCategories = computed(() =>
   itemsStore.categoryOptions.filter((category) => spaceItems.value.some((item) => getItemCategory(item) === category)),
 )
-const categoryOptionsList = computed(() => [null, ...availableCategories.value])
 watch(availableCategories, (categories) => {
   if (selectedCategory.value !== null && !categories.includes(selectedCategory.value)) selectedCategory.value = null
 })
-
-// 類別 pills 還能往右捲時，右側顯示霧狀漸層提示；捲到最右邊就淡出。
-const categoryPills = ref(null)
-const categoryScrolledToEnd = ref(true)
-
-function updateCategoryScrollEnd() {
-  const el = categoryPills.value
-  categoryScrolledToEnd.value = !el || el.scrollLeft + el.clientWidth >= el.scrollWidth - 1
-}
-
-watch([categoryPills, availableCategories], () => nextTick(updateCategoryScrollEnd), { flush: 'post' })
-onMounted(() => window.addEventListener('resize', updateCategoryScrollEnd))
-onUnmounted(() => window.removeEventListener('resize', updateCategoryScrollEnd))
 
 function filterByCategory(list, category) {
   return category === null ? list : list.filter((item) => getItemCategory(item) === category)
@@ -258,53 +233,15 @@ function clearFilters() {
           <BrandLogo />
           <div class="inventory-heading">
             <h1 id="inventory-title" class="visually-hidden">我的用品</h1>
-            <button
-              type="button"
-              class="space-pill"
-              :aria-expanded="spaceMenuOpen"
-              aria-haspopup="listbox"
-              aria-label="切換空間"
-              @click="spaceMenuOpen = !spaceMenuOpen"
-            >
-              <span class="space-dot" :style="{ backgroundColor: spaceDotColor(selectedSpace) }" aria-hidden="true" />
-              <span class="space-pill-name">{{ selectedSpaceName }}</span>
-              <img class="space-pill-chevron" :src="chevronIcon" alt="" />
-            </button>
+            <SpacePill
+              :model-value="selectedSpace?.id ?? null"
+              :spaces="spaces"
+              @update:model-value="selectSpace"
+              @add-space="openAddSpace"
+            />
           </div>
         </div>
         <ProfileAvatarMenu :to="{ name: 'edit-profile' }" />
-
-        <!-- Space Popover：浮層，不推動下方版面。 -->
-        <template v-if="spaceMenuOpen">
-          <div class="space-popover-backdrop" @click="spaceMenuOpen = false" />
-          <div class="space-popover" role="listbox" aria-label="空間切換">
-            <button
-              v-for="option in spaceOptions"
-              :key="option.id"
-              type="button"
-              role="option"
-              class="space-option"
-              :class="{ 'space-option--selected': selectedSpaceId === option.id }"
-              :aria-selected="selectedSpaceId === option.id"
-              @click="selectSpace(option.id)"
-            >
-              <span class="space-option-label">
-                <span class="space-dot space-dot--sm" :style="{ backgroundColor: spaceDotColor(option) }" aria-hidden="true" />
-                <span class="space-option-name">{{ option.name }}</span>
-              </span>
-              <svg v-if="selectedSpaceId === option.id" class="space-check" viewBox="0 0 18 18" aria-hidden="true">
-                <path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </button>
-            <div class="space-popover-divider" />
-            <button type="button" class="space-option space-action" @click="openAddSpace">
-              <svg class="space-plus" viewBox="0 0 18 18" aria-hidden="true">
-                <path d="M9 3v12M3 9h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-              </svg>
-              <span>新增空間</span>
-            </button>
-          </div>
-        </template>
       </header>
 
       <template v-if="items.length">
@@ -322,23 +259,7 @@ function clearFilters() {
         </div>
 
         <!-- 用品類別：只列目前空間有用品的類別；只有一種類別時不需要篩選。 -->
-        <div
-          v-if="availableCategories.length > 1"
-          class="category-strip"
-          :class="{ 'category-strip--at-end': categoryScrolledToEnd }"
-        >
-          <ul ref="categoryPills" class="category-pills" aria-label="用品類別" @scroll.passive="updateCategoryScrollEnd">
-            <li v-for="option in categoryOptionsList" :key="option ?? 'all'">
-              <button
-                type="button"
-                class="category-pill"
-                :class="{ 'category-pill--selected': selectedCategory === option }"
-                :aria-pressed="selectedCategory === option"
-                @click="selectedCategory = option"
-              >{{ option ?? '全部' }}</button>
-            </li>
-          </ul>
-        </div>
+        <CategoryPills v-if="availableCategories.length > 1" v-model="selectedCategory" :categories="availableCategories" />
       </template>
     </div>
 
@@ -466,8 +387,7 @@ function clearFilters() {
 }
 
 .inventory-header,
-.inventory-toolbar,
-.category-strip {
+.inventory-toolbar {
   flex-shrink: 0;
 }
 
@@ -479,116 +399,6 @@ function clearFilters() {
 
 .inventory-brand { @include ph.page-brand; }
 .inventory-heading { min-width: 0; }
-
-.space-popover-backdrop { position: fixed; inset: 0; z-index: 1; }
-
-.space-popover {
-  position: absolute;
-  top: calc(100% + 12px);
-  left: 0;
-  right: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  padding: 9px;
-  border: 1px solid t.$border-color;
-  border-radius: 22px;
-  background: t.$card-bg;
-  box-shadow: 0 -3px 10px rgba(255, 255, 255, .4), 0 10px 28px rgba(140, 136, 127, .14);
-}
-
-.space-option {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-shrink: 0;
-  width: 100%;
-  height: 44px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 14px;
-  background: transparent;
-  color: t.$text-main;
-  font: t.$font-weight-regular 15px / normal t.$font-family;
-  text-align: left;
-  cursor: pointer;
-
-  &--selected {
-    background: t.$active-green;
-    box-shadow: inset -1px -1px 4px rgba(255, 255, 255, .85), inset 1px 2px 5px rgba(138, 158, 136, .1);
-    color: t.$primary-green;
-    font-weight: t.$font-weight-bold;
-  }
-}
-
-.space-check, .space-plus { flex: 0 0 18px; width: 18px; height: 18px; }
-
-.space-popover-divider { height: 1px; margin-block: 4px; background: t.$border-color; }
-
-.space-action {
-  justify-content: flex-start;
-  color: t.$primary-green;
-  cursor: default;
-}
-// 空間膠囊（UT-24）：整顆是按鈕，圓點＋名稱＋向下箭頭。
-.space-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: t.$space-8;
-  max-width: 100%;
-  height: 40px;
-  padding: 0 14px 0 12px;
-  border: 0;
-  border-radius: t.$radius-pill;
-  background: t.$card-bg;
-  box-shadow: inset 0 0 0 1px #d9d6cc, t.$shadow-raised;
-  color: t.$text-main;
-  font: t.$font-weight-bold #{t.$font-size-button} / 1.4 t.$font-family;
-  cursor: pointer;
-
-  &:active { background: t.$input-bg; }
-  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
-}
-
-.space-pill-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.space-pill-chevron {
-  flex: 0 0 14px;
-  width: 14px;
-  height: 14px;
-  transform: rotate(90deg);
-}
-
-.space-dot {
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-
-  &--sm { flex-basis: 12px; width: 12px; height: 12px; }
-}
-
-.space-option-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
-
-.space-option-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .inventory-toolbar {
   display: flex;
@@ -629,62 +439,6 @@ function clearFilters() {
 }
 
 .search-icon { display: block; flex: 0 0 20px; }
-
-.category-strip {
-  position: relative;
-  min-width: 0;
-
-  // 右側霧狀漸層（頁首底色），上下延伸到 pills 陰影的範圍；不擋點擊。
-  &::after {
-    content: '';
-    position: absolute;
-    top: -16px;
-    right: 0;
-    bottom: -16px;
-    width: 40px;
-    background: linear-gradient(to right, rgba(t.$bg-main, 0), t.$bg-main);
-    opacity: 1;
-    transition: opacity .2s ease;
-    pointer-events: none;
-  }
-
-  &--at-end::after { opacity: 0; }
-}
-
-// 上下各留 16px 讓 pill 陰影不被裁切，並以負 margin 抵銷。
-.category-pills {
-  display: flex;
-  gap: t.$space-8;
-  overflow-x: auto;
-  margin: -16px 0;
-  padding: 16px 4px;
-  list-style: none;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-}
-
-.category-pills > li { flex-shrink: 0; }
-
-.category-pill {
-  border: 0;
-  font-family: inherit;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  height: 36px;
-  padding-inline: 14px;
-  border-radius: t.$radius-pill;
-  background: t.$card-bg;
-  box-shadow: t.$shadow-raised;
-  color: t.$text-sub;
-  font-size: t.$font-size-body-sm;
-  line-height: 20px;
-  white-space: nowrap;
-}
-
-.category-pill--selected { background: t.$primary-green; box-shadow: t.$shadow-primary; color: t.$text-inverse; font-weight: t.$font-weight-medium; }
 
 .item-list {
   flex-shrink: 0;
