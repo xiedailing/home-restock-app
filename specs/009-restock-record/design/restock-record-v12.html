@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新增補貨紀錄｜介面草稿 v12</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- tokens（取自 src/assets/scss/_tokens.scss） ---------- */
+:root {
+  --bg-main: #efebe3;
+  --card-bg: #fcfbf8;
+  --surface: #ffffff;
+  --input-bg: #f6f5f1;
+  --primary: #3f6f3b;
+  --dark-green: #244f34;
+  --primary-soft: #eef5ec;
+  --accent-orange: #ff9e42;
+  --accent-soft: #fff3e6;
+  --accent-text: #9a5510;
+  --text-main: #1d1d1f;
+  --text-body: #5a5a5f;
+  --text-sub: #6e6e73;
+  --text-disabled: #a1a1a6;
+  --border: #e7e7e3;
+  --icon-circle: #f5f5f6;
+  --toast-bg: #302e29;
+  --toast-text: #fcf9f1;
+  --toast-accent: #c7e7a2;
+  --font: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  --danger: #b83a26;
+  --shadow-raised: -2px -2px 4px rgba(249,249,249,.6), 2px 3px 6px rgba(143,134,114,.2);
+  --shadow-inset: inset -3px -3px 10px rgba(255,255,255,.65), inset 2px 3px 6px rgba(105,99,85,.16);
+  --shadow-primary: -3px -3px 6px rgba(249,249,249,.4), 4px 5px 10px rgba(42,74,39,.4), inset 1.5px 2px 3px rgba(31,58,29,.35), inset -1.5px -1.5px 3px rgba(255,255,255,.15);
+  --shadow-floating: 0 -3px 10px rgba(255,255,255,.4), 0 -6px 24px rgba(140,136,127,.16);
+  --shadow-card: -3px -3px 8px rgba(249,249,249,.3), 6px 8px 18px rgba(143,134,114,.22);
+}
+* { box-sizing: border-box; margin: 0; }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+img { display: block; }
+[hidden] { display: none !important; }
+
+body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); padding: 32px 16px 64px; }
+.page-head { max-width: 1500px; margin: 0 auto 28px; }
+.page-head h1 { font-size: 24px; }
+.page-head p { margin-top: 6px; color: var(--text-body); font-size: 14px; line-height: 1.6; }
+.board { max-width: 1500px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px 32px; justify-content: center; }
+.frame-wrap { width: 390px; }
+.cap { font-size: 16px; margin-bottom: 4px; }
+.cap-sub { font-size: 13px; color: var(--text-body); line-height: 1.55; margin-bottom: 14px; min-height: 40px; }
+
+/* ---------- 手機外框 ---------- */
+.phone { position: relative; width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg-main); border-radius: 44px; outline: 8px solid #2b2a28; overflow: hidden; }
+.status { height: 44px; padding: 14px 28px 0; display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; flex: none; }
+.batt { width: 24px; height: 12px; border: 1.5px solid var(--text-main); border-radius: 4px; position: relative; margin-top: 3px; }
+.batt::after { content: ""; position: absolute; inset: 1.5px; background: var(--text-main); border-radius: 1.5px; }
+.topbar { height: 48px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; flex: none; }
+.topbar h1 { font-size: 17px; font-weight: 700; }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--card-bg); box-shadow: var(--shadow-raised); display: grid; place-items: center; }
+.topbar .spacer { width: 40px; }
+.home-ind { position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: var(--text-main); z-index: 1; }
+
+/* 空間下拉＋類別標籤 */
+.spaces { flex: none; display: flex; justify-content: center; padding: 2px 16px 10px; }
+.spacebtn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 16px; border-radius: 999px; background: var(--card-bg); box-shadow: var(--shadow-raised); font-size: 15px; font-weight: 700; }
+.spacebtn .lbl { font-size: 13px; font-weight: 400; color: var(--text-sub); padding-right: 8px; border-right: 1px solid var(--border); }
+.dot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.tabs { flex: none; display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 10px; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: none; height: 32px; padding: 0 14px; border-radius: 999px; background: var(--input-bg); box-shadow: var(--shadow-raised); font-size: 14px; color: var(--text-body); }
+.tab.on { background: var(--primary); color: #fff; font-weight: 700; box-shadow: var(--shadow-primary); }
+
+/* ---------- 用品格子 ---------- */
+.stage { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 12px; scrollbar-width: none; }
+.stage::-webkit-scrollbar { display: none; }
+.sec-title { font-size: 13px; color: var(--text-sub); font-weight: 500; padding: 6px 4px 4px; }
+.grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 6px; }
+.tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px 6px; border-radius: 18px; border: 2px solid transparent; font-size: 13px; color: var(--text-main); text-decoration: none; }
+.tile .pic { width: 52px; height: 52px; border-radius: 50%; background: var(--icon-circle); display: grid; place-items: center; }
+.tile .pic img { width: 40px; height: 40px; }
+.tile.new .pic { background: var(--input-bg); box-shadow: var(--shadow-raised); font-size: 26px; color: var(--primary); line-height: 1; }
+.tile.new { color: var(--primary); font-weight: 700; }
+.tile.on { background: var(--primary-soft); border-color: var(--primary); color: var(--dark-green); font-weight: 700; }
+.tile.on .pic { background: var(--surface); }
+.tile .badge { position: absolute; top: 2px; right: 8px; padding: 1px 6px; border-radius: 999px; background: var(--accent-orange); color: #fff; font-size: 11px; font-weight: 700; }
+.tile .check { position: absolute; top: 2px; right: 8px; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.hintline { font-size: 13px; color: var(--text-sub); padding: 2px 4px 6px; }
+
+/* ---------- 下段 ---------- */
+.sheet { flex: none; background: var(--card-bg); border-radius: 28px 28px 0 0; box-shadow: var(--shadow-floating); padding: 16px 16px 30px; display: flex; flex-direction: column; gap: 12px; }
+.entry { display: flex; align-items: center; gap: 12px; min-height: 52px; }
+.entry .pic { flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--icon-circle); display: grid; place-items: center; }
+.entry .pic img { width: 38px; height: 38px; }
+.entry .info { flex: 1; min-width: 0; }
+.entry .nm { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry .nm.muted { color: var(--text-disabled); font-weight: 500; }
+.entry .meta { font-size: 12px; color: var(--text-sub); min-height: 16px; }
+.stepper { flex: none; display: flex; align-items: center; gap: 4px; }
+.stepper button { width: 38px; height: 38px; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-raised); font-size: 20px; line-height: 1; color: var(--dark-green); }
+.stepper button:disabled { color: var(--text-disabled); box-shadow: none; background: var(--input-bg); cursor: not-allowed; }
+.stepper output { min-width: 58px; text-align: center; display: flex; align-items: baseline; justify-content: center; gap: 3px; }
+.stepper output strong { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stepper output span { font-size: 13px; color: var(--text-body); }
+.stepper.sm button { width: 32px; height: 32px; font-size: 18px; }
+.stepper.sm output { min-width: 50px; }
+.stepper.sm output strong { font-size: 20px; }
+.datebar { height: 44px; border-radius: 999px; background: var(--input-bg); box-shadow: var(--shadow-inset); display: flex; align-items: center; justify-content: space-between; padding: 0 6px; }
+.datebar .arrow { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; }
+.datebar .arrow:disabled { color: var(--text-disabled); cursor: not-allowed; }
+.datebar .day { flex: 1; height: 36px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 500; }
+.btn-primary { width: 100%; height: 52px; border-radius: 26px; background: var(--primary); color: #fff; font-size: 16px; font-weight: 700; box-shadow: var(--shadow-primary); }
+.btn-primary:disabled { background: #c9cfc5; box-shadow: none; color: #f4f5f2; cursor: not-allowed; }
+
+/* 多筆：已選清單 */
+.mlist { list-style: none; padding: 0; height: 156px; overflow-y: auto; display: flex; flex-direction: column; scrollbar-width: none; }
+.mlist::-webkit-scrollbar { display: none; }
+.mlist .empty { margin: auto; color: var(--text-disabled); font-size: 14px; }
+.mrow { flex: none; height: 52px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.mrow:last-child { border-bottom: 0; }
+.mrow .pic { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--icon-circle); display: grid; place-items: center; }
+.mrow .pic img { width: 28px; height: 28px; }
+.mrow .nm { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrow .rm { flex: none; width: 28px; height: 28px; border-radius: 50%; color: var(--text-sub); font-size: 16px; }
+
+/* ---------- 新增用品頁 ---------- */
+.page { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 16px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: none; }
+.page::-webkit-scrollbar { display: none; }
+.name-row { display: flex; gap: 12px; align-items: center; }
+.avatar-btn { position: relative; flex: none; width: 60px; height: 60px; border-radius: 50%; background: var(--icon-circle); display: grid; place-items: center; box-shadow: var(--shadow-raised); }
+.avatar-btn img { width: 46px; height: 46px; }
+.avatar-btn::after { content: "✎"; position: absolute; right: -2px; bottom: -2px; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; display: grid; place-items: center; }
+.name-input { flex: 1; min-width: 0; height: 56px; padding: 0 18px; border: 0; border-radius: 16px; background: var(--input-bg); box-shadow: var(--shadow-inset); font-size: 18px; font-weight: 500; outline: none; }
+.name-input::placeholder { color: var(--text-disabled); font-weight: 400; }
+.name-input:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.group .gl { font-size: 13px; color: var(--text-sub); margin-bottom: 8px; padding-left: 4px; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { height: 36px; padding: 0 15px; border-radius: 999px; background: var(--input-bg); box-shadow: var(--shadow-raised); font-size: 15px; color: var(--text-body); }
+.group[data-g="unit"] .pill { padding: 0 13px; }
+.pill.on { background: var(--primary); color: #fff; font-weight: 700; box-shadow: var(--shadow-primary); }
+.custom-unit { margin-top: 10px; width: 100%; height: 44px; padding: 0 16px; border: 0; border-radius: 14px; background: var(--input-bg); box-shadow: var(--shadow-inset); font-size: 15px; outline: none; }
+.note { display: flex; gap: 10px; padding: 12px 14px; border-radius: 16px; font-size: 13px; line-height: 1.55; color: var(--accent-text); background: var(--accent-soft); }
+.note .ico { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; background: var(--accent-text); color: #fff; font-size: 12px; display: grid; place-items: center; font-weight: 700; }
+.actionbar { flex: none; padding: 14px 16px 30px; background: var(--card-bg); border-radius: 28px 28px 0 0; box-shadow: var(--shadow-floating); }
+
+.avatar-wrap { display: flex; justify-content: center; padding: 4px 0 2px; }
+.avatar-btn.lg { width: 84px; height: 84px; }
+.avatar-btn.lg img { width: 64px; height: 64px; }
+.avatar-btn.lg::after { width: 26px; height: 26px; font-size: 14px; }
+.fields { border-radius: 22px; background: var(--input-bg); box-shadow: var(--shadow-inset); }
+.fields > * + * { border-top: 1px solid var(--border); }
+.field-row { width: 100%; min-height: 56px; padding: 8px 16px 8px 20px; display: flex; align-items: center; gap: 8px; text-align: left; }
+.fl { flex: none; font-size: 15px; color: var(--text-body); }
+.req { color: var(--danger); font-style: normal; font-weight: 700; margin-left: 3px; }
+.fv { flex: 1; text-align: right; font-size: 15px; font-weight: 500; }
+.fv.ph { color: var(--text-disabled); font-weight: 400; }
+.name-input2 { flex: 1; min-width: 0; height: 40px; border: 0; background: transparent; text-align: right; font-size: 15px; font-weight: 500; outline: none; }
+.name-input2::placeholder { color: var(--text-disabled); font-weight: 400; }
+.name-input2:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 8px; }
+.field-row.err .fl, .field-row.err .fv.ph, .field-row.err .chev { color: var(--danger); }
+.field-row.err .name-input2::placeholder { color: var(--danger); }
+.chev { flex: none; color: var(--text-sub); transition: transform .2s; }
+.chev.open { transform: rotate(180deg); }
+.opts { padding: 2px 16px 16px; }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+
+/* ---------- 浮層（空間／日期共用） ---------- */
+.scrim { position: absolute; inset: 0; z-index: 10; background: rgba(29,29,31,.38); display: flex; align-items: flex-end; }
+.picker { width: 100%; max-height: 72%; display: flex; flex-direction: column; background: var(--card-bg); border-radius: 28px 28px 0 0; padding: 10px 16px 34px; }
+.picker .handle { flex: none; width: 40px; height: 4px; border-radius: 2px; background: #d8d6cf; margin: 0 auto 14px; }
+.picker h2 { flex: none; font-size: 17px; text-align: center; margin-bottom: 8px; }
+.picker ul { list-style: none; padding: 0; margin: 0; overflow-y: auto; }
+.picker li button { width: 100%; min-height: 60px; padding: 8px 14px; display: flex; align-items: center; gap: 14px; border-radius: 18px; text-align: left; }
+.picker li button.on { background: var(--primary-soft); }
+.picker .dot { width: 14px; height: 14px; }
+.picker .sn { flex: 1; min-width: 0; }
+.picker .sn b { display: block; font-size: 16px; font-weight: 700; }
+.picker .sn small { font-size: 12px; color: var(--text-sub); }
+.picker .ck { color: var(--primary); font-weight: 700; font-size: 18px; }
+.picker .add-space { flex: none; margin-top: 6px; border-top: 1px solid var(--border); padding-top: 4px; }
+.picker .add-space button { width: 100%; min-height: 52px; padding: 8px 14px; display: flex; align-items: center; gap: 14px; color: var(--primary); font-weight: 700; font-size: 15px; }
+.picker .plus { width: 14px; text-align: center; font-size: 20px; line-height: 1; }
+.cal-head { display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.cal .wd { font-size: 12px; color: var(--text-sub); padding: 4px 0; }
+.cal button { height: 40px; border-radius: 50%; font-size: 15px; }
+.cal button.on { background: var(--primary); color: #fff; font-weight: 700; }
+.cal button:disabled { color: var(--text-disabled); cursor: not-allowed; }
+
+.mlist { height: auto; min-height: 56px; max-height: 168px; }
+.mlist .empty { margin: 0; flex: 1; display: flex; align-items: center; padding-left: 4px; font-size: 16px; font-weight: 500; color: var(--text-disabled); }
+.mrow { height: 56px; }
+.mrow .info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mrow .info .nm { flex: none; }
+.mrow .info .meta { font-size: 12px; color: var(--text-sub); line-height: 1.2; }
+
+.filters { flex: none; display: flex; align-items: center; gap: 8px; padding: 2px 16px 12px; }
+.filters .spacebtn { min-width: 0; max-width: 210px; flex: 0 1 auto; padding: 0 14px; }
+.spacebtn [data-sn] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spacebtn svg { flex: none; }
+.catbtn { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; background: var(--card-bg); box-shadow: var(--shadow-raised); font-size: 15px; font-weight: 500; color: var(--text-body); }
+.catbtn.active { background: var(--primary-soft); color: var(--dark-green); font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--primary); }
+
+.filters { display: grid; grid-template-columns: 1fr 1fr; }
+.filters .spacebtn, .filters .catbtn { display: flex; width: 100%; min-width: 0; max-width: none; }
+.spacebtn [data-sn], .catbtn [data-cn] { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catbtn svg { flex: none; }
+
+.topbar .tb-center { flex: 1; min-width: 0; display: flex; justify-content: center; }
+.titlebtn { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; height: 40px; padding: 0 14px; border-radius: 20px; font-size: 17px; font-weight: 700; }
+.titlebtn:active { background: var(--input-bg); }
+.titlebtn [data-sn] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.titlebtn svg { flex: none; }
+.filters { display: flex; justify-content: flex-start; }
+.filters .catbtn { width: auto; max-width: 100%; }
+.catbtn [data-cn] { flex: 0 1 auto; }
+
+/* 錨定在頁首的 popover（空間）與覆蓋在格子上的面板（類別） */
+.pop-scrim { position: absolute; inset: 0; z-index: 10; background: rgba(29,29,31,.28); }
+.space-pop { position: absolute; top: 92px; left: 50%; transform: translateX(-50%); width: 280px; padding: 8px; border-radius: 22px; background: var(--card-bg); box-shadow: var(--shadow-card); }
+.space-pop ul { list-style: none; padding: 0; max-height: 300px; overflow-y: auto; }
+.space-pop .opt { width: 100%; min-height: 48px; padding: 0 14px; display: flex; align-items: center; gap: 12px; border-radius: 14px; font-size: 16px; text-align: left; }
+.space-pop .opt.on { background: var(--primary-soft); font-weight: 700; }
+.space-pop .opt .dot { width: 12px; height: 12px; }
+.space-pop .opt .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.space-pop .opt .ck { color: var(--primary); font-weight: 700; }
+.pop-divider { height: 1px; background: var(--border); margin: 6px 8px; }
+.pop-add { width: 100%; min-height: 48px; padding: 0 14px; display: flex; align-items: center; gap: 12px; color: var(--primary); font-weight: 700; font-size: 15px; }
+.pop-add .plus { width: 12px; text-align: center; font-size: 20px; line-height: 1; }
+.cat-pop { position: absolute; top: 138px; left: 16px; right: 16px; padding: 16px; border-radius: 22px; background: var(--card-bg); box-shadow: var(--shadow-card); }
+
+.titlebtn { height: 40px; padding: 0 14px 0 12px; border-radius: 999px; background: var(--card-bg); box-shadow: inset 0 0 0 1px #d9d6cc, var(--shadow-raised); font-size: 16px; }
+.titlebtn:active { background: var(--input-bg); }
+.titlebtn .dot { width: 18px; height: 18px; }
+.tabs { padding-top: 2px; }
+
+.tabs { padding-top: 14px; padding-bottom: 14px; }
+.more-pop { position: absolute; top: 92px; right: 16px; width: 200px; padding: 8px; border-radius: 22px; background: var(--card-bg); box-shadow: var(--shadow-card); }
+.more-opt { width: 100%; min-height: 48px; padding: 0 14px; display: flex; align-items: center; gap: 12px; border-radius: 14px; font-size: 16px; text-align: left; }
+.more-opt:hover { background: var(--primary-soft); }
+.more-opt svg { flex: none; color: var(--text-body); }
+
+/* Toast */
+.toast { position: absolute; left: 16px; right: 16px; top: 104px; min-height: 52px; padding: 8px 22px; border-radius: 26px; background: var(--toast-bg); color: var(--toast-text); display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.45; box-shadow: 0 6px 8px rgba(0,0,0,.22); opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 12; }
+.toast.show { opacity: 1; transform: none; }
+.toast .ck { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--toast-accent); color: var(--toast-bg); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.toast .tx { flex: 1; }
+.toast .undo { color: var(--toast-accent); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* ---------- ＋選單示意（我的用品頁） ---------- */
+.mock-head { flex: none; height: 56px; padding: 0 20px; display: flex; align-items: center; gap: 10px; font-size: 26px; font-weight: 700; }
+.mock-logo { width: 32px; height: 32px; border-radius: 50%; background: var(--primary-soft); box-shadow: var(--shadow-raised); }
+.mock-list { flex: 1; padding: 8px 16px; display: flex; flex-direction: column; gap: 10px; }
+.mock-row { height: 72px; border-radius: 22px; background: var(--card-bg); box-shadow: var(--shadow-card); display: flex; align-items: center; gap: 12px; padding: 0 16px; font-size: 16px; font-weight: 500; }
+.mock-row img { width: 40px; height: 40px; }
+.mock-scrim { position: absolute; inset: 0; background: rgba(29,29,31,.28); z-index: 2; }
+.mock-nav { position: absolute; left: 16px; bottom: 28px; right: 92px; height: 64px; border-radius: 38px; background: var(--card-bg); box-shadow: var(--shadow-card); display: flex; justify-content: space-around; align-items: center; font-size: 12px; color: var(--text-sub); z-index: 3; }
+.mock-nav span { padding: 8px 12px; border-radius: 24px; }
+.mock-nav span.on { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.mock-plus { position: absolute; right: 16px; bottom: 28px; width: 64px; height: 64px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 34px; display: grid; place-items: center; box-shadow: var(--shadow-primary); z-index: 3; }
+.menu { position: absolute; right: 16px; bottom: 106px; width: 224px; padding: 8px; border-radius: 24px; background: var(--card-bg); box-shadow: var(--shadow-card); z-index: 3; display: flex; flex-direction: column; }
+.menu a { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 12px; border-radius: 16px; font-size: 16px; font-weight: 500; color: var(--text-main); text-decoration: none; }
+.menu a:hover { background: var(--primary-soft); }
+.menu .mi { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 14px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>新增補貨紀錄｜介面草稿 v12</h1>
+  <p>相較 v11：第一顆 pill 改成「全部」；頁首右上角多了「⋯」（目前只有「用品管理」捷徑）；頁首、空間膠囊、pills、格子之間的間距拉開。日期條維持原樣。每個畫面都能操作。<br>這是設計預覽，用品資料是示範用的假資料，不會寫進專案。</p>
+</header>
+
+<main class="board">
+  <section class="frame-wrap">
+    <h2 class="cap">① 按＋：兩個選項</h2>
+    <p class="cap-sub">跟 v11 一樣。</p>
+    <div class="phone" id="frame-a" data-kind="menu"></div>
+  </section>
+  <section class="frame-wrap">
+    <h2 class="cap">② 補貨頁</h2>
+    <p class="cap-sub">頁首：返回、空間膠囊（中間）、「⋯」，左右對稱。下面隔開一點是 pills，再下面是格子。</p>
+    <div class="phone" id="frame-b" data-kind="pick" data-space="personal" data-sel="衛生紙:1"></div>
+  </section>
+  <section class="frame-wrap">
+    <h2 class="cap">③ 連續點多個用品</h2>
+    <p class="cap-sub">跟 v11 一樣。</p>
+    <div class="phone" id="frame-c" data-kind="pick" data-space="personal" data-sel="衛生紙:2,垃圾袋:1,洗碗精:1"></div>
+  </section>
+  <section class="frame-wrap">
+    <h2 class="cap">④ 點空間膠囊</h2>
+    <p class="cap-sub">錨定在頁首的 popover，跟 v11 一樣。</p>
+    <div class="phone" id="frame-d" data-kind="pick" data-space="family" data-sel="衛生紙:1" data-open="1"></div>
+  </section>
+  <section class="frame-wrap">
+    <h2 class="cap">⑤ 點「⋯」</h2>
+    <p class="cap-sub">錨定在右上角，目前只有「用品管理」。點它會跳到設定的用品管理，已選的用品會保留（預覽裡只跳提示）。</p>
+    <div class="phone" id="frame-e" data-kind="pick" data-space="personal" data-sel="衛生紙:1" data-open-more="1"></div>
+  </section>
+  <section class="frame-wrap">
+    <h2 class="cap">⑥ 名稱最長＋已篩選</h2>
+    <p class="cap-sub">空間名稱 8 個中文字，加上右邊的「⋯」，膠囊仍放得下。</p>
+    <div class="phone" id="frame-f" data-kind="pick" data-space="longname" data-cat="寵物植物照護用品" data-sel="肥料:1"></div>
+  </section>
+  <section class="frame-wrap">
+    <h2 class="cap">⑦ 沒有任何用品的空間</h2>
+    <p class="cap-sub">跟 v11 一樣。</p>
+    <div class="phone" id="frame-g" data-kind="pick" data-space="newhome"></div>
+  </section>
+</main>
+
+<!-- ============ templates ============ -->
+<template id="tpl-menu">
+  <div class="status"><span>9:41</span><span class="batt" aria-hidden="true"></span></div>
+  <div class="mock-head"><span class="mock-logo"></span>我的用品</div>
+  <div class="mock-list">
+    <div class="mock-row"><img src="icons/trash-bags.svg" alt="">垃圾袋</div>
+    <div class="mock-row"><img src="icons/tissues.svg" alt="">衛生紙</div>
+    <div class="mock-row"><img src="icons/laundry-detergent.svg" alt="">洗衣精</div>
+    <div class="mock-row"><img src="icons/dish-soap.svg" alt="">洗碗精</div>
+  </div>
+  <div class="mock-scrim"></div>
+  <div class="menu" role="menu">
+    <a href="#frame-b" role="menuitem"><span class="mi">✓</span>新增補貨紀錄</a>
+    <a href="#frame-e" role="menuitem"><span class="mi">＋</span>新增空間</a>
+  </div>
+  <div class="mock-nav"><span class="on">我的用品</span><span>購買清單</span><span>設定</span></div>
+  <div class="mock-plus">＋</div>
+  <div class="home-ind"></div>
+</template>
+
+<template id="tpl-top">
+  <div class="status"><span>9:41</span><span class="batt" aria-hidden="true"></span></div>
+  <header class="topbar">
+    <button class="icon-btn" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div class="tb-center">
+      <button type="button" class="titlebtn" data-spacebtn aria-haspopup="listbox" aria-label="選擇空間">
+        <i class="dot"></i><span data-sn></span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+    <button type="button" class="icon-btn" data-morebtn aria-haspopup="menu" aria-label="更多">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+    </button>
+  </header>
+  <div class="tabs" data-r="tabs" role="tablist" aria-label="類別"></div>
+  <div class="stage"></div>
+</template>
+
+<template id="tpl-date">
+  <div class="datebar">
+    <button type="button" class="arrow" data-d="-1" aria-label="前一天"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 4v16L5 12z"/></svg></button>
+    <button type="button" class="day" data-day aria-haspopup="dialog">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
+      <span data-r="date"></span>
+    </button>
+    <button type="button" class="arrow" data-d="1" aria-label="後一天"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 4v16l11-8z"/></svg></button>
+  </div>
+</template>
+
+
+
+<template id="tpl-multi">
+  <div class="sheet">
+    <ul class="mlist" data-r="list" aria-label="已選用品"></ul>
+    <div data-slot="date"></div>
+    <button type="button" class="btn-primary" data-k="ok" data-r="okbtn"></button>
+  </div>
+  <div class="home-ind"></div>
+  <div class="toast" role="status" aria-live="polite"><span class="ck">✓</span><span class="tx"></span><span class="undo">復原</span></div>
+</template>
+
+
+
+<script>
+/* ---------- 示範資料 ---------- */
+const CATS = ['生活日用品', '清潔', '洗衣', '廚房', '個人護理', '寵物用品', '寵物植物照護用品'];
+const UNITS = ['件', '瓶', '包', '串', '條', '捲', '個', '自訂'];
+const CATALOG = {
+  '垃圾袋':   { icon: 'trash-bags',        cat: '生活日用品', unit: '包' },
+  '衛生紙':   { icon: 'tissues',           cat: '生活日用品', unit: '包' },
+  '洗衣精':   { icon: 'laundry-detergent', cat: '洗衣',       unit: '瓶' },
+  '洗碗精':   { icon: 'dish-soap',         cat: '廚房',       unit: '瓶' },
+  '狗狗糧食': { icon: 'dog-food',          cat: '寵物用品',   unit: '包' },
+  '酒精':     { icon: 'rubbing-alcohol',   cat: '清潔',       unit: '瓶' },
+  '海綿':     { icon: 'sponge',            cat: '廚房',       unit: '個' },
+  '化妝棉':   { icon: 'cotton-pads',       cat: '個人護理',   unit: '包' },
+  '衛生棉':   { icon: 'sanitary-pads',     cat: '個人護理',   unit: '包' },
+  '燈泡':     { icon: 'light-bulb',        cat: '生活日用品', unit: '個' },
+};
+const SPACES = {
+  personal: { name: '個人',   color: '#3f6f3b', shared: false },
+  family:   { name: '家庭',   color: '#ff9e42', shared: true },
+  parents:  { name: '爸媽家', color: '#4f8fd0', shared: true },
+  office:   { name: '辦公室', color: '#8b6fd0', shared: false },
+  pets:     { name: '毛孩',   color: '#d4668a', shared: true },
+  newhome:  { name: '新家',   color: '#2f9e9e', shared: true },
+  longname: { name: '阿嬤家鄉下老房子', color: '#c08a3e', shared: true },
+};
+// n = 紀錄筆數、d = 最近一次日期、q = 最近一次數量
+const SPACE_ITEMS = {
+  personal: { '垃圾袋': { n: 3, d: '9/20', q: 1 }, '衛生紙': { n: 3, d: '9/28', q: 2 }, '洗衣精': { n: 2, d: '9/05', q: 1 }, '洗碗精': { n: 4, d: '9/10', q: 1 }, '狗狗糧食': { n: 1, d: '10/01', q: 1 } },
+  family:   { '衛生紙': { n: 5, d: '10/08', q: 3 }, '垃圾袋': { n: 2, d: '9/25', q: 1 }, '洗衣精': { n: 2, d: '10/03', q: 1 } },
+  parents:  { '衛生紙': { n: 2, d: '9/30', q: 2 }, '燈泡': { n: 1, d: '8/15', q: 2 } },
+  office:   { '衛生紙': { n: 6, d: '10/10', q: 2 }, '酒精': { n: 3, d: '9/12', q: 1 } },
+  pets:     { '狗狗糧食': { n: 8, d: '10/05', q: 1 } },
+  newhome:  {},
+  longname: { '洗碗精': { n: 2, d: '9/18', q: 1 }, '衛生紙': { n: 4, d: '10/02', q: 2 }, '海綿': { n: 1, d: '8/30', q: 1 } },
+};
+const TODAY = new Date(2026, 9, 16);
+const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+const icon = (k) => `icons/${k}.svg`;
+const tpl = (id) => document.getElementById(id).content.cloneNode(true);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+function dateLabel(offset) {
+  const d = new Date(TODAY); d.setDate(d.getDate() + offset);
+  const s = `${d.getMonth() + 1}/${d.getDate()} 週${WEEK[d.getDay()]}`;
+  return offset === 0 ? `今天・${s}` : s;
+}
+
+/* ---------- 全域用品 ---------- */
+const CUSTOM = [];
+function addGlobalItem({ name, cat, unit }) { CATALOG[name] = { icon: 'generic', cat, unit, custom: true }; CUSTOM.unshift(name); }
+const refreshAllPicks = () => document.querySelectorAll('.phone[data-kind="pick"]').forEach((p) => p._api && p._api.refresh());
+// 示範資料：使用者自己新增過的用品（先新增的先放）
+addGlobalItem({ name: '肥料', cat: '寵物植物照護用品', unit: '包' });
+addGlobalItem({ name: '牙膏', cat: '個人護理', unit: '條' });
+addGlobalItem({ name: '洗手乳', cat: '個人護理', unit: '瓶' });
+
+/* ---------- 浮層：空間、日期 ---------- */
+function mountSheet(root, title) {
+  const scrim = el('div', 'scrim'); scrim.hidden = true;
+  const box = el('div', 'picker'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', title);
+  box.append(el('div', 'handle'), el('h2', '', title));
+  scrim.append(box); root.append(scrim);
+  scrim.addEventListener('click', (e) => { if (e.target === scrim) scrim.hidden = true; });
+  return { scrim, box, open() { scrim.hidden = false; }, close() { scrim.hidden = true; } };
+}
+
+function mountSpacePicker(root, state, onChange) {
+  const sh = mountSheet(root, '選擇空間');
+  const list = el('ul'); const addRow = el('div', 'add-space');
+  const add = el('button'); add.type = 'button'; add.append(el('span', 'plus', '＋'), el('span', '', '新增空間')); addRow.append(add);
+  sh.box.append(list, addRow);
+  root.querySelectorAll('[data-spacebtn]').forEach((b) => b.addEventListener('click', () => { refresh(); sh.open(); }));
+  function refresh() {
+    const sp = SPACES[state.space];
+    root.querySelectorAll('[data-spacebtn]').forEach((b) => { b.querySelector('.dot').style.background = sp.color; b.querySelector('[data-sn]').textContent = sp.name; });
+    list.replaceChildren();
+    Object.entries(SPACES).forEach(([id, s]) => {
+      const n = Object.keys(SPACE_ITEMS[id]).length;
+      const li = el('li'); const b = el('button'); b.type = 'button'; if (id === state.space) b.className = 'on';
+      const dot = el('i', 'dot'); dot.style.background = s.color;
+      const sn = el('span', 'sn'); sn.append(el('b', '', s.name), el('small', '', `${s.shared ? '共用・' : ''}${n ? n + ' 項用品' : '還沒有用品'}`));
+      b.append(dot, sn); if (id === state.space) b.append(el('span', 'ck', '✓'));
+      b.onclick = () => { state.space = id; sh.close(); refresh(); onChange(); };
+      li.append(b); list.append(li);
+    });
+  }
+  refresh();
+  if (root.dataset.open) sh.open();
+}
+
+function mountDatePicker(root, state, onChange) {
+  const sh = mountSheet(root, '選擇補貨日期');
+  const head = el('div', 'cal-head', '2026 年 10 月');
+  const cal = el('div', 'cal');
+  sh.box.append(head, cal);
+  function build() {
+    cal.replaceChildren();
+    WEEK.forEach((w) => cal.append(el('div', 'wd', w)));
+    for (let i = 0; i < 4; i++) cal.append(el('span'));            // 2026/10/1 是週四
+    for (let d = 1; d <= 31; d++) {
+      const b = el('button', state.offset === d - 16 ? 'on' : '', String(d)); b.type = 'button';
+      b.disabled = d > 16;                                           // 補貨日期最晚今天
+      b.onclick = () => { state.offset = d - 16; sh.close(); onChange(); };
+      cal.append(b);
+    }
+  }
+  root.addEventListener('click', (e) => { if (e.target.closest('[data-day]')) { build(); sh.open(); } });
+}
+
+/* ---------- 空間 popover：跟「我的用品」一樣錨定在頁首 ---------- */
+function mountSpacePopover(root, state, onChange) {
+  const scrim = el('div', 'pop-scrim'); scrim.hidden = true;
+  const pop = el('div', 'space-pop'); pop.setAttribute('role', 'listbox'); pop.setAttribute('aria-label', '空間切換');
+  const list = el('ul');
+  const add = el('button', 'pop-add'); add.type = 'button'; add.append(el('span', 'plus', '＋'), el('span', '', '新增空間'));
+  pop.append(list, el('div', 'pop-divider'), add); scrim.append(pop); root.append(scrim);
+  const close = () => { scrim.hidden = true; };
+  scrim.addEventListener('click', (e) => { if (e.target === scrim) close(); });
+  root.querySelectorAll('[data-spacebtn]').forEach((b) => b.addEventListener('click', () => { refresh(); scrim.hidden = false; }));
+  function refresh() {
+    const sp = SPACES[state.space];
+    root.querySelectorAll('[data-spacebtn]').forEach((b) => { b.querySelector('.dot').style.background = sp.color; b.querySelector('[data-sn]').textContent = sp.name; });
+    list.replaceChildren();
+    Object.entries(SPACES).forEach(([id, s]) => {
+      const li = el('li'); const b = el('button', 'opt' + (id === state.space ? ' on' : '')); b.type = 'button'; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', String(id === state.space));
+      const dot = el('i', 'dot'); dot.style.background = s.color;
+      b.append(dot, el('span', 'nm', s.name)); if (id === state.space) b.append(el('span', 'ck', '✓'));
+      b.onclick = () => { state.space = id; close(); refresh(); onChange(); };
+      li.append(b); list.append(li);
+    });
+  }
+  refresh();
+  if (root.dataset.open) scrim.hidden = false;
+}
+
+/* ---------- ＋選單示意 ---------- */
+function initMenu(root) { root.append(tpl('tpl-menu')); }
+
+/* ---------- 補貨頁（點選用品加入；一項、多項同一個畫面） ---------- */
+function initPick(root) {
+  root.append(tpl('tpl-top'), tpl('tpl-multi'));
+  root.querySelector('[data-slot="date"]').replaceWith(tpl('tpl-date'));
+  const $ = (sel) => root.querySelector(sel);
+  const r = (n) => root.querySelector(`[data-r="${n}"]`);
+  const stage = $('.stage');
+
+  // sel：已選用品（名稱 → 數量）。再點一次同一個用品＝取消選取，數量用步進器調。
+  const s = { space: root.dataset.space, cat: root.dataset.cat || null, offset: 0, sel: new Map() };
+  (root.dataset.sel || '').split(',').filter(Boolean).forEach((p) => { const [n, q] = p.split(':'); s.sel.set(n, Number(q || 1)); });
+  let toastTimer;
+  const spaceName = () => SPACES[s.space].name;
+  const existing = () => SPACE_ITEMS[s.space];
+
+  function toast(text, { undo = true } = {}) {
+    const t = $('.toast'); t.querySelector('.tx').textContent = text; t.querySelector('.undo').hidden = !undo; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+  }
+
+  /* 類別 pills：可左右滑，第一顆是「所有用品」；只列目前有用品的類別 */
+  const tabsEl = r('tabs');
+  function buildTabs() {
+    const left = tabsEl.scrollLeft;
+    tabsEl.replaceChildren();
+    const cats = CATS.filter((c) => Object.values(CATALOG).some((i) => i.cat === c));
+    [null, ...cats].forEach((c) => {
+      const on = c === s.cat;
+      const b = el('button', 'tab' + (on ? ' on' : ''), c || '全部'); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', String(on));
+      b.onclick = () => { s.cat = c; render(); };
+      tabsEl.append(b);
+    });
+    tabsEl.scrollLeft = left;
+  }
+  // 被選中的 pill 在畫面外時，把它帶進來（示範畫面與重新載入時用）
+  function revealActiveTab() {
+    const a = tabsEl.querySelector('.tab.on'); if (!a) return;
+    if (a.offsetLeft + a.offsetWidth > tabsEl.scrollLeft + tabsEl.clientWidth) tabsEl.scrollLeft = a.offsetLeft + a.offsetWidth - tabsEl.clientWidth + 16;
+  }
+
+  /* 用品格子 */
+  const inCat = (n) => s.cat === null || CATALOG[n].cat === s.cat;
+  function buildGrid() {
+    // 使用者新增的在前（新到舊），接著是預設用品；順序不隨空間、類別改變
+    const names = [...CUSTOM, ...Object.keys(CATALOG).filter((n) => !CATALOG[n].custom)].filter(inCat);
+    stage.replaceChildren();
+    const tile = (n) => {
+      const on = s.sel.has(n);
+      const b = el('button', 'tile' + (on ? ' on' : '')); b.type = 'button'; b.setAttribute('aria-pressed', String(on));
+      const pic = el('span', 'pic'); const im = el('img'); im.alt = ''; im.src = icon(CATALOG[n].icon); pic.append(im);
+      b.append(pic, el('span', '', n));
+      if (on) b.append(el('span', 'check', '✓'));
+      b.onclick = () => { s.sel.has(n) ? s.sel.delete(n) : s.sel.set(n, 1); render(); };
+      return b;
+    };
+    // 「＋新用品」會跳到組員負責的新增用品頁，預覽裡只用提示代替
+    const newTile = () => {
+      const b = el('button', 'tile new'); b.type = 'button';
+      b.append(el('span', 'pic', '＋'), el('span', '', '新用品'));
+      b.onclick = () => toast('這裡會跳到新增用品頁（組員製作）', { undo: false });
+      return b;
+    };
+    const g = el('div', 'grid'); g.append(newTile()); names.forEach((n) => g.append(tile(n))); stage.append(g);
+  }
+
+  /* 已選清單：一列一個用品，各自調數量 */
+  const stepper = (q, unit, set) => {
+    const box = el('div', 'stepper sm');
+    const minus = el('button', '', '−'); minus.type = 'button'; minus.setAttribute('aria-label', '減少數量');
+    const plus = el('button', '', '＋'); plus.type = 'button'; plus.setAttribute('aria-label', '增加數量');
+    const out = el('output'); out.append(el('strong', '', String(q)), el('span', '', unit));
+    minus.disabled = q <= 1; minus.onclick = () => set(q - 1); plus.onclick = () => set(Math.min(99, q + 1));
+    box.append(minus, out, plus); return box;
+  };
+  function renderList() {
+    const list = r('list'); list.replaceChildren();
+    if (!s.sel.size) list.append(el('li', 'empty', '請選擇用品'));
+    s.sel.forEach((q, n) => {
+      const rec = existing()[n];
+      const li = el('li', 'mrow');
+      const pic = el('span', 'pic'); const im = el('img'); im.alt = ''; im.src = icon(CATALOG[n].icon); pic.append(im);
+      const info = el('span', 'info'); info.append(el('span', 'nm', n)); if (rec) info.append(el('span', 'meta', `上次 ${rec.d}`));
+      const rm = el('button', 'rm', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', `移除${n}`); rm.onclick = () => { s.sel.delete(n); render(); };
+      li.append(pic, info, stepper(q, CATALOG[n].unit, (v) => { s.sel.set(n, v); render(); }), rm);
+      list.append(li);
+    });
+    const ok = r('okbtn'); ok.textContent = s.sel.size > 1 ? `記錄 ${s.sel.size} 項` : '記錄'; ok.disabled = !s.sel.size;
+  }
+
+  function render() {
+    const top = stage.scrollTop; buildTabs(); buildGrid(); stage.scrollTop = top;
+    r('date').textContent = dateLabel(s.offset);
+    root.querySelector('[data-d="1"]').disabled = s.offset >= 0;
+    renderList();
+  }
+
+  // 「⋯」選單：目前只有「用品管理」捷徑（操作教學放到未來展望）
+  const moreScrim = el('div', 'pop-scrim'); moreScrim.hidden = true;
+  const morePop = el('div', 'more-pop'); morePop.setAttribute('role', 'menu');
+  const manage = el('button', 'more-opt'); manage.type = 'button'; manage.setAttribute('role', 'menuitem');
+  manage.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>';
+  manage.append(el('span', '', '用品管理'));
+  manage.onclick = () => { moreScrim.hidden = true; toast('這裡會跳到 設定 > 用品管理（組員負責）。已選的用品會保留。', { undo: false }); };
+  morePop.append(manage); moreScrim.append(morePop); root.append(moreScrim);
+  moreScrim.addEventListener('click', (e) => { if (e.target === moreScrim) moreScrim.hidden = true; });
+  root.querySelector('[data-morebtn]').addEventListener('click', () => { moreScrim.hidden = false; });
+
+  mountSpacePopover(root, s, render);
+  mountDatePicker(root, s, render);
+
+  root.addEventListener('click', (e) => {
+    const d = e.target.closest('[data-d]')?.dataset.d;
+    if (d) { s.offset = Math.min(0, s.offset + Number(d)); return render(); }
+    if (e.target.closest('[data-k="ok"]')) {
+      if (s.sel.size !== 1) return toast(`已記錄 ${s.sel.size} 項`);
+      const [name, q] = [...s.sel][0], rec = existing()[name];
+      // 只有第 2 筆（開始推算）才多說一句
+      toast(rec && rec.n === 1 ? '已記錄，下次補貨日已推算' : `已記錄「${name}」${q} ${CATALOG[name].unit}`);
+    }
+  });
+
+  root._api = { refresh: render };
+  render();
+  revealActiveTab();
+  if (root.dataset.openMore) moreScrim.hidden = false;      // 示範用：直接呈現「⋯」選單
+}
+
+document.querySelectorAll('.phone').forEach((p) => (p.dataset.kind === 'menu' ? initMenu : initPick)(p));
+</script>
+</body>
+</html>
