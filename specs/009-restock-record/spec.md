@@ -2,10 +2,10 @@
 
 > 草案日：2026-10-16。決策 UT-13、UT-15～UT-29 見 `docs/DECISION_LOG.md`〈決策紀錄｜可用性測試修改（2026-10-15）〉。
 > 補貨後的狀態處理沿用 `stores/items.js` 的 `completeRestock`（001 FR-003）；補貨日期上限沿用 `specs/003-item-detail/spec.md` DET-12；圖示取用沿用 `specs/008-item-icon/spec.md`。
-> 新增用品頁由組員負責，交接內容見 `specs/009-restock-record/handoff-new-item.md`。
+> 新增用品頁與全域用品資料層（`stores/catalog.js`）由組員負責，交接內容見 `specs/009-restock-record/handoff-new-item.md`。
 
 ## 目標
-「＋」選單的「新增補貨紀錄」進入新的補貨頁：選用品、調數量、選日期，按「記錄」。一次可以補一項或多項，同一個畫面完成。取代舊的新增用品頁作為「＋」的主要入口（UT-13）。同時把「下次預計補貨日」從手填改成由補貨紀錄推算（UT-25、UT-26）。**不包含：新增用品頁的畫面與邏輯（組員負責，UT-15）、全域用品的編輯與刪除（UT-18，待討論）、「我的用品」頁本身的改版（UT-24，使用者另案處理，本規格只定義共用元件）、操作教學與首次進入提示（未來展望）。**
+「＋」選單的「新增補貨紀錄」進入新的補貨頁：選用品、調數量、選日期，按「記錄」。一次可以補一項或多項，同一個畫面完成。取代舊的新增用品頁作為「＋」的主要入口（UT-13）。同時把「下次預計補貨日」從手填改成由補貨紀錄推算（UT-25、UT-26）。**不包含：新增用品頁的畫面與邏輯、全域用品資料層 `stores/catalog.js`（組員負責，UT-15、UT-28）、全域用品的編輯與刪除（UT-18，待討論）、「我的用品」頁本身的改版（UT-24，使用者另案處理，本規格只定義共用元件）、操作教學與首次進入提示（未來展望）。**
 
 ## 來源
 | 來源 | 內容 | 讀取範圍 |
@@ -79,11 +79,11 @@
 
 ### FR-909｜全域用品與串接（UT-15、UT-16、UT-18、UT-28、UT-29）
 - 新增用品頁由組員負責，欄位為名稱、圖示、類別、單位，不選空間。儲存後新增一筆全域用品並 `router.back()` 回到補貨頁；補貨頁自行選好新用品（排在清單最前面、「＋新用品」之後）並顯示 Toast「已新增用品『名稱』」。
-- **全域用品存進新的 `src/stores/catalog.js`**，不放進 `stores/items.js`（兩人同時開發，避免合併衝突）。資料欄位：`id`（`generateId()`，建立後不變）、`name`、`iconKey`、`iconPhoto`、`iconManual`、`category`、`unit`、`createdAt`。使用者新增的隨 `utils/persist.js` 持久化。
-- 介面（組員只用這三個，詳見交接文件）：
-  - `addCatalogItem(input)`：建立並回傳新用品（含 `id`），同時記下 `justAddedId` 供補貨頁選取。
-  - `isNameTaken(name)`：名稱是否已存在於全域用品（含預設用品）；比對規則同 UT-16。
-  - `catalogItems`：使用者新增的全域用品（新的在前）。
+- **全域用品存進新的 `src/stores/catalog.js`，由組員負責**（資料層的寫入、編輯、刪除都是她的功能；不放進 `stores/items.js`，避免兩人同時開發時合併衝突）。資料欄位：`id`（`generateId()`，建立後不變）、`name`、`iconKey`、`iconPhoto`、`iconManual`、`category`、`unit`、`createdAt`。使用者新增的隨 `utils/persist.js` 持久化（`STORE_KEYS` 加 `catalog`）。最小版本先做、先合併，補貨頁在那之前用本機不 commit 的假版本開發。
+- 介面（詳見交接文件）：
+  - 新增用品頁用：`addCatalogItem(input)`（建立並回傳新用品，含 `id`，同時記下 `justAddedId`）、`isNameTaken(name)`（名稱是否已存在於全域用品，含預設用品；規則同 UT-16）。
+  - 補貨頁讀取用：`catalogItems`（使用者新增的，新的在前）、`allItems`（使用者新增的接著預設用品，順序固定，格子直接讀它）、`getById(id)`（找不到回傳 `null`，已被刪除的已選用品據此剔除）、`justAddedId` 與 `clearJustAddedId()`。
+- **預設用品也有穩定的 `id`**：`preset:` 加上 `iconKey`（例如 `preset:tissues`），不用隨機值，因為已選用品一律以 `id` 記錄。
 - 重複名稱的檢查與提示在新增用品頁（UT-16），補貨頁不處理。
 - 已選用品以 `id` 記錄，改名後仍對得上同一個用品（UT-18、UT-23）。空間用品先不加 `catalogId`，與全域用品以「名稱＋空間」比對。
 - **預設用品**：取自 `PRESET_ITEMS` 的 10 款（有圖示），固定順序，不存進 store。類別與單位如下：
@@ -155,10 +155,12 @@
 | `src/views/RestockRecordView.vue`（新） | 補貨頁：FR-902～908 |
 | `src/components/restock/`（新） | 用品格子、已選清單、類別 pills 等子元件 |
 | `src/components/SpacePill.vue`（新） | FR-910 |
-| `src/stores/catalog.js`（新） | FR-909：全域用品、`addCatalogItem`、`isNameTaken`、`justAddedId`；補貨頁暫存 state 可放這裡或另開 |
+| `src/stores/catalog.js`（新，**組員**） | FR-909：全域用品資料、新增、檢查重複、讀取、存檔 |
+| 補貨頁暫存 state（新） | FR-908：放在補貨頁自己的 store 或元件，不放進 `catalog.js` |
 | `src/stores/items.js` | 「找或建立空間用品＋`completeRestock`」的批次記錄與復原；依 FR-912 推算；移除 `enableReminder`／`updateNextRestockDate` 的手填流程 |
-| `src/models/item.js`、`src/models/itemCategories.js` | 推算函式；預設用品的單位；移除基準欄位；示範資料（FR-914） |
-| `src/utils/persist.js` | 升版 `STORAGE_VERSION` |
+| `src/models/item.js` | 推算函式；移除基準欄位；示範資料（FR-914） |
+| `src/models/itemCategories.js`（**組員**） | `PRESET_ITEMS` 補上單位（FR-909 對照表） |
+| `src/utils/persist.js` | 升版 `STORAGE_VERSION`（補貨頁）；`STORE_KEYS` 加 `catalog`（**組員**，只加這一行） |
 | `src/router/index.js` | 新增 `restock-record` 路由 |
 | `src/App.vue` | `handleAddRecord` 改導向新路由 |
 | `src/views/ItemDetailView.vue`、`src/components/item-detail/StatusCard.vue`、`ReminderSetupSheet.vue` | 補貨提醒卡條件、開關流程、移除手填日期（FR-912、FR-913） |
