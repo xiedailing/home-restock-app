@@ -6,17 +6,12 @@ import chevronIcon from '../../assets/settings/chevron.svg'
 
 const props = defineProps({
   item: { type: Object, required: true },
-  spaces: { type: Array, required: true },
   // 是否處於左滑展開狀態；由頁面統一管理，確保同時只有一列展開。
   revealed: { type: Boolean, default: false },
 })
 
 // reveal / close 只通知頁面更新狀態；delete 僅表示「點了刪除 action」，不刪資料；open 表示點列進入詳情。
 const emit = defineEmits(['reveal', 'close', 'delete', 'open'])
-
-const spaceName = computed(() =>
-  props.spaces.find((space) => space.id === props.item.spaceId)?.name ?? '未指定空間',
-)
 
 // Figma Swipe Revealed：列向左位移 88px 露出刪除 action。
 const ACTION_WIDTH = 88
@@ -107,12 +102,8 @@ function onContentClick() {
       </span>
       <div class="item-body">
         <p class="item-name">{{ item.name }}</p>
-        <p class="item-meta">
-          <span class="item-space">{{ spaceName }}</span>
-          <template v-if="item.category">
-            <span class="meta-separator">・</span>
-            <span class="item-category">{{ item.category }}</span>
-          </template>
+        <p v-if="item.category" class="item-meta">
+          <span class="item-category">{{ item.category }}</span>
         </p>
       </div>
       <div class="item-trailing">
@@ -197,8 +188,6 @@ function onContentClick() {
 }
 
 .item-meta { display: flex; min-width: 0; overflow: hidden; margin: 0; color: t.$text-sub; font-size: t.$font-size-body-sm; line-height: 18px; white-space: nowrap; }
-.item-space { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.meta-separator { flex-shrink: 0; }
 .item-category { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .item-trailing { display: flex; align-items: center; gap: t.$space-8; flex-shrink: 0; }
 

@@ -7,7 +7,8 @@ import AddSpaceSheet from '../components/add-item/AddSpaceSheet.vue'
 import AppToast from '../components/AppToast.vue'
 import { useToast } from '../composables/useToast'
 import { useItemsStore } from '../stores/items'
-import { STATUS, STATUS_LABELS } from '../models/item'
+import { DEFAULT_SPACE_ID, STATUS, STATUS_LABELS } from '../models/item'
+import { getSpaceColor } from '../models/space'
 import { getItemCategory } from '../models/itemCategories'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
@@ -20,7 +21,12 @@ const searchIcon = 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPS
 
 const itemsStore = useItemsStore()
 // 空間選擇存在 store，讓 Bottom Nav【＋】可預帶目前空間；仍不持久化。
-const { items, itemsWithStatus, spaces, inventorySpaceId: selectedSpaceId, recentlyRemoved } = storeToRefs(itemsStore)
+const { items, itemsWithStatus, spaces, inventorySpaceId: storedSpaceId, recentlyRemoved } = storeToRefs(itemsStore)
+// 沒有「所有空間」：store 尚未選過（或已選空間被退出而重設）時，一律回到個人空間。
+const selectedSpaceId = computed({
+  get: () => storedSpaceId.value ?? DEFAULT_SPACE_ID,
+  set: (spaceId) => { storedSpaceId.value = spaceId },
+})
 
 // 搜尋字串僅留在頁面層，不進 store、不持久化。
 const searchQuery = ref('')
@@ -157,11 +163,18 @@ function onDocumentPointerDown(event) {
 onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
 onUnmounted(() => document.removeEventListener('pointerdown', onDocumentPointerDown))
 
-const selectedSpaceName = computed(
-  () => spaces.value.find((space) => space.id === selectedSpaceId.value)?.name ?? '所有空間',
+const selectedSpace = computed(
+  () => spaces.value.find((space) => space.id === selectedSpaceId.value)
+    ?? spaces.value.find((space) => space.id === DEFAULT_SPACE_ID),
 )
+const selectedSpaceName = computed(() => selectedSpace.value?.name ?? '')
 
-const spaceOptions = computed(() => [{ id: null, name: '所有空間' }, ...spaces.value])
+const spaceOptions = computed(() => spaces.value)
+
+// 空間代表色圓點：取色方式同 SpaceTag（getSpaceColor），圓點用較深的 dark 色才看得清楚。
+function spaceDotColor(space) {
+  return getSpaceColor(space?.color).dark
+}
 
 function filterBySpace(list, spaceId) {
   return spaceId === null ? list : list.filter((item) => item.spaceId === spaceId)
@@ -279,20 +292,19 @@ function clearFilters() {
         <div class="inventory-brand">
           <BrandLogo />
           <div class="inventory-heading">
-            <div class="inventory-title-row">
-              <h1 id="inventory-title">{{ selectedSpaceName }}</h1>
-              <button
-                type="button"
-                class="space-chevron"
-                :aria-expanded="spaceMenuOpen"
-                aria-haspopup="listbox"
-                aria-label="切換空間"
-                @click="spaceMenuOpen = !spaceMenuOpen"
-              >
-                <img :src="chevronIcon" alt="" />
-              </button>
-            </div>
-            <p class="inventory-subtitle">共 {{ spaceItems.length }} 項用品</p>
+            <h1 id="inventory-title" class="visually-hidden">我的用品</h1>
+            <button
+              type="button"
+              class="space-pill"
+              :aria-expanded="spaceMenuOpen"
+              aria-haspopup="listbox"
+              aria-label="切換空間"
+              @click="spaceMenuOpen = !spaceMenuOpen"
+            >
+              <span class="space-dot" :style="{ backgroundColor: spaceDotColor(selectedSpace) }" aria-hidden="true" />
+              <span class="space-pill-name">{{ selectedSpaceName }}</span>
+              <img class="space-pill-chevron" :src="chevronIcon" alt="" />
+            </button>
           </div>
         </div>
         <ProfileAvatarMenu :to="{ name: 'edit-profile' }" />
@@ -303,7 +315,7 @@ function clearFilters() {
           <div class="space-popover" role="listbox" aria-label="空間切換">
             <button
               v-for="option in spaceOptions"
-              :key="option.id ?? 'all'"
+              :key="option.id"
               type="button"
               role="option"
               class="space-option"
@@ -311,7 +323,10 @@ function clearFilters() {
               :aria-selected="selectedSpaceId === option.id"
               @click="selectSpace(option.id)"
             >
-              <span>{{ option.name }}</span>
+              <span class="space-option-label">
+                <span class="space-dot space-dot--sm" :style="{ backgroundColor: spaceDotColor(option) }" aria-hidden="true" />
+                <span class="space-option-name">{{ option.name }}</span>
+              </span>
               <svg v-if="selectedSpaceId === option.id" class="space-check" viewBox="0 0 18 18" aria-hidden="true">
                 <path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
@@ -427,7 +442,6 @@ function clearFilters() {
         v-for="item in visibleItems"
         :key="item.id"
         :item="item"
-        :spaces="spaces"
         :revealed="revealedItemId === item.id"
         @reveal="revealedItemId = item.id"
         @close="revealedItemId = null"
@@ -587,29 +601,63 @@ function clearFilters() {
   color: t.$primary-green;
   cursor: default;
 }
-.inventory-title-row { display: flex; align-items: center; gap: t.$space-8; }
-
-h1 {
-  @include ph.page-title;
-}
-
-.space-chevron {
-  display: grid;
-  place-items: center;
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
-  border-radius: t.$radius-pill;
-  background: t.$input-bg;
-  box-shadow: t.$shadow-raised;
-  padding: 0;
+// 空間膠囊（UT-24）：整顆是按鈕，圓點＋名稱＋向下箭頭。
+.space-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: t.$space-8;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 14px 0 12px;
   border: 0;
-  color: inherit;
+  border-radius: t.$radius-pill;
+  background: t.$card-bg;
+  box-shadow: inset 0 0 0 1px #d9d6cc, t.$shadow-raised;
+  color: t.$text-main;
+  font: t.$font-weight-bold #{t.$font-size-button} / 1.4 t.$font-family;
   cursor: pointer;
-  img { transform: rotate(90deg); }
+
+  &:active { background: t.$input-bg; }
+  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
 }
 
-.inventory-subtitle { @include ph.page-subtitle; }
+.space-pill-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.space-pill-chevron {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  transform: rotate(90deg);
+}
+
+.space-dot {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+
+  &--sm { flex-basis: 12px; width: 12px; height: 12px; }
+}
+
+.space-option-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.space-option-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .inventory-toolbar {
   display: flex;
