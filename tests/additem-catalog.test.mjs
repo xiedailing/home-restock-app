@@ -21,11 +21,11 @@ test('AddItemView creates global catalog items', async t => {
   }
   const router = { backCalls: 0, back() { this.backCalls++ }, replace() {}, push() {} }
   let guard
-  globalThis.__addItemCatalogRouter = { useRouter: () => router, onBeforeRouteLeave: fn => { guard = fn } }
+  globalThis.__addItemCatalogRouter = { useRouter: () => router, useRoute: () => ({ query: {} }), onBeforeRouteLeave: fn => { guard = fn } }
   const filename = `${process.cwd()}/src/views/__additem_catalog_test.js`
   const source = readFileSync('src/views/AddItemView.vue', 'utf8')
   const script = compileScript(parse(source).descriptor, { id: 'additem-test' }).content
-    .replace(/import \{ onBeforeRouteLeave, useRouter \} from 'vue-router'/, 'const { onBeforeRouteLeave, useRouter } = globalThis.__addItemCatalogRouter')
+    .replace(/import \{ ([^}]+) \} from 'vue-router'/, 'const { $1 } = globalThis.__addItemCatalogRouter')
     .replace(/import ItemIconEditor from '[^']+'/, 'const ItemIconEditor = {}')
   const server = await createServer({ configFile: false, appType: 'custom', server: { middlewareMode: true, hmr: false, watch: null }, plugins: [{
     name: 'additem-script-test', resolveId(id) { if (id === filename) return id }, load(id) { if (id === filename) return script },
@@ -136,14 +136,14 @@ test('AddItemView creates global catalog items', async t => {
       assert.equal(catalog.catalogItems.length, count + 1)
       assert.equal(JSON.stringify(items.items), spaceItemsBefore)
     })
-    await t.test('IME length handling and phase-two scope remain isolated', () => {
+    await t.test('IME length handling and space-item writes remain isolated', () => {
       const form = setup()
       form.updateName({ target: { value: '12345678901234567890' }, isComposing: false })
       assert.equal(form.name.value, '1234567890123456')
       const before = form.name.value
       form.updateName({ target: { value: '尚在組字' }, isComposing: true })
       assert.equal(form.name.value, before)
-      assert.doesNotMatch(source, /fromItemManagement|initialCategory|clearJustAddedId|route\.query|generateId/)
+      assert.doesNotMatch(source, /generateId/)
       assert.doesNotMatch(source, /itemsStore\.(addItem|updateItem|removeItem)/)
       assert.match(source, /itemsStore.categoryOptions/)
       assert.match(source, /catalog.addCatalogItem/)

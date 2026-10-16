@@ -275,7 +275,7 @@ function saveChanges() {
       <h2 id="categories-title"><img :src="categoriesIcon" alt="" />用品管理</h2>
       <div class="card settings-card settings-card-pill">
         <RouterLink :to="{ name: 'item-management' }" class="settings-row item-management-link">
-          <span>查看分類</span><img class="chevron" :src="chevron" alt="" />
+          <span>查看管理</span><img class="chevron" :src="chevron" alt="" />
         </RouterLink>
       </div>
     </section>
