@@ -93,11 +93,17 @@ export const STATUS = {
 }
 
 export const STATUS_LABELS = {
-  [STATUS.OVERDUE]: '補貨時間已過',
+  // 「補貨時間已過」併入「該補貨了」（可用性測試 2026-10-15）；程式內仍保留 OVERDUE 供排序與提醒文案使用。
+  [STATUS.OVERDUE]: '該補貨了',
   [STATUS.DUE_SOON]: '該補貨了',
   [STATUS.IN_SHOPPING_LIST]: '購買清單中',
   [STATUS.REMINDER_OFF]: '未開啟提醒',
   [STATUS.NOT_NEEDED]: '不需補貨',
+}
+
+// 只有「該補貨了」「購買清單中」顯示狀態標籤；其他狀態不顯示（可用性測試 2026-10-15）。
+export function hasStatusBadge(status) {
+  return status === STATUS.OVERDUE || status === STATUS.DUE_SOON || status === STATUS.IN_SHOPPING_LIST
 }
 
 // 圖示狀態與業務狀態分開；View 透過 getIconState() 取得圖示狀態。

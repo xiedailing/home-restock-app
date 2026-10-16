@@ -4,12 +4,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 export const routes = [
   { path: '/', redirect: '/login' },
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { title: '登入', hideBottomNav: true } },
-  {
-    path: '/home',
-    name: 'home',
-    component: () => import('../views/HomeView.vue'),
-    meta: { title: '首頁' },
-  },
+  // 首頁已併入我的用品（可用性測試 2026-10-15）；舊連結導向我的用品。
+  { path: '/home', redirect: '/inventory' },
   {
     path: '/inventory',
     name: 'inventory',
@@ -72,7 +68,7 @@ export const routes = [
   },
   { path: '/settings/items', name: 'item-management', component: () => import('../views/SettingsItemsView.vue'), meta: { title: '用品管理' } },
   { path: '/settings/items/:category', name: 'item-category', component: () => import('../views/SettingsItemCategory.vue'), meta: { title: '分類用品' } },
-  { path: '/:pathMatch(.*)*', redirect: '/home' },
+  { path: '/:pathMatch(.*)*', redirect: '/inventory' },
 ]
 
 const router = createRouter({
@@ -93,7 +89,7 @@ router.beforeEach((to, from) => { rememberPageScroll(from.path, window.scrollY) 
 router.afterEach((to, _from, failure) => {
   // 被取消的導覽（例如新增用品的放棄確認）不更新標題。
   if (failure) return
-  document.title = `${to.meta.title ?? '首頁'}｜補補`
+  document.title = `${to.meta.title ?? '我的用品'}｜補補`
 })
 
 export default router

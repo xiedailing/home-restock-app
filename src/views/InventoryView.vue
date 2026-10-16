@@ -9,13 +9,7 @@ import { useToast } from '../composables/useToast'
 import { useItemsStore } from '../stores/items'
 import { STATUS, STATUS_LABELS } from '../models/item'
 import { getItemCategory } from '../models/itemCategories'
-import statusCheckedIcon from '../assets/items/status-filter/checked.svg'
-import statusPanel from '../assets/items/status-filter/panel.svg'
-import overdueDot from '../assets/items/status-filter/overdue.svg'
-import dueSoonDot from '../assets/items/status-filter/due-soon.svg'
-import reminderOffDot from '../assets/items/status-filter/reminder-off.svg'
-import shoppingListDot from '../assets/items/status-filter/shopping-list.svg'
-import notNeededDot from '../assets/items/status-filter/not-needed.svg'
+import BrandLogo from '../components/BrandLogo.vue'
 import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
 import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
 import chevronIcon from '../assets/settings/chevron.svg'
@@ -43,51 +37,37 @@ function onSpaceCreated(space) {
   selectSpace(space.id)
   showToast('已成功新增空間')
 }
-const statusMenuOpen = ref(false)
-const selectedStatuses = ref([])
-const statusFilterButton = ref(null)
-const statusPopover = ref(null)
-const statusOptions = [
-  { value: STATUS.OVERDUE, dot: overdueDot },
-  { value: STATUS.DUE_SOON, dot: dueSoonDot },
-  { value: STATUS.REMINDER_OFF, dot: reminderOffDot },
-  { value: STATUS.IN_SHOPPING_LIST, dot: shoppingListDot },
-  { value: STATUS.NOT_NEEDED, dot: notNeededDot },
-]
+const categoryMenuOpen = ref(false)
+const categoryFilterButton = ref(null)
+const categoryPopover = ref(null)
 
-function toggleStatus(status) {
-  selectedStatuses.value = selectedStatuses.value.includes(status)
-    ? selectedStatuses.value.filter((value) => value !== status)
-    : [...selectedStatuses.value, status]
+function closeCategoryMenuOutside(event) {
+  if (!categoryMenuOpen.value) return
+  if (categoryFilterButton.value?.contains(event.target) || categoryPopover.value?.contains(event.target)) return
+  categoryMenuOpen.value = false
 }
 
-function closeStatusMenuOutside(event) {
-  if (!statusMenuOpen.value) return
-  if (statusFilterButton.value?.contains(event.target) || statusPopover.value?.contains(event.target)) return
-  statusMenuOpen.value = false
-}
+// 浮層用 fixed 定位避免撐寬文件；依篩選按鈕位置換算座標。
+const categoryPopoverStyle = ref({})
 
-// 浮層的陰影底圖比浮層寬，用 fixed 定位避免撐寬文件；依篩選按鈕位置換算座標。
-const statusPopoverStyle = ref({})
-
-function positionStatusPopover() {
-  const button = statusFilterButton.value
+function positionCategoryPopover() {
+  const button = categoryFilterButton.value
   if (!button) return
   const rect = button.getBoundingClientRect()
-  statusPopoverStyle.value = {
+  categoryPopoverStyle.value = {
     top: `${rect.bottom + 8}px`,
     right: `${document.documentElement.clientWidth - rect.right}px`,
   }
 }
 
-watch(statusMenuOpen, (open, _previous, onCleanup) => {
+watch(categoryMenuOpen, (open, _previous, onCleanup) => {
   if (!open) return
-  positionStatusPopover()
-  window.addEventListener('resize', positionStatusPopover)
-  window.addEventListener('scroll', positionStatusPopover, { passive: true })
+  positionCategoryPopover()
+  window.addEventListener('resize', positionCategoryPopover)
+  window.addEventListener('scroll', positionCategoryPopover, { passive: true })
   onCleanup(() => {
-    window.removeEventListener('resize', positionStatusPopover)
-    window.removeEventListener('scroll', positionStatusPopover)
+    window.removeEventListener('resize', positionCategoryPopover)
+    window.removeEventListener('scroll', positionCategoryPopover)
   })
 })
 
@@ -122,7 +102,9 @@ function onDeleteDialogClose() {
 // 最近一次刪除存在 store（不做 stack），讓用品詳情刪除後回到這裡仍可復原（specs/003 DET-20）。
 // 這裡只負責 Toast 顯示到期後清除；store 記錄到期時間，回到此頁時只顯示剩餘時間。
 let toastTimer = null
+let pausedRemaining = null // 刪除 Toast 暫停倒數時的剩餘毫秒
 watch(recentlyRemoved, (removed) => {
+  pausedRemaining = null
   clearTimeout(toastTimer) // 新刪除取代舊 Toast，避免舊 timer 提早關閉
   if (!removed) return
   const remaining = removed.expiresAt - Date.now()
@@ -130,6 +112,19 @@ watch(recentlyRemoved, (removed) => {
   else toastTimer = setTimeout(() => itemsStore.clearRecentlyRemoved(), remaining)
 }, { immediate: true })
 onUnmounted(() => clearTimeout(toastTimer))
+
+// 觸碰、滑鼠停留或聚焦在刪除 Toast 上時暫停倒數，離開後以剩餘時間繼續。
+function pauseDeleteToast() {
+  if (!recentlyRemoved.value || pausedRemaining !== null) return
+  clearTimeout(toastTimer)
+  pausedRemaining = Math.max(recentlyRemoved.value.expiresAt - Date.now(), 0)
+}
+function resumeDeleteToast() {
+  if (pausedRemaining === null || !recentlyRemoved.value) return
+  recentlyRemoved.value.expiresAt = Date.now() + pausedRemaining
+  toastTimer = setTimeout(() => itemsStore.clearRecentlyRemoved(), pausedRemaining)
+  pausedRemaining = null
+}
 
 function confirmDelete() {
   const target = pendingDeleteItem.value
@@ -155,7 +150,7 @@ function openAddItem() {
 }
 
 function onDocumentPointerDown(event) {
-  closeStatusMenuOutside(event)
+  closeCategoryMenuOutside(event)
   closeRevealedOutside(event)
 }
 
@@ -163,10 +158,10 @@ onMounted(() => document.addEventListener('pointerdown', onDocumentPointerDown))
 onUnmounted(() => document.removeEventListener('pointerdown', onDocumentPointerDown))
 
 const selectedSpaceName = computed(
-  () => spaces.value.find((space) => space.id === selectedSpaceId.value)?.name ?? '所有用品',
+  () => spaces.value.find((space) => space.id === selectedSpaceId.value)?.name ?? '所有空間',
 )
 
-const spaceOptions = computed(() => [{ id: null, name: '所有用品' }, ...spaces.value])
+const spaceOptions = computed(() => [{ id: null, name: '所有空間' }, ...spaces.value])
 
 function filterBySpace(list, spaceId) {
   return spaceId === null ? list : list.filter((item) => item.spaceId === spaceId)
@@ -210,30 +205,42 @@ const spaceItems = computed(() =>
   sortByUrgency(filterBySpace(itemsWithStatus.value, selectedSpaceId.value)),
 )
 const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、不持久化
+// 用品狀態只保留兩種篩選：「補貨時間已過」併入「該補貨了」（可用性測試 2026-10-15）。
+const RESTOCK_FILTER = 'restock'
+const selectedStatus = ref(null) // null = 全部；僅頁面層、單選、不持久化
+const statusPills = [
+  { value: null, label: '全部' },
+  { value: RESTOCK_FILTER, label: STATUS_LABELS[STATUS.DUE_SOON] },
+  { value: STATUS.IN_SHOPPING_LIST, label: STATUS_LABELS[STATUS.IN_SHOPPING_LIST] },
+]
 
-// 分類只在目前空間有用品時顯示（ADD-14）。搜尋與狀態不影響，避免輸入時 pills 跳動。
+// 類別只在目前空間有用品時列出（ADD-14）。搜尋與狀態不影響，避免輸入時選項跳動。
 const availableCategories = computed(() =>
   itemsStore.categoryOptions.filter((category) => spaceItems.value.some((item) => getItemCategory(item) === category)),
 )
+const categoryOptionsList = computed(() => [null, ...availableCategories.value])
 watch(availableCategories, (categories) => {
   if (selectedCategory.value !== null && !categories.includes(selectedCategory.value)) selectedCategory.value = null
-  updateCategoryFade()
-}, { flush: 'post' })
+})
+
+function selectCategory(category) {
+  selectedCategory.value = category
+  categoryMenuOpen.value = false
+}
 
 function filterByCategory(list, category) {
   return category === null ? list : list.filter((item) => getItemCategory(item) === category)
 }
 
-function filterByStatus(list, statuses) {
-  return statuses.length === 0 ? list : list.filter((item) => statuses.includes(item.status))
+function filterByStatus(list, status) {
+  if (status === null) return list
+  if (status === RESTOCK_FILTER) return list.filter((item) => item.status === STATUS.DUE_SOON || item.status === STATUS.OVERDUE)
+  return list.filter((item) => item.status === status)
 }
 
-// 空間 scope AND 搜尋 AND 分類。
-const categoryFilteredItems = computed(() =>
-  filterByCategory(filterByName(spaceItems.value, searchQuery.value), selectedCategory.value),
-)
+// 空間 scope AND 搜尋 AND 類別 AND 狀態。
 const visibleItems = computed(() =>
-  filterByStatus(categoryFilteredItems.value, selectedStatuses.value),
+  filterByStatus(filterByCategory(filterByName(spaceItems.value, searchQuery.value), selectedCategory.value), selectedStatus.value),
 )
 
 // 列表因篩選而不再包含展開列時，重置展開狀態。
@@ -242,10 +249,10 @@ watch(
   (stillVisible) => { if (!stillVisible) revealedItemId.value = null },
 )
 
-// 搜尋、分類、狀態屬於 filter；目前空間是 browsing context，不算 active filter。
+// 搜尋、類別、狀態屬於 filter；目前空間是 browsing context，不算 active filter。
 const trimmedQuery = computed(() => searchQuery.value.trim())
 const hasActiveFilter = computed(
-  () => trimmedQuery.value !== '' || selectedCategory.value !== null || selectedStatuses.value.length > 0,
+  () => trimmedQuery.value !== '' || selectedCategory.value !== null || selectedStatus.value !== null,
 )
 
 // 0 筆結果的三種狀態互斥，依優先順序判斷：
@@ -257,67 +264,36 @@ const emptyState = computed(() => {
   return null
 })
 
-// 清除搜尋、分類、狀態；保留目前空間。
+// 清除搜尋、類別、狀態；保留目前空間。
 function clearFilters() {
   searchQuery.value = ''
   selectedCategory.value = null
-  selectedStatuses.value = []
+  selectedStatus.value = null
 }
-
-const categoryPills = ref(null)
-const showCategoryFade = ref(false)
-const showLeftCategoryFade = ref(false)
-
-function updateCategoryFade() {
-  const element = categoryPills.value
-  showLeftCategoryFade.value = !!element && element.scrollWidth - element.clientWidth > 1 && element.scrollLeft > 1
-  showCategoryFade.value = !!element && element.scrollWidth - element.clientWidth - element.scrollLeft > 1
-}
-
-// 桌機滑鼠滾輪只會垂直捲動；在 pills 上把垂直滾輪轉成橫向捲動。
-// 已到邊界或無法橫向捲動時不攔截，讓頁面照常垂直捲動。
-function onCategoryWheel(event) {
-  const element = categoryPills.value
-  if (!element || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
-  const maxScroll = element.scrollWidth - element.clientWidth
-  const atStart = element.scrollLeft <= 0 && event.deltaY < 0
-  const atEnd = element.scrollLeft >= maxScroll - 1 && event.deltaY > 0
-  if (maxScroll <= 1 || atStart || atEnd) return
-  event.preventDefault()
-  element.scrollLeft += event.deltaY
-}
-
-watch(categoryPills, (element, _previous, onCleanup) => {
-  updateCategoryFade()
-  if (!element) return
-
-  // 視窗尺寸或字體載入改變分類寬度時，也重新判斷兩側是否還有內容。
-  const observer = new ResizeObserver(updateCategoryFade)
-  observer.observe(element)
-  for (const pill of element.children) observer.observe(pill)
-  onCleanup(() => observer.disconnect())
-}, { flush: 'post' })
 </script>
 
 <template>
   <section class="inventory-page" aria-labelledby="inventory-title">
     <div class="inventory-sticky-header">
       <header class="inventory-header">
-        <div class="inventory-heading">
-          <div class="inventory-title-row">
-            <h1 id="inventory-title">{{ selectedSpaceId === null ? '所有用品' : selectedSpaceName }}</h1>
-            <button
-              type="button"
-              class="space-chevron"
-              :aria-expanded="spaceMenuOpen"
-              aria-haspopup="listbox"
-              aria-label="切換空間"
-              @click="spaceMenuOpen = !spaceMenuOpen"
-            >
-              <img :src="chevronIcon" alt="" />
-            </button>
+        <div class="inventory-brand">
+          <BrandLogo />
+          <div class="inventory-heading">
+            <div class="inventory-title-row">
+              <h1 id="inventory-title">{{ selectedSpaceName }}</h1>
+              <button
+                type="button"
+                class="space-chevron"
+                :aria-expanded="spaceMenuOpen"
+                aria-haspopup="listbox"
+                aria-label="切換空間"
+                @click="spaceMenuOpen = !spaceMenuOpen"
+              >
+                <img :src="chevronIcon" alt="" />
+              </button>
+            </div>
+            <p class="inventory-subtitle">共 {{ spaceItems.length }} 項用品</p>
           </div>
-          <p class="inventory-subtitle">共 {{ spaceItems.length }} 項用品</p>
         </div>
         <ProfileAvatarMenu :to="{ name: 'edit-profile' }" />
 
@@ -352,7 +328,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
       </header>
 
       <template v-if="items.length">
-        <!-- 搜尋已啟用；狀態篩選尚未啟用。 -->
+        <!-- 搜尋、用品類別（浮層）；下方為用品狀態 pills。 -->
         <div class="inventory-toolbar">
           <div class="inventory-search">
             <img class="search-icon" :src="searchIcon" alt="" />
@@ -364,81 +340,56 @@ watch(categoryPills, (element, _previous, onCleanup) => {
             />
           </div>
           <button
-            ref="statusFilterButton"
+            ref="categoryFilterButton"
             type="button"
-            class="status-filter-button"
-            aria-label="狀態篩選"
-            :aria-expanded="statusMenuOpen"
-            aria-controls="status-filter-popover"
-            @click="statusMenuOpen = !statusMenuOpen"
+            class="category-filter-button"
+            aria-label="用品類別篩選"
+            :aria-expanded="categoryMenuOpen"
+            aria-controls="category-filter-popover"
+            @click="categoryMenuOpen = !categoryMenuOpen"
           >
             <span class="filter-icon" aria-hidden="true"><span /><span /><span /></span>
-            <span v-if="selectedStatuses.length" class="status-badge" aria-hidden="true">{{ selectedStatuses.length }}</span>
+            <span v-if="selectedCategory !== null" class="category-badge" aria-hidden="true">1</span>
           </button>
           <div
-            v-if="statusMenuOpen"
-            id="status-filter-popover"
-            ref="statusPopover"
-            class="status-popover"
-            :style="statusPopoverStyle"
+            v-if="categoryMenuOpen"
+            id="category-filter-popover"
+            ref="categoryPopover"
+            class="category-popover"
+            :style="categoryPopoverStyle"
             role="group"
-            aria-labelledby="status-filter-title"
-            @keydown.esc.stop="statusMenuOpen = false; statusFilterButton?.focus()"
+            aria-labelledby="category-filter-title"
+            @keydown.esc.stop="categoryMenuOpen = false; categoryFilterButton?.focus()"
           >
-            <img class="status-panel-background" :src="statusPanel" alt="" aria-hidden="true" />
-            <div class="status-popover-panel">
-              <p id="status-filter-title" class="status-popover-title">狀態篩選・已選 {{ selectedStatuses.length }} 項</p>
-              <div class="status-options">
-                <button
-                  v-for="option in statusOptions"
-                  :key="option.value"
-                  type="button"
-                  class="status-option"
-                  role="checkbox"
-                  :aria-checked="selectedStatuses.includes(option.value)"
-                  @click="toggleStatus(option.value)"
-                >
-                  <span class="status-checkbox" :class="{ 'status-checkbox--checked': selectedStatuses.includes(option.value) }" aria-hidden="true">
-                    <img v-if="selectedStatuses.includes(option.value)" :src="statusCheckedIcon" alt="" />
-                  </span>
-                  <img class="status-dot" :src="option.dot" alt="" />
-                  <span>{{ STATUS_LABELS[option.value] }}</span>
-                </button>
-              </div>
-              <div class="status-popover-divider" />
-              <div class="status-clear-action">
-                <button type="button" class="status-clear" @click="selectedStatuses = []">清除篩選</button>
-              </div>
-            </div>
+            <p id="category-filter-title" class="category-popover-title">用品類別</p>
+            <button
+              v-for="option in categoryOptionsList"
+              :key="option ?? 'all'"
+              type="button"
+              class="category-option"
+              :class="{ 'category-option--selected': selectedCategory === option }"
+              :aria-pressed="selectedCategory === option"
+              @click="selectCategory(option)"
+            >
+              <span>{{ option ?? '全部' }}</span>
+              <svg v-if="selectedCategory === option" class="category-check" viewBox="0 0 18 18" aria-hidden="true">
+                <path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
           </div>
         </div>
 
-        <!-- Phase 1 僅呈現分類；切換與篩選留待 Phase 2。 -->
-        <div
-          class="category-strip"
-          :class="{
-            'category-strip--has-more': showCategoryFade,
-            'category-strip--has-previous': showLeftCategoryFade,
-          }"
-        >
-          <ul ref="categoryPills" class="category-pills" aria-label="用品分類" @scroll.passive="updateCategoryFade" @wheel="onCategoryWheel">
-            <li>
+        <!-- 用品狀態：只保留「該補貨了」「購買清單中」（補貨時間已過併入該補貨了）。 -->
+        <div class="status-strip">
+          <ul class="status-pills" aria-label="用品狀態">
+            <li v-for="pill in statusPills" :key="pill.value ?? 'all'">
               <button
                 type="button"
-                class="category-pill"
-                :class="{ 'category-pill--selected': selectedCategory === null }"
-                :aria-pressed="selectedCategory === null"
-                @click="selectedCategory = null"
-              >全部</button>
-            </li>
-            <li v-for="category in availableCategories" :key="category">
-              <button
-                type="button"
-                class="category-pill"
-                :class="{ 'category-pill--selected': selectedCategory === category }"
-                :aria-pressed="selectedCategory === category"
-                @click="selectedCategory = category"
-              >{{ category }}</button>
+                class="status-pill"
+                :class="{ 'status-pill--selected': selectedStatus === pill.value }"
+                :aria-pressed="selectedStatus === pill.value"
+                @click="selectedStatus = pill.value"
+              >{{ pill.label }}</button>
             </li>
           </ul>
         </div>
@@ -522,7 +473,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
     <AppToast :toast="toast" @undo="runUndo" />
 
     <!-- 刪除成功 Toast：Bottom Nav 上方水平置中。 -->
-    <div v-if="recentlyRemoved" class="delete-toast" role="status" aria-live="polite">
+    <div v-if="recentlyRemoved" class="delete-toast" role="status" aria-live="polite" @pointerenter="pauseDeleteToast" @pointerleave="resumeDeleteToast" @focusin="pauseDeleteToast" @focusout="resumeDeleteToast">
       <svg class="toast-icon" viewBox="0 0 20 20" aria-hidden="true">
         <circle cx="10" cy="10" r="10" fill="currentColor" />
         <path d="M5.8 10.3l2.8 2.8 5.6-5.8" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
@@ -571,7 +522,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
 
 .inventory-header,
 .inventory-toolbar,
-.category-strip {
+.status-strip {
   flex-shrink: 0;
 }
 
@@ -581,6 +532,7 @@ watch(categoryPills, (element, _previous, onCleanup) => {
   @include ph.page-header(0);
 }
 
+.inventory-brand { @include ph.page-brand; }
 .inventory-heading { min-width: 0; }
 
 .space-popover-backdrop { position: fixed; inset: 0; z-index: 1; }
@@ -699,7 +651,8 @@ h1 {
 
 .search-icon { display: block; flex: 0 0 20px; }
 
-.status-filter-button {
+.category-filter-button {
+  position: relative;
   display: grid;
   place-items: center;
   flex: 0 0 44px;
@@ -716,46 +669,36 @@ h1 {
 
 .inventory-toolbar { position: relative; }
 
-.status-popover {
+.category-popover {
   // top / right 由 script 依篩選按鈕位置設定。
   position: fixed;
   z-index: 3;
-  width: 250px;
-  height: 342px;
-}
-
-.status-panel-background {
-  position: absolute;
-  top: -18.5px;
-  left: -28px;
-  pointer-events: none;
-}
-
-.status-popover-panel {
-  position: relative;
-  top: 10px;
-  display: flex;
-  flex-direction: column;
+  box-sizing: border-box;
+  width: 220px;
+  max-height: min(360px, 60dvh);
+  overflow-y: auto;
   padding: 9px;
-  border-radius: t.$radius-popover;
+  border: 1px solid t.$border-color;
+  border-radius: 22px;
+  background: t.$card-bg;
+  box-shadow: 0 -3px 10px rgba(255, 255, 255, .4), 0 10px 28px rgba(140, 136, 127, .14);
 }
 
-.status-popover-title {
+.category-popover-title {
   margin: 0;
   padding: 6px 12px;
   color: t.$text-button-secondary;
   font: t.$font-weight-medium 14px / normal t.$font-family;
 }
 
-.status-options { display: flex; flex-direction: column; height: 235px; }
-
-.status-option {
+.category-option {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  justify-content: space-between;
   gap: 10px;
+  flex-shrink: 0;
   width: 100%;
-  height: 46px;
+  height: 44px;
   padding: 0 12px;
   border: 0;
   border-radius: 14px;
@@ -765,42 +708,19 @@ h1 {
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
+
+  &--selected {
+    background: t.$active-green;
+    box-shadow: inset -1px -1px 4px rgba(255, 255, 255, .85), inset 1px 2px 5px rgba(138, 158, 136, .1);
+    color: t.$primary-green;
+    font-weight: t.$font-weight-bold;
+  }
 }
 
-.status-checkbox {
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
-  border: 1.5px solid #a9a59b;
-  border-radius: 10px;
-  background: t.$input-bg;
-  box-shadow: t.$shadow-raised;
-
-  &--checked { border: 0; background: transparent; box-shadow: none; }
-  img { display: block; }
-}
-
-.status-dot { display: block; flex: 0 0 8px; }
-.status-popover-divider { height: 1px; background: #edeae3; }
-.status-clear-action { display: flex; justify-content: center; }
-
-.status-clear {
-  width: 78px;
-  height: 48px;
-  padding: 0;
-  border: 0;
-  border-radius: t.$radius-pill;
-  background: transparent;
-  color: t.$primary-green;
-  font: t.$font-weight-medium 15px / normal t.$font-family;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.status-filter-button { position: relative; }
+.category-check { flex: 0 0 18px; width: 18px; height: 18px; }
 
 // 附著在按鈕右上角，絕對定位，不影響按鈕尺寸與 Tools Row 版面。
-.status-badge {
+.category-badge {
   position: absolute;
   top: -4px;
   right: -4px;
@@ -827,40 +747,23 @@ h1 {
   span:nth-child(3) { top: 14px; left: 8px; width: 4px; }
 }
 
-.category-strip {
-  position: relative;
-  min-width: 0;
-  // 對包含陰影的整個捲動區淡出，避免額外覆蓋層的硬切邊。
-  &--has-more .category-pills {
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
-  }
-  &--has-previous .category-pills {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 32px);
-    mask-image: linear-gradient(to right, transparent, #000 32px);
-  }
-  &--has-previous.category-strip--has-more .category-pills {
-    -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
-    mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
-  }
-}
+.status-strip { min-width: 0; }
 
-.category-pills {
+// 上下各留 16px 讓 pill 陰影不被裁切，並以負 margin 抵銷。
+.status-pills {
   display: flex;
   gap: t.$space-8;
   overflow-x: auto;
-  overscroll-behavior-x: contain;
-  touch-action: pan-x;
   margin: -16px 0;
-  padding: 16px 4px 16px 4px;
+  padding: 16px 4px;
   list-style: none;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 }
 
-.category-pills > li { flex-shrink: 0; }
+.status-pills > li { flex-shrink: 0; }
 
-.category-pill {
+.status-pill {
   border: 0;
   font-family: inherit;
   cursor: pointer;
@@ -879,7 +782,7 @@ h1 {
   white-space: nowrap;
 }
 
-.category-pill--selected { background: t.$primary-green; box-shadow: t.$shadow-primary; color: t.$text-inverse; font-weight: t.$font-weight-medium; }
+.status-pill--selected { background: t.$primary-green; box-shadow: t.$shadow-primary; color: t.$text-inverse; font-weight: t.$font-weight-medium; }
 
 .item-list {
   flex-shrink: 0;

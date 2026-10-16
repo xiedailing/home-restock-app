@@ -119,7 +119,7 @@ function chooseMenuOption(event) {
 @use '../../assets/scss/tokens' as t;
 
 .reminder-card {
-  --stamp-bg: #ffdec0;
+  --stamp-bg: #{t.$icon-circle-bg};
   position: relative;
   display: flex;
   flex-direction: column;
@@ -132,8 +132,6 @@ function chooseMenuOption(event) {
   font-family: t.$font-family;
   cursor: pointer;
   &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 3px; }
-  // 與我的用品列表的圖示底色一致。
-  &--overdue { --stamp-bg: #f6c4bc; }
   // 多選勾選：綠色外框（Figma 693:3838）。
   &--selected { box-shadow: t.$shadow-card, inset 0 0 0 1.5px #9db59a; }
   // 選單要蓋過下方的卡片。

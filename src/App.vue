@@ -2,6 +2,9 @@
 import { useRoute, useRouter } from 'vue-router'
 import { ref, watch } from 'vue'
 import BottomNav from './components/BottomNav.vue'
+import AddSpaceSheet from './components/add-item/AddSpaceSheet.vue'
+import AppToast from './components/AppToast.vue'
+import { useToast } from './composables/useToast'
 import { useBottomNavHidden } from './composables/useBottomNav'
 import { supportsPagePresentation, leavingPageScroll } from './utils/pagePresentation'
 import { useItemsStore } from './stores/items'
@@ -9,12 +12,13 @@ import { useItemsStore } from './stores/items'
 const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
+const { toast, showToast, runUndo } = useToast()
 const hideBottomNav = useBottomNavHidden()
 const pageTransition = ref('page-forward')
 const animateSettingsPages = ref(false)
 const animateItemsPages = ref(route.path === '/settings/items' || route.path.startsWith('/settings/items/'))
 watch(() => route.path, (to, from) => {
-  const navPaths = ['/home', '/inventory', '/shopping', '/settings']
+  const navPaths = ['/inventory', '/shopping', '/settings']
   const switchingMainPages = navPaths.includes(to) && navPaths.includes(from)
   const detailId = from.match(/^\/items\/([^/]+)$/)?.[1]
   const returningAfterDeletion = to === '/inventory' && detailId && !itemsStore.getItem(decodeURIComponent(detailId))
@@ -46,10 +50,19 @@ function clearLeavingPage(element) {
   for (const key of ['position', 'top', 'left', 'width', 'boxSizing', 'minHeight', 'zIndex']) element.style[key] = ''
 }
 
-// 在「我的用品」篩選某個空間時預帶該空間；其他頁面由新增頁預設為「個人」。
-const handlePlusClick = () => {
+// 「＋」選單。在「我的用品」篩選某個空間時預帶該空間；其他頁面由新增頁預設為「個人」。
+// 暫時仍進入既有的新增用品頁；新增補貨紀錄流程完成後改接（可用性測試 2026-10-15）。
+const handleAddRecord = () => {
   const spaceId = route.name === 'inventory' ? itemsStore.inventorySpaceId : null
   router.push({ name: 'add-item', query: spaceId ? { space: spaceId } : {} })
+}
+
+// 新增空間：建立後切到新空間並回到我的用品。
+const addSpaceOpen = ref(false)
+function onSpaceCreated(space) {
+  itemsStore.inventorySpaceId = space.id
+  if (route.name !== 'inventory') router.push({ name: 'inventory' })
+  showToast('已成功新增空間')
 }
 </script>
 
@@ -67,10 +80,13 @@ const handlePlusClick = () => {
     </main>
 
     <!-- 共用底部導覽列 -->
-    <BottomNav 
+    <BottomNav
       v-if="!hideBottomNav"
-      @click-plus="handlePlusClick" 
+      @add-record="handleAddRecord"
+      @add-space="addSpaceOpen = true"
     />
+    <AddSpaceSheet :open="addSpaceOpen" @close="addSpaceOpen = false" @created="onSpaceCreated" />
+    <AppToast :toast="toast" @undo="runUndo" />
   </div>
 </template>
 

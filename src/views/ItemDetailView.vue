@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
-import { STATUS_LABELS, matchItemIconKey } from '../models/item'
+import { STATUS_LABELS, hasStatusBadge, matchItemIconKey } from '../models/item'
 import { limitSpaceName } from '../models/space'
 import { getItemIconSrc } from '../assets/household-icons-by-state/index.js'
 import ItemIconEditor from '../components/ItemIconEditor.vue'
@@ -236,7 +236,7 @@ function confirmDelete() {
         <p v-if="nameError" id="name-error" class="name-error">{{ nameError }}</p>
         <p class="item-meta">{{ spaceName }}<template v-if="item.category">・{{ item.category }}</template></p>
       </div>
-      <span class="status-badge">{{ STATUS_LABELS[item.status] }}</span>
+      <span v-if="hasStatusBadge(item.status)" class="status-badge">{{ STATUS_LABELS[item.status] }}</span>
     </section>
 
     <StatusCard
@@ -352,7 +352,7 @@ function confirmDelete() {
 .summary-card {
   --badge-bg: #{t.$success-subtle};
   --badge-text: #{t.$success};
-  --icon-bg: #{t.$success-subtle};
+  --icon-bg: #{t.$icon-circle-bg};
   padding: t.$space-16;
   display: flex;
   align-items: flex-start;
@@ -360,11 +360,9 @@ function confirmDelete() {
   border-radius: t.$radius-card;
   background: t.$card-bg;
   box-shadow: t.$shadow-card;
-  &--dueSoon { --badge-bg: #ffebd7; --badge-text: #{t.$accent-text}; --icon-bg: #ffdec0; }
-  // 補貨時間已過：紅色明顯徽章（001 D6-1），圖示底色同我的用品。
-  &--overdue { --badge-bg: #{t.$danger}; --badge-text: #{t.$text-inverse}; --icon-bg: #f6c4bc; }
-  &--inShoppingList { --badge-bg: #{t.$primary-subtle}; --badge-text: #{t.$primary-green}; --icon-bg: #{t.$primary-subtle}; }
-  &--reminderOff { --badge-bg: #f0eee8; --badge-text: #{t.$text-body}; --icon-bg: #f5f5f6; }
+  // 補貨時間已過併入「該補貨了」，標籤同色（可用性測試 2026-10-15）。
+  &--dueSoon, &--overdue { --badge-bg: #ffebd7; --badge-text: #{t.$accent-text}; }
+  &--inShoppingList { --badge-bg: #{t.$primary-subtle}; --badge-text: #{t.$primary-green}; }
 }
 .summary-icon {
   flex: 0 0 52px;
@@ -418,7 +416,6 @@ function confirmDelete() {
   font: t.$font-weight-medium #{t.$font-size-caption}/18px t.$font-family;
   white-space: nowrap;
 }
-.summary-card--overdue .status-badge { font-weight: t.$font-weight-bold; }
 
 // ---------- 補貨紀錄 ----------
 .section-header { display: flex; align-items: baseline; justify-content: space-between; padding-right: t.$space-4; }

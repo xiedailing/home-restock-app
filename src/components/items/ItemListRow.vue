@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { STATUS_LABELS } from '../../models/item'
+import { STATUS_LABELS, hasStatusBadge } from '../../models/item'
 import { getItemIconSrc } from '../../assets/household-icons-by-state/index.js'
 import chevronIcon from '../../assets/settings/chevron.svg'
 
@@ -116,7 +116,7 @@ function onContentClick() {
         </p>
       </div>
       <div class="item-trailing">
-        <span class="status-badge">{{ STATUS_LABELS[item.status] ?? '狀態未知' }}</span>
+        <span v-if="hasStatusBadge(item.status)" class="status-badge">{{ STATUS_LABELS[item.status] }}</span>
         <img class="item-chevron" :src="chevronIcon" alt="" />
       </div>
     </div>
@@ -129,7 +129,7 @@ function onContentClick() {
 .item-row {
   --badge-bg: #{t.$success-subtle};
   --badge-text: #{t.$success};
-  --icon-bg: #{t.$success-subtle};
+  --icon-bg: #{t.$icon-circle-bg};
   position: relative;
   overflow: hidden;
   &:not(:last-child)::after { content: ''; position: absolute; inset: auto 0 0; z-index: 2; height: 1px; background: t.$border-color; pointer-events: none; }
@@ -165,10 +165,9 @@ function onContentClick() {
   cursor: pointer;
 }
 
-.item-row--overdue { --badge-bg: #fde3df; --badge-text: #{t.$danger}; --icon-bg: #f6c4bc; }
-.item-row--dueSoon { --badge-bg: #ffebd7; --badge-text: #{t.$accent-text}; --icon-bg: #ffdec0; }
-.item-row--inShoppingList { --badge-bg: #{t.$primary-subtle}; --badge-text: #{t.$primary-green}; --icon-bg: #{t.$primary-subtle}; }
-.item-row--reminderOff { --badge-bg: #f5f5f6; --badge-text: #{t.$text-body}; --icon-bg: #f5f5f6; }
+// 補貨時間已過與該補貨了同標籤、同顏色。
+.item-row--overdue, .item-row--dueSoon { --badge-bg: #ffebd7; --badge-text: #{t.$accent-text}; }
+.item-row--inShoppingList { --badge-bg: #{t.$primary-subtle}; --badge-text: #{t.$primary-green}; }
 
 .item-icon-circle {
   flex: 0 0 48px;

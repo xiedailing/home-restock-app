@@ -41,14 +41,8 @@ const copy = computed(() => {
 })
 const daysLeft = computed(() => (props.item.nextRestockDate ? daysUntil(props.item.nextRestockDate, store.today) : null))
 
-// 計數至少兩位數；超過 99 天顯示實際位數（specs/003 DET-16）。
-const counter = computed(() => {
-  if (reminderStatus.value === STATUS.DUE_SOON && daysLeft.value > 0) return { label: '距離下一次補貨還有', days: daysLeft.value }
-  if (reminderStatus.value === STATUS.OVERDUE) return { label: '預計補貨日已過', days: -daysLeft.value }
-  return null
-})
-const digits = computed(() => (counter.value ? String(counter.value.days).padStart(2, '0').split('') : []))
-// 剩 0 天不顯示「00 天」（specs/003 DET-10）。
+// 倒數天數已移除：它沒有操作、意思和預計補貨日相同（可用性測試 2026-10-15）。
+// 剩 0 天仍提示「今天是預計補貨日」（specs/003 DET-10）。
 const isDueToday = computed(() => reminderStatus.value === STATUS.DUE_SOON && daysLeft.value === 0)
 // 「暫時不用補貨」延後中：只提示，不改變狀態（specs/005 SNZ-03）。
 const snoozeText = computed(() => {
@@ -79,16 +73,7 @@ const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
       </div>
 
       <div class="status-body">
-        <template v-if="counter || isDueToday">
-          <div v-if="counter" class="counter-row">
-            <span class="counter-label">{{ counter.label }}</span>
-            <span class="counter-digits" :aria-label="`${counter.days} 天`">
-              <span v-for="(digit, index) in digits" :key="index" class="digit" aria-hidden="true">{{ digit }}</span>
-            </span>
-            <span class="counter-unit" aria-hidden="true">天</span>
-          </div>
-          <p v-else class="due-today">今天是預計補貨日</p>
-        </template>
+        <p v-if="isDueToday" class="due-today">今天是預計補貨日</p>
         <ul class="info-rows">
           <li v-if="showDate">
             <button type="button" class="info-row info-row--button" @click="emit('edit-date')">
@@ -132,7 +117,6 @@ const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
 .status-card {
   --icon-bg: #{t.$success-subtle};
   --icon-color: #{t.$primary-green};
-  --counter-color: #{t.$accent-text};
   padding: t.$space-20;
   display: flex;
   flex-direction: column;
@@ -141,7 +125,7 @@ const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
   background: t.$card-bg;
   box-shadow: t.$shadow-card;
   &--dueSoon { --icon-bg: #ffebd7; --icon-color: #{t.$accent-orange}; }
-  &--overdue { --icon-bg: #fde3df; --icon-color: #{t.$danger}; --counter-color: #{t.$danger}; }
+  &--overdue { --icon-bg: #fde3df; --icon-color: #{t.$danger}; }
   &--reminderOff { --icon-bg: #f0eee8; --icon-color: #{t.$text-sub}; }
 }
 .status-header { display: flex; align-items: flex-start; gap: t.$space-12; }
@@ -166,21 +150,6 @@ h3 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
 
 // 資訊區：沒有內層卡片與陰影，用分隔線區隔。
 .status-body { border-top: 1px solid t.$border-color; padding-top: t.$space-8; }
-.counter-row { display: flex; align-items: center; gap: t.$space-8; padding: t.$space-8 0 t.$space-12; border-bottom: 1px solid t.$border-color; }
-.counter-label { flex: 1; min-width: 0; color: t.$text-main; font: t.$font-weight-medium 14px / 20px t.$font-family; }
-.counter-digits { display: flex; gap: 6px; }
-.digit {
-  width: 44px;
-  height: 56px;
-  display: grid;
-  place-items: center;
-  border-radius: t.$radius-md;
-  background: t.$input-bg;
-  box-shadow: t.$shadow-inset;
-  color: var(--counter-color);
-  font: t.$font-weight-bold 32px / 1 t.$font-family;
-}
-.counter-unit { color: var(--counter-color); font: t.$font-weight-bold 15px / normal t.$font-family; }
 .due-today { margin: 0; padding: t.$space-8 0 t.$space-12; border-bottom: 1px solid t.$border-color; color: t.$accent-text; font: t.$font-weight-bold 16px / 24px t.$font-family; }
 
 .info-rows { margin: 0; padding: 0; list-style: none; }
@@ -223,7 +192,7 @@ h3 { margin: 0; font: t.$font-weight-bold 20px / 28px t.$font-family; }
   color: t.$text-button-secondary;
   font: t.$font-weight-medium 15px / normal t.$font-family;
 }
-.action-primary { flex: 1.6; font: t.$font-weight-bold t.$font-size-button / normal t.$font-family; }
+.action-primary { flex: 1; font: t.$font-weight-bold t.$font-size-button / normal t.$font-family; }
 // Figma Icon / Plus：12px，橫豎線各佔 25%～75%。
 .plus-icon {
   position: relative;
