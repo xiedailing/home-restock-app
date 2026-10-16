@@ -12,7 +12,6 @@ import { useToast } from '../composables/useToast'
 import AppToast from '../components/AppToast.vue'
 import StatusCard from '../components/item-detail/StatusCard.vue'
 import BasicInfoSection from '../components/item-detail/BasicInfoSection.vue'
-import ReminderSetupSheet from '../components/item-detail/ReminderSetupSheet.vue'
 import RestockSheet from '../components/item-detail/RestockSheet.vue'
 import RestockRecordList from '../components/item-detail/RestockRecordList.vue'
 import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
@@ -124,27 +123,18 @@ function onBasicInfoChange(field, value) {
 }
 
 // ---------- 補貨提醒（FR-304、FR-305）----------
-const reminderSheetMode = ref(null) // 'setup' | 'date'
-// 打開開關後 Sheet 顯示期間開關先呈現開啟；取消時回到關閉（001 F3）。
-const reminderSwitchOn = computed(() => item.value.reminderEnabled || reminderSheetMode.value === 'setup')
+// 預計補貨日由補貨紀錄推算，不能手填或修改（specs/009 FR-912）；開關只在紀錄涵蓋兩個以上不同日期時出現（FR-913）。
+const reminderSwitchOn = computed(() => item.value.reminderEnabled)
 
-// 關閉前先跳確認 modal，說明後果（DET-22）；開啟與關閉都不顯示 Toast。
+// 關閉前先跳確認 modal，說明後果（DET-22）；開啟時不再填寫，直接用紀錄重算。開啟與關閉都不顯示 Toast。
 const reminderOffDialog = ref(null)
 function toggleReminder() {
   if (item.value.reminderEnabled) reminderOffDialog.value?.showModal()
-  else reminderSheetMode.value = 'setup'
+  else itemsStore.enableReminder(itemId)
 }
 function confirmReminderOff() {
   itemsStore.disableReminder(itemId)
   reminderOffDialog.value?.close()
-}
-
-function onReminderSheetDone({ quantity, nextRestockDate }) {
-  if (reminderSheetMode.value === 'setup') {
-    itemsStore.enableReminder(itemId, { quantity, nextRestockDate })
-  } else {
-    changeWithUndo('已更新下次預計補貨日', () => itemsStore.updateNextRestockDate(itemId, nextRestockDate))
-  }
 }
 
 // ---------- 記錄補貨（FR-306）與購買清單（FR-308）----------
@@ -246,7 +236,6 @@ function confirmDelete() {
       @add-to-list="addToShoppingList"
       @view-list="viewShoppingList"
       @toggle-reminder="toggleReminder"
-      @edit-date="reminderSheetMode = 'date'"
     />
 
     <BasicInfoSection :item="item" :spaces="spaces" @change="onBasicInfoChange" />
@@ -259,14 +248,6 @@ function confirmDelete() {
       <RestockRecordList :item="item" :limit="RECORD_PREVIEW_LIMIT" @edited="onRecordEdited" />
     </section>
 
-    <ReminderSetupSheet
-      :open="reminderSheetMode !== null"
-      :mode="reminderSheetMode ?? 'setup'"
-      :unit="item.unit"
-      :initial-date="item.nextRestockDate"
-      @done="onReminderSheetDone"
-      @close="reminderSheetMode = null"
-    />
     <RestockSheet
       :open="restockOpen"
       :unit="item.unit"
