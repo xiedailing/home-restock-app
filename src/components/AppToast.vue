@@ -55,7 +55,17 @@ const hideBottomNav = useBottomNavHidden()
   &--above-nav { bottom: t.$toast-bottom; }
   &--top { top: 80px; bottom: auto; }
 }
-.app-toast-message { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+// 最多兩行：較長的提示（例如認領規則的說明）不要把後半句截掉；一行放得下時外觀不變。
+.app-toast-message {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
 .app-toast-undo {
   flex-shrink: 0;
   padding: 0;

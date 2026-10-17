@@ -15,7 +15,7 @@ const props = defineProps({
 })
 // toggle-reminder：點開關（關閉要確認、開啟直接重算，由頁面處理）；
 // restock：記錄補貨；add-to-list：加入清單；view-list：已在清單時前往購買清單。
-const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'toggle-reminder'])
+const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'toggle-reminder', 'take-over'])
 // 讀 store 的響應式「今天」，跨日後「（今天）」與顏色會自動更新（specs/003 KI-01）。
 const store = useItemsStore()
 
@@ -31,6 +31,15 @@ const isDueToday = computed(() => !!props.item.nextRestockDate && daysUntil(prop
 const showDate = computed(() => props.item.reminderEnabled && !!props.item.nextRestockDate)
 const dateLabel = computed(() => (reminderStatus.value === STATUS.NOT_NEEDED ? '下次預計補貨日' : '預計補貨日'))
 const formatDate = (date) => date?.replaceAll('-', '/') ?? ''
+
+// 共享清單的認領狀態（UT-40、FR-1110）：別人已認領時主要鈕換成「接手認領」，必須先接手才能記錄補貨。
+const claim = computed(() => store.getClaimInfo(props.item))
+const claimedByOther = computed(() => claim.value?.state === 'other')
+const claimText = computed(() => {
+  if (claim.value?.state === 'self') return '我已認領'
+  if (claim.value?.state === 'other') return `${claim.value.name}已認領`
+  return '尚未認領'
+})
 const dateText = computed(() => `${formatDate(props.item.nextRestockDate)}${isDueToday.value ? '（今天）' : ''}`)
 </script>
 
@@ -54,6 +63,10 @@ const dateText = computed(() => `${formatDate(props.item.nextRestockDate)}${isDu
       <span class="info-label">上次補貨</span>
       <strong class="info-value" :class="{ 'info-value--empty': !item.lastRestockDate }">{{ item.lastRestockDate ? formatDate(item.lastRestockDate) : '尚無紀錄' }}</strong>
     </div>
+    <div v-if="claim" class="info-row">
+      <span class="info-label">認領狀態</span>
+      <strong class="info-value" :class="{ 'info-value--pending': claim.state === 'none', 'info-value--mine': claim.state === 'self' }">{{ claimText }}</strong>
+    </div>
   </div>
 
   <!-- 照 Figma Actions（902:7077）：次要在左（加入／查看清單，前面都有清單圖示，同底部導覽），主要在右（記錄補貨）。 -->
@@ -64,7 +77,10 @@ const dateText = computed(() => `${formatDate(props.item.nextRestockDate)}${isDu
     <button v-else type="button" class="action-secondary" @click="emit('add-to-list')">
       <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>加入清單
     </button>
-    <button type="button" class="btn btn-primary action-primary" @click="emit('restock')">
+    <button v-if="claimedByOther" type="button" class="btn btn-primary action-primary" @click="emit('take-over')">
+      <i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>接手認領
+    </button>
+    <button v-else type="button" class="btn btn-primary action-primary" @click="emit('restock')">
       <span class="plus-icon" aria-hidden="true" />記錄補貨
     </button>
   </div>
@@ -103,7 +119,10 @@ const dateText = computed(() => `${formatDate(props.item.nextRestockDate)}${isDu
 .info-value {
   color: t.$text-main;
   font: t.$font-weight-bold 16px / 24px t.$font-family;
+  text-align: right;
+  overflow-wrap: anywhere;
   &--due { color: t.$accent-text; }
+  &--mine { color: t.$primary-green; }
   &--empty { color: t.$text-sub; font-weight: t.$font-weight-regular; }
   &--pending { color: t.$text-sub; font-weight: t.$font-weight-regular; }
 }
@@ -130,7 +149,10 @@ const dateText = computed(() => `${formatDate(props.item.nextRestockDate)}${isDu
   font: t.$font-weight-medium 15px / normal t.$font-family;
   i { font-size: 14px; }
 }
-.action-primary { font: t.$font-weight-bold t.$font-size-button / normal t.$font-family; }
+.action-primary {
+  font: t.$font-weight-bold t.$font-size-button / normal t.$font-family;
+  i { font-size: 14px; }
+}
 // Figma Icon / Plus：12px，橫豎線各佔 25%～75%。
 .plus-icon {
   position: relative;

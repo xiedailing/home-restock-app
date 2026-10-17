@@ -282,6 +282,8 @@ export const useItemsStore = defineStore('items', () => {
       quantity: null,
       addedToShoppingListDate: null,
       snoozedUntil: null,
+      // 移出清單後不留認領殘值（UT-40）。
+      shoppingClaimantId: null,
     })
     const recordId = item.restockRecords.at(-1).id
     const deliver = () => {
@@ -317,6 +319,15 @@ export const useItemsStore = defineStore('items', () => {
 
   // entries：[{ catalogId, quantity }]
   function recordRestockBatch(entries, { spaceId, date }) {
+    // 共享清單的認領規則（UT-40、FR-915）：有任何一項已被他人認領就整批不記錄；先於任何寫入與通知。
+    for (const entry of entries) {
+      let existing = null
+      try { existing = getItemByCatalogId(spaceId, entry.catalogId) } catch { /* 關聯有歧義時交給 ensureCatalogItem 回報 */ }
+      const claim = getClaimInfo(existing)
+      if (claim?.state === 'other') {
+        return { ok: false, error: { code: 'CLAIMED_BY_OTHER', message: `${claim.name}已認領「${existing.name}」，請先到購買清單接手認領` } }
+      }
+    }
     const createdIds = []
     const snapshots = []
     const results = []
@@ -517,6 +528,16 @@ export const useItemsStore = defineStore('items', () => {
     return [{ id: 'self', name: profile.name, avatar: profile.avatar }, ...(space.members || [])]
   }
 
+  // 共享清單的認領資訊（UT-40）：只有共享空間且已在購買清單的用品才有。
+  // state：none（尚未認領）、self（自己）、other（其他成員，name 為對方名字，找不到顯示「成員」）。
+  function getClaimInfo(item) {
+    if (!item?.inShoppingList || !getSpace(item.spaceId)?.shared) return null
+    const claimantId = item.shoppingClaimantId
+    if (!claimantId) return { state: 'none', name: '' }
+    if (claimantId === 'self') return { state: 'self', name: profile.name }
+    return { state: 'other', name: getSpaceMembers(item.spaceId).find(member => member.id === claimantId)?.name || '成員' }
+  }
+
   function leaveSpace(spaceId) {
     // 初始個人空間是帳號的預設空間，不能退出。
     if (spaceId === DEFAULT_SPACE_ID) return false
@@ -638,7 +659,7 @@ export const useItemsStore = defineStore('items', () => {
   if (needsFamilyAlcoholSeed || needsCatalogSave) scheduleSave()
 
   return {
-    getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations,
+    getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations, getClaimInfo,
     persistFailed,
     customCategories,
     systemCategoryCounts,
