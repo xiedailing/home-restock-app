@@ -16,7 +16,7 @@ export const routes = [
     path: '/restock/new',
     name: 'restock-record',
     component: () => import('../views/RestockRecordView.vue'),
-    meta: { title: '新增補貨紀錄', hideBottomNav: true },
+    meta: { title: '記錄補貨', hideBottomNav: true },
   },
   {
     path: '/items/new',

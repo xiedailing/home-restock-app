@@ -52,7 +52,7 @@ function clearLeavingPage(element) {
   for (const key of ['position', 'top', 'left', 'width', 'boxSizing', 'minHeight', 'zIndex']) element.style[key] = ''
 }
 
-// 「＋」選單的「新增補貨紀錄」。在「我的用品」篩選某個空間時預帶該空間；其他頁面由補貨頁預設為「個人」。
+// 「＋」選單的「記錄補貨」。在「我的用品」篩選某個空間時預帶該空間；其他頁面由補貨頁預設為「個人」。
 const handleAddRecord = () => {
   const spaceId = route.name === 'inventory' ? itemsStore.inventorySpaceId : null
   router.push({ name: 'restock-record', query: spaceId ? { space: spaceId } : {} })
@@ -97,8 +97,8 @@ function onSpaceCreated(space) {
 }
 
 .app-content {
-  /* 導覽列高 82px，加上內容與導覽列間距 24px。 */
-  padding-bottom: 106px;
+  /* 導覽列高 68px（$bottom-nav-height），加上內容與導覽列間距 24px。 */
+  padding-bottom: 92px;
   display: grid;
 }
 /* 只在切頁動畫期間裁切滑出畫面的頁面；靜止時不裁切，各頁卡片陰影才不會被切掉。 */
