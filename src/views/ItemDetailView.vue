@@ -116,6 +116,11 @@ function addToShoppingList() {
   changeWithUndo('已加入購買清單', () => itemsStore.addToShoppingList(itemId))
 }
 
+// 別人已認領的共享清單用品要先接手才能記錄補貨；立即接手、不跳確認，Toast 可復原（specs/011 FR-1110）。
+function takeOverClaim() {
+  changeWithUndo(`已接手認領「${spaceName.value}」的${item.value.name}`, () => itemsStore.takeOverShoppingClaim(itemId))
+}
+
 // ---------- 補貨紀錄（FR-307）----------
 // 最多顯示 5 筆，超過 5 筆才顯示「查看全部」（specs/003 DET-09）。
 const RECORD_PREVIEW_LIMIT = 5
@@ -198,6 +203,7 @@ function confirmDelete() {
       @restock="restockOpen = true"
       @add-to-list="addToShoppingList"
       @view-list="viewShoppingList"
+      @take-over="takeOverClaim"
       @toggle-reminder="toggleReminder"
     />
 

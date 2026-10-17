@@ -64,6 +64,7 @@ const visibleItems = computed(() =>
 const selectedIds = computed(() => selected.value.map((entry) => entry.id))
 
 function toggleItem(id) {
+  if (lockedClaims.value[id]) return
   const index = selected.value.findIndex((entry) => entry.id === id)
   if (index >= 0) selected.value.splice(index, 1)
   else selected.value.push({ id, quantity: 1 })
@@ -76,6 +77,21 @@ function setQuantity(id, quantity) {
 
 function removeItem(id) {
   selected.value = selected.value.filter((entry) => entry.id !== id)
+}
+
+// ---------- 共享清單的認領規則（UT-40、FR-915） ----------
+// 被其他成員認領的用品：以目前所選空間與全域用品配對；個人空間、不在清單、尚未認領或自己認領的都不會出現。
+const lockedClaims = computed(() => {
+  const locked = {}
+  for (const item of catalogItems.value) {
+    const claim = itemsStore.getClaimInfo(findSpaceItem(item.id))
+    if (claim?.state === 'other') locked[item.id] = claim.name
+  }
+  return locked
+})
+function onBlockedTile(id) {
+  const item = catalog.getById(id)
+  if (item && lockedClaims.value[id]) showToast(`${lockedClaims.value[id]}已認領「${item.name}」，請先到購買清單接手認領`)
 }
 
 // ---------- 已選清單 ----------
@@ -281,7 +297,7 @@ function record() {
     <CategoryPills v-model="category" :categories="categories" />
 
     <div class="restock-stage">
-      <RestockItemGrid :items="visibleItems" :selected-ids="selectedIds" @toggle="toggleItem" @new-item="openNewItem" />
+      <RestockItemGrid :items="visibleItems" :selected-ids="selectedIds" :locked="lockedClaims" @toggle="toggleItem" @blocked="onBlockedTile" @new-item="openNewItem" />
     </div>
 
     <div class="restock-sheet">
