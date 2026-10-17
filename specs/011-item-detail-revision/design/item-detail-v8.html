@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>補貨明細（用品詳情改版）介面草稿 v8</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+/* ---------- tokens（取自 src/assets/scss/_tokens.scss） ---------- */
+:root {
+  --bg-main: #efebe3;
+  --card-bg: #fcfbf8;
+  --input-bg: #f6f5f1;
+  --primary: #3f6f3b;
+  --primary-subtle: #e4f2e8;
+  --accent-orange: #ff9e42;
+  --accent-text: #9a5510;
+  --badge-orange: #ffebd7;
+  --danger: #b83a26;
+  --success-subtle: #f0f2ec;
+  --text-main: #1d1d1f;
+  --text-body: #5a5a5f;
+  --text-sub: #6e6e73;
+  --text-disabled: #a1a1a6;
+  --text-button-secondary: #636c65;
+  --border: #e7e7e3;
+  --icon-circle: #f5f5f6;
+  --font: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  --shadow-raised: -2px -2px 4px rgba(249,249,249,.6), 2px 3px 6px rgba(143,134,114,.2);
+  --shadow-primary: -3px -3px 6px rgba(249,249,249,.4), 4px 5px 10px rgba(42,74,39,.4), inset 1.5px 2px 3px rgba(31,58,29,.35), inset -1.5px -1.5px 3px rgba(255,255,255,.15);
+  --shadow-card: -3px -3px 8px rgba(249,249,249,.3), 6px 8px 18px rgba(143,134,114,.22);
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); padding: 32px 16px 64px; }
+button { font: inherit; color: inherit; border: 0; background: none; }
+.page-head { max-width: 1500px; margin: 0 auto 28px; }
+.page-head h1 { font-size: 24px; }
+.page-head p { margin-top: 6px; color: var(--text-body); font-size: 14px; line-height: 1.6; max-width: 960px; }
+.board { max-width: 1500px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px 32px; justify-content: center; align-items: flex-start; }
+.frame-wrap { width: 390px; }
+.frame-wrap.narrow { width: 360px; }
+.cap { font-size: 16px; margin-bottom: 4px; }
+.cap-sub { font-size: 13px; color: var(--text-body); line-height: 1.55; margin-bottom: 14px; min-height: 60px; }
+.section-banner { flex-basis: 100%; font-size: 18px; margin: 8px 0 -12px; padding-top: 8px; border-top: 2px solid rgba(0,0,0,.12); }
+.section-banner small { font-size: 13px; font-weight: 400; color: var(--text-body); margin-left: 8px; }
+
+/* ---------- 手機外框與頁面 ---------- */
+.phone { position: relative; width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg-main); border-radius: 44px; outline: 8px solid #2b2a28; overflow: hidden; }
+.narrow .phone { width: 360px; }
+.status { height: 44px; padding: 14px 28px 0; display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; flex: none; }
+.batt { width: 24px; height: 12px; border: 1.5px solid var(--text-main); border-radius: 4px; position: relative; margin-top: 3px; }
+.batt::after { content: ""; position: absolute; inset: 1.5px; background: var(--text-main); border-radius: 1.5px; }
+.page { flex: 1; min-height: 0; padding: 4px 16px 0; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+.app-bar { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; height: 48px; flex: none; }
+.app-bar h1 { text-align: center; font-size: 17px; font-weight: 700; }
+.icon-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--card-bg); box-shadow: var(--shadow-raised); display: grid; place-items: center; }
+.app-bar .del { color: var(--text-sub); text-align: right; padding-right: 8px; }
+
+.app-bar .more { justify-self: end; width: 44px; height: 44px; border-radius: 50%; background: var(--card-bg); box-shadow: var(--shadow-raised); display: grid; place-items: center; }
+.more-pop { position: absolute; top: 100px; right: 16px; z-index: 5; width: 200px; padding: 8px; border: 1px solid var(--border); border-radius: 22px; background: var(--card-bg); box-shadow: 0 -3px 10px rgba(255,255,255,.4), 0 -6px 24px rgba(140,136,127,.16); }
+.more-opt { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: 14px; font-size: 16px; color: var(--text-main); }
+.more-opt svg { flex: none; color: var(--text-body); }
+.more-opt.danger { color: var(--danger); }
+.more-opt.danger i { color: var(--danger); width: 20px; text-align: center; }
+.more-opt.on { background: var(--primary-subtle); }
+.more-div { height: 1px; background: var(--border); margin: 4px 8px; }
+
+/* 用品摘要卡 */
+.summary-card { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border-radius: 28px; background: var(--card-bg); box-shadow: var(--shadow-card); flex: none; }
+.summary-icon-wrap { position: relative; flex: 0 0 52px; }
+.summary-icon { display: block; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: var(--icon-circle); box-shadow: inset -2.308px -2.308px 4.615px rgba(255,255,255,.9), inset 2.308px 2.308px 4.615px rgba(184,131,90,.22); }
+.summary-icon img { display: block; width: 52px; height: 52px; object-fit: contain; }
+.cam { position: absolute; left: -2px; bottom: -4px; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 10px; border: 2px solid var(--card-bg); }
+.cam.neutral { background: var(--card-bg); color: var(--text-body); border: 1px solid #d9d6cc; box-shadow: var(--shadow-raised); }
+.summary-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.item-name { min-width: 0; overflow-wrap: anywhere; font-size: 20px; font-weight: 700; line-height: 28px; }
+.pen { flex: none; width: 32px; height: 32px; display: grid; place-items: center; color: var(--text-body); font-size: 13px; }
+.item-meta { color: var(--text-sub); font-size: 14px; line-height: 20px; }
+.summary-status { flex: none; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.status-badge { flex-shrink: 0; padding: 3px 9px; border-radius: 999px; background: var(--badge-orange); color: var(--accent-text); font-size: 12px; font-weight: 500; line-height: 18px; white-space: nowrap; }
+.status-badge.in-list { display: inline-flex; align-items: center; gap: 4px; background: var(--primary-subtle); color: var(--primary); }
+.status-badge.in-list i { font-size: 11px; }
+.list-chip { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-subtle); color: var(--primary); font-size: 12px; }
+
+/* 補貨提醒區 */
+.section-title { font-size: 16px; font-weight: 700; padding: 0 4px; line-height: 22px; flex: none; }
+.reminder { display: flex; flex-direction: column; gap: 8px; flex: none; }
+.section-head { display: flex; align-items: center; justify-content: space-between; min-height: 32px; padding-right: 2px; }
+.switch { flex: none; width: 52px; height: 32px; border-radius: 16px; background: var(--primary); position: relative; box-shadow: inset 1px 2px 4px rgba(0,0,0,.2); }
+.switch::after { content: ""; position: absolute; top: 3px; right: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.switch.off { background: #d6d3cb; }
+.switch.off::after { right: auto; left: 3px; }
+.status-card { padding: 20px; display: flex; flex-direction: column; gap: 12px; border-radius: 28px; background: var(--card-bg); box-shadow: var(--shadow-card); }
+.status-header { display: flex; align-items: flex-start; gap: 12px; }
+.status-header.center { align-items: center; }
+.status-icon { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--icon-bg); color: var(--icon-color); }
+.status-icon svg { width: 20px; height: 20px; }
+.status-card.notNeeded { --icon-bg: var(--success-subtle); --icon-color: var(--primary); }
+.status-card.dueSoon { --icon-bg: #ffebd7; --icon-color: var(--accent-orange); }
+.status-card.overdue { --icon-bg: #fde3df; --icon-color: var(--danger); }
+.status-card.reminderOff { --icon-bg: #f0eee8; --icon-color: var(--text-sub); }
+.status-text h3 { font-size: 20px; font-weight: 700; line-height: 28px; }
+.status-text p { margin-top: 4px; color: var(--text-body); font-size: 14px; line-height: 22px; }
+.status-body { border-top: 1px solid var(--border); padding-top: 8px; }
+.due-today { padding: 8px 0 12px; border-bottom: 1px solid var(--border); color: var(--accent-text); font-size: 16px; font-weight: 700; line-height: 24px; }
+.info-row { min-height: 48px; padding: 8px 0; display: flex; align-items: center; gap: 8px; }
+.info-row + .info-row { border-top: 1px solid var(--border); }
+.info-label { flex: 1; color: var(--text-body); font-size: 14px; line-height: 20px; }
+.info-value { font-size: 14px; font-weight: 700; line-height: 20px; }
+/* 新：設定頁風格的列表卡（第一列是開關）；標籤 16px 同設定頁、數值 16px 粗體、列高 52px */
+.rem-card { padding: 0 20px; border-radius: 28px; background: var(--card-bg); box-shadow: var(--shadow-card); }
+.rem-card .info-row { min-height: 52px; }
+.rem-card .info-label { font-size: 16px; line-height: 24px; color: var(--text-main); }
+.rem-card .info-value { font-size: 16px; line-height: 24px; }
+.rem-help { margin: -4px 0 0; padding: 0 0 12px; color: var(--text-sub); font-size: 13px; line-height: 20px; }
+.rem-help b { color: var(--accent-text); font-weight: 700; }
+.rem-card .info-row + .rem-help { border-top: 0; }
+/* 按鈕：照 Figma Actions（902:7077）；次要＝淡綠底深綠字，主要＝深綠＋圖示 */
+.btn-sub, .btn-main { flex: 1; height: 48px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-sub { background: var(--primary-subtle); color: #244f34; font-size: 15px; font-weight: 500; box-shadow: var(--shadow-raised); }
+.btn-main { background: var(--primary); color: #fff; font-size: 16px; font-weight: 700; box-shadow: var(--shadow-primary); }
+.info-value.due { color: var(--accent-text); }
+.hint { padding: 0 4px; color: var(--text-sub); font-size: 14px; line-height: 20px; }
+.actions { display: flex; gap: 8px; flex: none; }
+.btn-secondary, .btn-primary { flex: 1; min-height: 44px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-secondary { background: var(--input-bg); box-shadow: var(--shadow-raised); color: var(--text-button-secondary); font-size: 15px; font-weight: 500; }
+.btn-primary { background: var(--primary); color: #fff; box-shadow: var(--shadow-primary); font-size: 16px; font-weight: 700; }
+.records-head { display: flex; align-items: baseline; justify-content: space-between; padding-right: 4px; flex: none; }
+.see-all { color: var(--text-sub); font-size: 13px; }
+.list-card { border-radius: 28px; background: var(--card-bg); box-shadow: var(--shadow-card); padding: 0 16px; flex: none; }
+.list-card .info-row { min-height: 48px; }
+.list-card .info-value { display: flex; align-items: center; gap: 8px; }
+.list-card .info-value i { color: var(--text-disabled); font-size: 12px; }
+.rec { display: flex; align-items: center; gap: 10px; min-height: 48px; border-top: 1px solid var(--border); }
+.rec:first-child { border-top: 0; }
+.rec .dot { width: 6px; height: 6px; border-radius: 50%; background: #d6d3cb; flex: none; margin-left: 4px; }
+.rec b { flex: 1; font-size: 15px; font-weight: 700; }
+.rec span { color: var(--text-sub); font-size: 14px; }
+.rec i.fa-chevron-right { color: var(--text-disabled); font-size: 12px; margin-left: 2px; }
+
+/* ---------- 對照面板 ---------- */
+.zoom { width: 390px; background: var(--card-bg); border-radius: 22px; box-shadow: var(--shadow-card); padding: 20px; }
+.zoom h3 { font-size: 15px; margin-bottom: 12px; }
+.zoom table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-body); line-height: 1.55; }
+.zoom th { text-align: left; font-weight: 500; padding: 0 0 8px; color: var(--text-sub); font-size: 12px; }
+.zoom td { padding: 10px 8px 10px 0; border-top: 1px solid var(--border); vertical-align: top; }
+.zoom td:first-child { width: 104px; color: var(--text-main); font-weight: 500; }
+.zoom .rows { zoom: 1.35; margin-bottom: 4px; }
+.zoom .rows .info-row { min-height: 0; }
+.zoom .note { font-size: 12px; color: var(--text-sub); line-height: 1.6; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>補貨明細（用品詳情改版）介面草稿 v8</h1>
+  <p>目標：這個頁面是「一個用品的補貨帳本」。v8 的改版：①頁面名稱「用品詳情」→「<b>補貨明細</b>」；②摘要卡<b>不能改名稱與圖示</b>（拿掉鉛筆與相機角標，改到「設定 &gt; 用品管理」），<b>狀態標記放回摘要卡</b>，與列表一致（UT-35 不變）；③提醒卡拿掉狀態標題與副標題，改成<b>設定頁風格的列表卡：第一列是開關</b>，下面是預計補貨日、上次補貨；④按鈕照 Figma 元件：「記錄補貨」是主要鈕（深綠、＋圖示），「加入清單／查看清單」是次要鈕（淡綠底、深綠字），查看清單前面加清單圖示；⑤移除「基本資訊」；⑥<b>右上角垃圾桶改成「⋯」選單</b>（用品管理、刪除用品，同補貨頁的「⋯」）；⑦「加入清單」也加清單圖示；⑧只有 1 筆紀錄時也畫卡片，不再是孤零零的一行字，預計補貨日寫「再補貨 1 次後預估」；⑨「該補貨了」（含逾期）時，預計補貨日用<b>暖橘色</b>（同 pill 字色），其他狀態維持黑色；⑩「今天是預計補貨日」改成日期後綴「（今天）」；⑪補貨紀錄每列加 &gt; 箭頭（點進去可編輯或刪除）。⑫<b>不做延後提醒（暫時不用補貨）</b>：首頁移除後沒有入口，列為未來展望；系統誤報時，使用者可以關閉這個用品的提醒，或等實際購買後再記錄補貨。<br>
+  這是設計預覽，資料是示範用的假資料。</p>
+</header>
+
+<main class="board" id="board"></main>
+
+<script>
+const ASSETS = '../../../src/assets';
+const ICON_STATE = { overdue: 'restock-needed', dueSoon: 'due-soon', notNeeded: 'in-stock', reminderOff: 'in-stock' };
+const iconSrc = (key, state) => `${ASSETS}/household-icons-by-state/${state}/${key}-${state}.svg`;
+
+const CASES = {
+  overdueInList: { name: '垃圾袋', key: 'trash-bags', cat: '生活日用品', unit: '包', reminder: 'overdue', inList: true, enabled: true,
+    next: '2026/10/15', last: '2026/09/15', records: [['2026/09/15', 1], ['2026/08/16', 1], ['2026/07/17', 1]] },
+  notNeededInList: { name: '衛生紙', key: 'tissues', cat: '生活日用品', unit: '包', reminder: 'notNeeded', inList: true, enabled: true,
+    next: '2026/11/06', last: '2026/09/28', records: [['2026/09/28', 2], ['2026/08/17', 1], ['2026/07/05', 2]] },
+  dueSoon: { name: '洗衣精', key: 'laundry-detergent', cat: '洗衣', unit: '瓶', reminder: 'dueSoon', inList: false, enabled: true,
+    next: '2026/10/22', last: '2026/09/07', records: [['2026/09/07', 1], ['2026/07/24', 1], ['2026/06/09', 1]] },
+  reminderOff: { name: '海綿', key: 'sponge', cat: '清潔', unit: '個', reminder: 'reminderOff', inList: false, enabled: false,
+    next: null, last: '2026/09/27', records: [['2026/09/27', 1], ['2026/07/29', 1], ['2026/05/30', 1]] },
+  oneRecord: { name: '狗狗糧食', key: 'dog-food', cat: '寵物用品', unit: '包', reminder: 'none', inList: false, enabled: true, single: true,
+    next: null, last: '2026/09/22', records: [['2026/09/22', 1]] },
+  dueToday: { name: '洗碗精', key: 'dish-soap', cat: '廚房', unit: '瓶', reminder: 'dueSoon', inList: false, enabled: true, today: true,
+    next: '2026/10/17', last: '2026/09/07', records: [['2026/09/07', 1], ['2026/07/24', 1], ['2026/06/09', 1]] },
+  longName: { name: '超大包裝家庭號無香精柔軟洗衣精補充包', key: 'laundry-detergent', cat: '洗衣', unit: '瓶', reminder: 'overdue', inList: true, enabled: true,
+    next: '2026/10/15', last: '2026/09/07', records: [['2026/09/07', 1], ['2026/07/24', 1], ['2026/06/09', 1]] },
+};
+
+const COPY = {
+  notNeeded: { title: '尚未到補貨時間', icon: 'check', label: '下次預計補貨日', old: '接近下次補貨日時，我們會提醒你。', oldInList: '已加入購買清單，補貨完成後可記錄補貨。' },
+  dueSoon: { title: '該補貨了', icon: 'clock', label: '預計補貨日', old: '這項用品已進入提醒時間。' },
+  overdue: { title: '補貨時間已過', icon: 'clock', label: '預計補貨日', old: '這項用品已超過原本的補貨時間，可以加入清單或記錄補貨。', oldInList: '這項用品已超過原本的補貨時間，補貨完成後可以記錄補貨。' },
+  reminderOff: { title: '補貨提醒未開啟', icon: 'clock', label: '預計補貨日', old: '開啟提醒後，系統會在接近補貨日時通知你。', oldInList: '已加入購買清單，補貨完成後可記錄補貨。' },
+};
+const ICONS = {
+  check: '<svg viewBox="0 0 20 20"><path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  clock: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 6.5V10l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+const CHIP = '<span class="list-chip"><i class="fa-solid fa-clipboard-list"></i></span>';
+const DUE_PILL = '<span class="status-badge">該補貨了</span>';
+const LIST_PILL = '<span class="status-badge in-list"><i class="fa-solid fa-clipboard-list"></i>購買清單中</span>';
+const marksHtml = (c) => (c.reminder === 'overdue' || c.reminder === 'dueSoon') ? (c.inList ? CHIP : '') + DUE_PILL : (c.inList ? LIST_PILL : '');
+
+const GRID_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>';
+const chrome = (title, right = 'trash') => `<div class="status"><span>9:41</span><span class="batt"></span></div>
+  <div class="app-bar"><span class="icon-btn"><i class="fa-solid fa-chevron-left" style="font-size:14px"></i></span><h1>${title}</h1>${right === 'more' ? '<span class="more" role="button" aria-haspopup="menu" aria-label="更多"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></span>' : '<span class="del"><i class="fa-regular fa-trash-can"></i></span>'}</div>`;
+const summary = (c, { marks, editable, state }) => `<section class="summary-card">
+  <span class="summary-icon-wrap"><span class="summary-icon"><img src="${iconSrc(c.key, state)}" alt=""></span>${editable ? '<span class="cam"><i class="fa-solid fa-camera"></i></span>' : ''}</span>
+  <div class="summary-body"><div class="name-row"><h2 class="item-name">${c.name}</h2>${editable ? '<span class="pen"><i class="fa-solid fa-pen"></i></span>' : ''}</div><p class="item-meta">個人・${c.cat}</p></div>
+  ${marks ? `<div class="summary-status">${marks}</div>` : ''}
+</section>`;
+const actions = (c) => `<div class="actions"><span class="btn-secondary">記錄補貨</span>${c.inList ? '<span class="btn-primary">查看清單</span>' : '<span class="btn-primary"><i class="fa-solid fa-plus" style="font-size:12px"></i>加入清單</span>'}</div>`;
+const records = (c) => `<div class="records-head"><h2 class="section-title">補貨紀錄</h2></div><div class="list-card">${c.records.map(([d, q]) => `<div class="rec"><i class="dot"></i><b>${d}</b><span>+${q} ${c.unit}</span><i class="fa-solid fa-chevron-right"></i></div>`).join('')}</div>`;
+
+/* ---- 現在（UT-35 之後）---- */
+function oldFrame(f) {
+  const c = CASES[f.case]; const copy = COPY[c.reminder];
+  const desc = c.inList && copy.oldInList ? copy.oldInList : copy.old;
+  const iconState = ICON_STATE[c.reminder];
+  return `<div class="phone">${chrome('用品詳情')}<div class="page">
+    ${summary(c, { marks: marksHtml(c), editable: true, state: iconState })}
+    <div class="reminder"><h2 class="section-title">補貨提醒</h2>
+      <div class="status-card ${c.reminder}">
+        <div class="status-header"><span class="status-icon">${ICONS[copy.icon]}</span><div class="status-text"><h3>${copy.title}</h3><p>${desc}</p></div></div>
+        <div class="status-body">
+          <div class="info-row"><span class="info-label">${copy.label}</span><strong class="info-value">${c.next}</strong></div>
+          <div class="info-row"><span class="info-label">上次補貨</span><strong class="info-value">${c.last}</strong></div>
+          <div class="info-row"><span class="info-label">補貨提醒</span><span class="switch"></span></div>
+        </div></div></div>
+    ${actions(c)}
+    <h2 class="section-title">基本資訊</h2>
+    <div class="list-card">
+      <div class="info-row"><span class="info-label">所屬空間</span><span class="info-value">個人<i class="fa-solid fa-chevron-right"></i></span></div>
+      <div class="info-row"><span class="info-label">分類</span><span class="info-value">${c.cat}<i class="fa-solid fa-chevron-right"></i></span></div>
+      <div class="info-row"><span class="info-label">補貨單位</span><span class="info-value">${c.unit}<i class="fa-solid fa-chevron-right"></i></span></div>
+    </div></div></div>`;
+}
+
+/* ---- 新版（v4）---- */
+const LIST_ICON = '<i class="fa-solid fa-clipboard-list" style="font-size:14px"></i>';
+const newActions = (c) => `<div class="actions"><span class="btn-sub">${LIST_ICON}${c.inList ? '查看清單' : '加入清單'}</span><span class="btn-main"><i class="fa-solid fa-plus" style="font-size:14px"></i>記錄補貨</span></div>`;
+const menuHtml = `<div class="more-pop" role="menu" aria-label="更多">
+  <div class="more-opt" role="menuitem">${GRID_SVG}<span>用品管理</span></div>
+  <div class="more-div"></div>
+  <div class="more-opt danger" role="menuitem"><i class="fa-regular fa-trash-can"></i><span>刪除用品</span></div>
+</div>`;
+function newFrame(f) {
+  const c = CASES[f.case]; const copy = COPY[c.reminder] ?? COPY.notNeeded;
+  const helpParts = [];
+  const rows = [];
+  const due = c.reminder === 'overdue' || c.reminder === 'dueSoon';
+  if (c.single) rows.push(['預計補貨日', '<span style="color:var(--text-sub);font-weight:400">再補貨 1 次後預估</span>']);
+  else if (c.enabled && c.next) rows.push([copy.label, c.next + (c.today ? '（今天）' : ''), due]);
+  rows.push(['上次補貨', c.last]);
+  const switchRow = c.single ? '' : `<div class="info-row"><span class="info-label">補貨提醒</span><span class="switch${c.enabled ? '' : ' off'}" role="switch" aria-checked="${c.enabled}" aria-label="補貨提醒"></span></div>`;
+  const card = `<div class="rem-card">
+      ${switchRow}
+      ${helpParts.length ? `<p class="rem-help">${helpParts.join('・')}</p>` : ''}
+      ${rows.map(([l, v, d]) => `<div class="info-row"><span class="info-label">${l}</span><strong class="info-value${d ? ' due' : ''}">${v}</strong></div>`).join('')}
+    </div>`;
+  return `<div class="phone new">${chrome('補貨明細', 'more')}<div class="page">
+    ${summary(c, { marks: marksHtml(c), editable: false, state: ICON_STATE[c.reminder] ?? 'in-stock' })}
+    ${card}
+    ${newActions(c)}
+    ${records(c)}
+  </div>${f.menu ? menuHtml : ''}</div>`;
+}
+
+const FRAMES = [
+  { cap: '① 現在：該補貨了＋已在清單', sub: '橘（pill）、綠（圓圈、相機角標）、紅（提醒卡圖示）；狀態說三次（摘要卡、卡片標題、副標題）；開關夾在資訊列中間；名稱與圖示可改；有「基本資訊」。', render: oldFrame, case: 'overdueInList' },
+  { cap: '② 新：該補貨了＋已在清單', sub: '摘要卡：圖示、名稱、「個人・分類」、狀態標記（與列表相同）；沒有鉛筆與相機角標。右上角是「⋯」。提醒卡是設定頁風格，第一列是開關；<b>預計補貨日是暖橘色</b>（該補貨了）。按鈕：次要「查看清單」（清單圖示）、主要「記錄補貨」（＋）。', render: newFrame, case: 'overdueInList' },
+  { cap: '③ 新：沒到補貨期＋已在清單', sub: '綠色「購買清單中」pill（帶圖示）；預計補貨日標籤是「下次預計補貨日」，日期維持黑色（還沒到補貨期）。', render: newFrame, case: 'notNeededInList' },
+  { cap: '④ 新：只有該補貨了', sub: '只有橘色 pill；次要鈕「加入清單」也有清單圖示，與「查看清單」一致，只有文字不同。', render: newFrame, case: 'dueSoon' },
+  { cap: '⑤ 新：提醒未開啟', sub: '開關是關的（灰）；依現有規則（FR-005）不顯示預計補貨日，只留「上次補貨」；沒有狀態標記。', render: newFrame, case: 'reminderOff' },
+  { cap: '⑥ 新：只有 1 筆紀錄', sub: '推算不出下次補貨日：卡片仍在，版面與其他狀態一致；沒有開關列（開關沒有意義，沿用 FR-913）；預計補貨日的值是灰色的「再補貨 1 次後預估」；也看得到「上次補貨」。', render: newFrame, case: 'oneRecord' },
+  { cap: '⑦ 新：今天是預計補貨日', sub: '「今天是預計補貨日」改成預計補貨日後面的「（今天）」，一樣是暖橘色，不再有開關下方的小字。', render: newFrame, case: 'dueToday' },
+  { cap: '⑧ 新：點右上角「⋯」', sub: '選單：用品管理（格狀圖示，同補貨頁）、分隔線、刪除用品（紅字）。「用品管理」前往設定 > 用品管理，名稱、圖示、分類在那裡改；返回回到補貨明細。', render: newFrame, case: 'overdueInList', menu: true },
+  { cap: '⑨ 新：名稱很長（360px）', sub: '標記回到摘要卡，名稱區約 124px（360px 寬）。對照：現在同樣情況（有鉛筆）約 88px，拿掉鉛筆多出約 36px，長名稱比現在少換行。', render: newFrame, case: 'longName', narrow: true },
+];
+
+const frameHtml = (f) => `<section class="frame-wrap${f.narrow ? ' narrow' : ''}"><h2 class="cap">${f.cap}</h2><p class="cap-sub">${f.sub}</p>${f.render(f)}</section>`;
+
+const zoomHtml = `<section class="frame-wrap">
+  <h2 class="cap">⑩ 資訊去向與樣式</h2>
+  <p class="cap-sub">舊版的每一項資訊，在新版的哪裡；按鈕與資訊列的樣式。</p>
+  <div class="zoom">
+    <table>
+      <thead><tr><th>舊版</th><th>新版</th></tr></thead>
+      <tbody>
+        <tr><td>頁面標題「用品詳情」</td><td>「補貨明細」（頁首、瀏覽器分頁標題）</td></tr>
+        <tr><td>右上角垃圾桶</td><td>「⋯」選單：用品管理、刪除用品（紅字）。刪除仍有確認視窗，只是多一步</td></tr>
+        <tr><td>名稱旁的鉛筆、圖示上的相機角標</td><td>移除。名稱與圖示改到「設定 &gt; 用品管理」（從「⋯」進入），會同步到各空間</td></tr>
+        <tr><td>摘要卡右上角狀態標記</td><td>保留（UT-35），與列表一致</td></tr>
+        <tr><td>提醒卡狀態標題、圖示、副標題</td><td>移除，狀態由摘要卡標記表達。「今天是預計補貨日」改成預計補貨日後面的「（今天）」；「已延後提醒至…」不顯示（不做延後提醒）</td></tr>
+        <tr><td>提醒開關（資訊列最後一列）</td><td>卡片第一列，同設定頁「推播通知」的樣式</td></tr>
+        <tr><td>暫時不用補貨（spec 005，首頁移除後沒有入口）</td><td><b>不做</b>，列為未來展望。系統誤報時：關閉這個用品的提醒（開關），或等實際購買後再記錄補貨，系統會用全部紀錄重算</td></tr>
+        <tr><td>補貨紀錄列</td><td>每列右側加 &gt; 箭頭，提示可以點進去編輯或刪除（同設定頁的列）</td></tr>
+        <tr><td>基本資訊（空間、分類、單位）</td><td>移除。空間與分類看摘要卡「個人・分類」；單位看補貨紀錄「+1 瓶」；改分類與單位到用品管理</td></tr>
+        <tr><td>按鈕：記錄補貨（灰）／加入清單（綠）</td><td>照 Figma：記錄補貨＝主要（深綠＋）；加入清單／查看清單＝次要（淡綠底、深綠字、前面都有清單圖示）；左右位置對調</td></tr>
+        <tr><td>只有 1 筆紀錄的提示「再補貨 1 次，就能推算下次補貨日」</td><td>改成卡片：預計補貨日的值寫「再補貨 1 次後預估」（灰色），並顯示上次補貨；沒有開關列</td></tr>
+        <tr><td>預計補貨日的顏色</td><td>提醒狀態是「該補貨了」（含逾期）時用暖橘色 <code>$accent-text</code>（同 pill 字色，不用紅色）；其他狀態維持黑色</td></tr>
+      </tbody>
+    </table>
+    <h3 style="margin-top:18px">資訊列字級（放大 1.35 倍）</h3>
+    <div class="rows"><div class="info-row"><span class="info-label">預計補貨日（舊 14／14px）</span><strong class="info-value">2026/10/15</strong></div></div>
+    <div class="rows rem-card" style="box-shadow:none;padding:0"><div class="info-row"><span class="info-label">預計補貨日（新 16／16px）</span><strong class="info-value">2026/10/15</strong></div></div>
+    <p class="note">標籤 14→16px 且改用 <code>$text-main</code>（同設定頁列標籤）、數值 14→16px、列高 48→52px。按鈕高 48px，次要鈕底色 <code>$primary-subtle</code>、字色 <code>#244f34</code>（Figma <code>color/brand/dark</code>）。</p>
+  </div>
+</section>`;
+
+const board = document.getElementById('board');
+const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+FRAMES.forEach((f) => board.append(h(frameHtml(f))));
+board.append(h(zoomHtml));
+</script>
+</body>
+</html>
