@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>用品詳情｜購買清單標記 介面草稿 v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+/* ---------- tokens（取自 src/assets/scss/_tokens.scss） ---------- */
+:root {
+  --bg-main: #efebe3;
+  --card-bg: #fcfbf8;
+  --input-bg: #f6f5f1;
+  --primary: #3f6f3b;
+  --primary-subtle: #e4f2e8;
+  --accent-orange: #ff9e42;
+  --accent-text: #9a5510;
+  --badge-orange: #ffebd7;
+  --danger: #b83a26;
+  --success-subtle: #f0f2ec;
+  --text-main: #1d1d1f;
+  --text-body: #5a5a5f;
+  --text-sub: #6e6e73;
+  --text-button-secondary: #636c65;
+  --border: #e7e7e3;
+  --icon-circle: #f5f5f6;
+  --font: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  --shadow-raised: -2px -2px 4px rgba(249,249,249,.6), 2px 3px 6px rgba(143,134,114,.2);
+  --shadow-primary: -3px -3px 6px rgba(249,249,249,.4), 4px 5px 10px rgba(42,74,39,.4), inset 1.5px 2px 3px rgba(31,58,29,.35), inset -1.5px -1.5px 3px rgba(255,255,255,.15);
+  --shadow-card: -3px -3px 8px rgba(249,249,249,.3), 6px 8px 18px rgba(143,134,114,.22);
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); padding: 32px 16px 64px; }
+button { font: inherit; color: inherit; border: 0; background: none; }
+.page-head { max-width: 1500px; margin: 0 auto 28px; }
+.page-head h1 { font-size: 24px; }
+.page-head p { margin-top: 6px; color: var(--text-body); font-size: 14px; line-height: 1.6; max-width: 940px; }
+.board { max-width: 1500px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px 32px; justify-content: center; align-items: flex-start; }
+.frame-wrap { width: 390px; }
+.frame-wrap.narrow { width: 360px; }
+.cap { font-size: 16px; margin-bottom: 4px; }
+.cap-sub { font-size: 13px; color: var(--text-body); line-height: 1.55; margin-bottom: 14px; min-height: 60px; }
+
+/* ---------- 手機外框與頁面（對照 ItemDetailView） ---------- */
+.phone { position: relative; width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg-main); border-radius: 44px; outline: 8px solid #2b2a28; overflow: hidden; }
+.narrow .phone { width: 360px; }
+.status { height: 44px; padding: 14px 28px 0; display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; flex: none; }
+.batt { width: 24px; height: 12px; border: 1.5px solid var(--text-main); border-radius: 4px; position: relative; margin-top: 3px; }
+.batt::after { content: ""; position: absolute; inset: 1.5px; background: var(--text-main); border-radius: 1.5px; }
+.page { flex: 1; min-height: 0; padding: 4px 16px 0; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+.app-bar { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; height: 48px; flex: none; }
+.app-bar h1 { text-align: center; font-size: 17px; font-weight: 700; }
+.icon-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--card-bg); box-shadow: var(--shadow-raised); display: grid; place-items: center; }
+.app-bar .del { color: var(--text-sub); text-align: right; padding-right: 8px; }
+
+/* 用品摘要卡 */
+.summary-card { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border-radius: 28px; background: var(--card-bg); box-shadow: var(--shadow-card); flex: none; }
+.summary-icon-wrap { position: relative; flex: 0 0 52px; }
+.summary-icon { display: block; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: var(--icon-circle); box-shadow: inset -2.308px -2.308px 4.615px rgba(255,255,255,.9), inset 2.308px 2.308px 4.615px rgba(184,131,90,.22); }
+.summary-icon img { display: block; width: 52px; height: 52px; object-fit: contain; }
+.cam { position: absolute; left: -2px; bottom: -4px; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 10px; border: 2px solid var(--card-bg); }
+.summary-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.name-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.item-name { min-width: 0; overflow-wrap: anywhere; font-size: 20px; font-weight: 700; line-height: 28px; }
+.pen { flex: none; width: 32px; height: 32px; display: grid; place-items: center; color: var(--text-body); font-size: 13px; }
+.item-meta { color: var(--text-sub); font-size: 14px; line-height: 20px; }
+.summary-status { flex: none; display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.status-badge { flex-shrink: 0; padding: 3px 9px; border-radius: 999px; background: var(--badge-orange); color: var(--accent-text); font-size: 12px; font-weight: 500; line-height: 18px; white-space: nowrap; }
+.status-badge.in-list { display: inline-flex; align-items: center; gap: 4px; background: var(--primary-subtle); color: var(--primary); }
+.status-badge.in-list i { font-size: 11px; }
+/* 目前（舊規則）：購買清單優先，用品一在清單就整顆變成「購買清單中」 */
+.status-badge.plain-list { background: var(--primary-subtle); color: var(--primary); }
+.list-chip { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-subtle); color: var(--primary); font-size: 12px; }
+
+/* 補貨提醒區 */
+.section-title { font-size: 16px; font-weight: 700; padding: 0 4px; line-height: 22px; flex: none; }
+.reminder { display: flex; flex-direction: column; gap: 8px; flex: none; }
+.status-card { padding: 20px; display: flex; flex-direction: column; gap: 12px; border-radius: 28px; background: var(--card-bg); box-shadow: var(--shadow-card); }
+.status-header { display: flex; align-items: flex-start; gap: 12px; }
+.status-icon { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--icon-bg); color: var(--icon-color); }
+.status-icon svg { width: 20px; height: 20px; }
+.status-card.notNeeded { --icon-bg: var(--success-subtle); --icon-color: var(--primary); }
+.status-card.dueSoon { --icon-bg: #ffebd7; --icon-color: var(--accent-orange); }
+.status-card.overdue { --icon-bg: #fde3df; --icon-color: var(--danger); }
+.status-text h3 { font-size: 20px; font-weight: 700; line-height: 28px; }
+.status-text p { margin-top: 4px; color: var(--text-body); font-size: 14px; line-height: 22px; }
+.status-body { border-top: 1px solid var(--border); padding-top: 8px; }
+.info-row { min-height: 48px; padding: 8px 0; display: flex; align-items: center; gap: 8px; }
+.info-row + .info-row { border-top: 1px solid var(--border); }
+.info-label { flex: 1; color: var(--text-body); font-size: 14px; line-height: 20px; }
+.info-value { font-size: 14px; font-weight: 700; line-height: 20px; }
+.switch { width: 52px; height: 32px; border-radius: 16px; background: var(--primary); position: relative; box-shadow: inset 1px 2px 4px rgba(0,0,0,.2); }
+.switch::after { content: ""; position: absolute; top: 3px; right: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.actions { display: flex; gap: 8px; flex: none; }
+.btn-secondary, .btn-primary { flex: 1; min-height: 44px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-secondary { background: var(--input-bg); box-shadow: var(--shadow-raised); color: var(--text-button-secondary); font-size: 15px; font-weight: 500; }
+.btn-primary { background: var(--primary); color: #fff; box-shadow: var(--shadow-primary); font-size: 16px; font-weight: 700; }
+.info-card { border-radius: 28px; background: var(--card-bg); box-shadow: var(--shadow-card); padding: 0 16px; flex: none; }
+.info-card .info-row { min-height: 48px; }
+.info-card .info-value { display: flex; align-items: center; gap: 8px; }
+.info-card .info-value i { color: var(--text-disabled, #a1a1a6); font-size: 12px; }
+
+/* ---------- 特寫面板 ---------- */
+.zoom { width: 390px; background: var(--card-bg); border-radius: 22px; box-shadow: var(--shadow-card); padding: 20px; }
+.zoom h3 { font-size: 15px; margin-bottom: 14px; }
+.zoom table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-body); }
+.zoom th { text-align: left; font-weight: 500; padding: 0 0 8px; color: var(--text-sub); font-size: 12px; }
+.zoom td { padding: 12px 0; border-top: 1px solid var(--border); vertical-align: middle; }
+.zoom td:first-child { width: 96px; line-height: 1.5; }
+.zoom .cell { display: flex; align-items: center; gap: 6px; zoom: 1.6; }
+.zoom .note { font-size: 12px; color: var(--text-sub); line-height: 1.6; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>用品詳情｜購買清單標記 介面草稿 v1</h1>
+  <p>與「我的用品」列表套用同一套規則（方案 A+，UT-35）：<b>右上角的 pill 顯示最重要的一個狀態</b>（該補貨了 &gt; 購買清單中）；只有「該補貨了＋已在清單」同時成立時，才在 pill 前面加圓形標記。<br>
+  現在詳情頁是「購買清單優先」：用品一加入清單，右上角就變成「購買清單中」，但下方提醒卡仍寫「補貨時間已過」，兩邊對不起來。<br>
+  下方提醒卡與按鈕（查看清單／加入清單）沒有改動。這是設計預覽，資料是示範用的假資料。</p>
+</header>
+
+<main class="board" id="board"></main>
+
+<script>
+const ASSETS = '../../../src/assets';
+const ICON_STATE = { overdue: 'restock-needed', dueSoon: 'due-soon', notNeeded: 'in-stock' };
+const iconSrc = (key, reminder) => `${ASSETS}/household-icons-by-state/${ICON_STATE[reminder]}/${key}-${ICON_STATE[reminder]}.svg`;
+const chevron = `${ASSETS}/settings/chevron.svg`;
+
+// reminder：overdue／dueSoon／notNeeded（提醒卡跟著它）；inList：已在購買清單
+const CASES = {
+  overdueInList: { name: '垃圾袋', key: 'trash-bags', cat: '生活日用品', unit: '包', reminder: 'overdue', inList: true,
+    next: '2026/10/15', last: '2026/09/15', records: ['2026/09/15', '2026/08/16'] },
+  notNeededInList: { name: '衛生紙', key: 'tissues', cat: '生活日用品', unit: '包', reminder: 'notNeeded', inList: true,
+    next: '2026/11/06', last: '2026/09/28', records: ['2026/09/28', '2026/08/17'] },
+  dueSoonNotInList: { name: '洗衣精', key: 'laundry-detergent', cat: '洗衣', unit: '瓶', reminder: 'dueSoon', inList: false,
+    next: '2026/10/22', last: '2026/09/07', records: ['2026/09/07', '2026/07/24'] },
+  longName: { name: '超大包裝家庭號無香精柔軟洗衣精補充包', key: 'laundry-detergent', cat: '洗衣', unit: '瓶', reminder: 'overdue', inList: true,
+    next: '2026/10/15', last: '2026/09/07', records: ['2026/09/07', '2026/07/24'] },
+};
+
+const COPY = {
+  notNeeded: { title: '尚未到補貨時間', desc: '接近下次補貨日時，我們會提醒你。', inList: '已加入購買清單，補貨完成後可記錄補貨。', icon: 'check', label: '下次預計補貨日' },
+  dueSoon: { title: '該補貨了', desc: '這項用品已進入提醒時間。', icon: 'clock', label: '預計補貨日' },
+  overdue: { title: '補貨時間已過', desc: '這項用品已超過原本的補貨時間，可以加入清單或記錄補貨。', inList: '這項用品已超過原本的補貨時間，補貨完成後可以記錄補貨。', icon: 'clock', label: '預計補貨日' },
+};
+const ICONS = {
+  check: '<svg viewBox="0 0 20 20"><path d="M5 10.5l3.2 3.2L15 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  clock: '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 6.5V10l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+const CHIP = '<span class="list-chip" role="img" aria-label="已在購買清單"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></span>';
+const LIST_PILL = '<span class="status-badge in-list"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>購買清單中</span>';
+const DUE_PILL = '<span class="status-badge">該補貨了</span>';
+
+// 右上角狀態：old＝購買清單優先；new＝方案 A+
+function statusHtml(c, mode) {
+  if (mode === 'old') return c.inList ? '<span class="status-badge plain-list">購買清單中</span>' : (c.reminder === 'notNeeded' ? '' : DUE_PILL);
+  if (c.reminder !== 'notNeeded') return (c.inList ? CHIP : '') + DUE_PILL;
+  return c.inList ? LIST_PILL : '';
+}
+
+function frameHtml(f) {
+  const c = CASES[f.case];
+  const copy = COPY[c.reminder];
+  const desc = c.inList && copy.inList ? copy.inList : copy.desc;
+  // 圖示依提醒狀態（與列表一致）；舊規則則是購買清單優先
+  const iconState = f.mode === 'old' && c.inList ? 'in-shopping-list' : ICON_STATE[c.reminder];
+  const icon = `${ASSETS}/household-icons-by-state/${iconState}/${c.key}-${iconState}.svg`;
+  return `<section class="frame-wrap${f.narrow ? ' narrow' : ''}">
+    <h2 class="cap">${f.cap}</h2><p class="cap-sub">${f.sub}</p>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span class="batt" aria-hidden="true"></span></div>
+      <div class="page">
+        <div class="app-bar"><span class="icon-btn"><i class="fa-solid fa-chevron-left" style="font-size:14px"></i></span><h1>用品詳情</h1><span class="del"><i class="fa-regular fa-trash-can"></i></span></div>
+        <section class="summary-card" aria-label="用品摘要">
+          <span class="summary-icon-wrap"><span class="summary-icon"><img src="${icon}" alt=""></span><span class="cam"><i class="fa-solid fa-camera"></i></span></span>
+          <div class="summary-body"><div class="name-row"><h2 class="item-name">${c.name}</h2><span class="pen"><i class="fa-solid fa-pen"></i></span></div><p class="item-meta">個人・${c.cat}</p></div>
+          <div class="summary-status">${statusHtml(c, f.mode)}</div>
+        </section>
+        <div class="reminder">
+          <h2 class="section-title">補貨提醒</h2>
+          <div class="status-card ${c.reminder}">
+            <div class="status-header"><span class="status-icon">${ICONS[copy.icon]}</span><div class="status-text"><h3>${copy.title}</h3><p>${desc}</p></div></div>
+            <div class="status-body">
+              <div class="info-row"><span class="info-label">${copy.label}</span><strong class="info-value">${c.next}</strong></div>
+              <div class="info-row"><span class="info-label">上次補貨</span><strong class="info-value">${c.last}</strong></div>
+              <div class="info-row"><span class="info-label">補貨提醒</span><span class="switch"></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="actions"><span class="btn-secondary">記錄補貨</span>${c.inList ? '<span class="btn-primary">查看清單</span>' : '<span class="btn-primary"><i class="fa-solid fa-plus" style="font-size:12px"></i>加入清單</span>'}</div>
+        <h2 class="section-title">基本資訊</h2>
+        <div class="info-card">
+          <div class="info-row"><span class="info-label">所屬空間</span><span class="info-value">個人<i class="fa-solid fa-chevron-right"></i></span></div>
+          <div class="info-row"><span class="info-label">分類</span><span class="info-value">${c.cat}<i class="fa-solid fa-chevron-right"></i></span></div>
+          <div class="info-row"><span class="info-label">補貨單位</span><span class="info-value">${c.unit}<i class="fa-solid fa-chevron-right"></i></span></div>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+
+const FRAMES = [
+  { cap: '① 現在：該補貨了＋已在清單', sub: '右上角顯示「購買清單中」，但提醒卡寫「補貨時間已過」，兩處說的不一樣；使用者看不出這項其實也逾期了。', case: 'overdueInList', mode: 'old' },
+  { cap: '② 新：該補貨了＋已在清單', sub: '圓形標記＋「該補貨了」，與提醒卡一致；按鈕「查看清單」同時說明已在清單。與列表同規則。', case: 'overdueInList', mode: 'new' },
+  { cap: '③ 新：沒到補貨期、已在清單', sub: '綠色「購買清單中」pill（帶同一個圖示）。提醒卡仍是「尚未到補貨時間」，說明「已加入購買清單…」。', case: 'notNeededInList', mode: 'new' },
+  { cap: '④ 新：只有該補貨了', sub: '只有橘色「該補貨了」pill，沒有標記。按鈕是「加入清單」。', case: 'dueSoonNotInList', mode: 'new' },
+  { cap: '⑤ 新：名稱很長', sub: '名稱換行（詳情頁不省略）；圓形標記與 pill 固定在右上角，名稱區約 150px。', case: 'longName', mode: 'new' },
+  { cap: '⑥ 新：窄螢幕 360px', sub: '同 ⑤ 的資料，在較窄的手機上，名稱區約 120px，會多換幾行。', case: 'longName', mode: 'new', narrow: true },
+];
+
+const zoomHtml = `<section class="frame-wrap">
+  <h2 class="cap">⑦ 列表與詳情：同一套規則</h2>
+  <p class="cap-sub">四種組合在兩個頁面看到的狀態標記完全相同（放大 1.6 倍）。</p>
+  <div class="zoom">
+    <table>
+      <thead><tr><th>狀態</th><th>列表右側／詳情右上角</th></tr></thead>
+      <tbody>
+        <tr><td>該補貨了<br>＋已在清單</td><td><span class="cell">${CHIP}${DUE_PILL}</span></td></tr>
+        <tr><td>只有<br>該補貨了</td><td><span class="cell">${DUE_PILL}</span></td></tr>
+        <tr><td>只有<br>已在清單</td><td><span class="cell">${LIST_PILL}</span></td></tr>
+        <tr><td>都沒有</td><td><span style="color:#a1a1a6;font-size:12px">（不顯示）</span></td></tr>
+      </tbody>
+    </table>
+    <p class="note">詳情頁用品大圖示也和列表一樣，依提醒狀態變化（不再因為已在清單就換成「購買清單版」圖示）。</p>
+  </div>
+</section>`;
+
+const board = document.getElementById('board');
+const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+FRAMES.forEach((f) => board.append(h(frameHtml(f))));
+board.append(h(zoomHtml));
+</script>
+</body>
+</html>
