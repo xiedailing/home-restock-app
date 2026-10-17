@@ -74,8 +74,8 @@
 ### FR-1007｜共用元件與函式
 - `models/item.js` 新增 `getStatusMarks(reminderStatus, inShoppingList)`，回傳 `{ pill: 'overdue' | 'dueSoon' | 'inShoppingList' | null, showListMark: boolean }`（FR-1001 的表）；純函式，不碰 store。
 - 新增 `components/items/StatusMarks.vue`：吃 `getStatusMarks` 的結果，畫圓圈與 pill；`ItemListRow.vue` 與 `ItemDetailView.vue` 共用，兩處不再各自判斷。
-- `hasStatusBadge` 與 `STATUS_LABELS` 的使用處隨之調整；`STATUS_LABELS` 保留（購買清單、首頁仍用）。
-- `InventoryView.vue` 的 `displayItems`（UT-31 的個人空間覆寫狀態）移除：每個用品同時帶 `reminderStatus` 與 `inShoppingList`，列表不再覆寫 `status`。
+- `hasStatusBadge` 不再有使用處，已移除；`STATUS_LABELS` 保留（購買清單、首頁、`StatusMarks` 仍用）。
+- `InventoryView.vue` 的 `displayItems`（UT-31 的個人空間覆寫狀態）移除：`stores/items.js` 的 `itemsWithStatus` 每個用品多帶 `reminderStatus`（保留原本的 `status`，首頁提醒等處仍用），列表不再覆寫 `status`。
 
 ## 取代的既有規則
 | 原規則 | 位置 | 本規格 |
@@ -117,4 +117,5 @@
 
 ## 未決與不做
 - 不做：圓圈與 pill 可點、名稱單行（方案 B、C 已比較，見預覽）、名稱過長時標記自動換行。
+- **窄螢幕的詳情摘要卡**：360px 寬、「該補貨了＋已在清單」時，右上角標記約 98px，名稱區只剩約 70～85px（約 4 個字，名稱會換多行，「個人・類別」也可能換行）。預覽 ⑥ 已呈現這個樣子，目前接受；若實機覺得太窄，可在 375px 以下把標記移到名稱下方第二列。
 - 設計稿：只有 HTML 預覽，沒有 Figma 稿；`design/inventory-list-v4.html` 保留方案 A、B、C 作為比較紀錄。
