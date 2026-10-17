@@ -35,7 +35,7 @@ export const useUnitOptionsStore = defineStore('unit-options', () => {
     let restored = false
     function undo() {
       if (restored) return { ok: false, message: '此單位已復原。' }
-      if (customUnits.value.includes(value)) return { ok: false, message: '已有相同單位，無須重複復原。' }
+      if (isNameTaken(value)) return { ok: false, code: 'NAME_TAKEN', message: '已有相同名稱的單位，無法復原。' }
       const next = [...customUnits.value]
       next.splice(Math.min(index, next.length), 0, value)
       const result = commit(next)

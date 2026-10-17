@@ -1,5 +1,7 @@
 # 補補 Bubu｜通知頁面功能規則 V2
 
+最新驗證：178 項測試與 Build 通過。本分支已完成通知 V2 及整合修正，待組員審查；目前 API、存檔順序、測試與剩餘限制以 `NOTIFICATION_V2_HANDOFF.md` 最後兩節為準。用品保存後、通知首次入列前程序中斷仍可能漏發，尚無跨 Key outbox。下方「待確認」為規格驗收事項，不表示對應程式尚未實作。
+
 狀態：通知 V2 已於 feature/final-integration 本機整合，待組員驗收；完成狀態與限制見 NOTIFICATION_V2_HANDOFF.md。2026-10-18 已依使用者最新決定確認延後建立、鈴鐺查看狀態及全部已讀三項規則。
 
 來源：使用者提供的 `/Users/mei/Downloads/bubu-notification-rules.html`。原始 HTML 完整保存在 [規格來源](sources/bubu-notification-rules-v2.html)，包含組員確認清單及版面示例。以下依原文件整理，後續口頭調整另外列出，不暗改原規則。
@@ -164,38 +166,6 @@ HTML 樣式示例包含「今天 10:30｜未讀」「昨天 18:20｜已讀」，
 
 原 HTML 的勾選只存在目前瀏覽器畫面，不代表其他組員確認，也不代表已實作。
 
-## 資料結構檢查：現況與必要擴充（設計，未實作）
+## 最新決定：發送當下接收者與事件驗證
 
-檢查對象：`feature/final-integration/src/stores/sharedNotifications.js`。目前為最小補貨通知 Store，只有 `records`，`publishMemberEvent()` 立即 push 已補貨通知。沒有待發送批次、截止時間、事件去重表或正式查看／已讀 API。舊 WIP 有單一 `read/seen` 與 `markAllSeen()`，但未依收件人區分，也未具備 60 秒批次。
-
-| 資料 | 建議欄位／責任 | 相容與保護 |
-| --- | --- | --- |
-| 待發送批次 | `pendingBatches[]`：固定 `id`、`actorId`、`spaceId`、`type`、`firstEventAt`、`deadlineAt`、`recipientIds`、事件與用品名稱快照 | 第一筆即保存，後續不改 deadline；不混入可見 records |
-| 批次事件 | `events[]`：穩定 `eventId`、`itemId`、事件時間／名稱快照；補貨另含 `recordId` | 用品按 ID 計數、事件按 ID 去重；取消／Undo 只刪對應成功操作，不修改用品本體 |
-| 正式通知 | 保留現有 `id/type/source/message/createdAt/recipientIds`，增加 `batchId`、事件 IDs、用品 IDs／快照與原事件時間 | 可以由 batchId 決定穩定通知 ID；到期保存 records 與移除 pending 必須同一次通知 Key 寫入 |
-| 收件人狀態 | 例如 `recipientState[memberId] = { seen: false, read: false }` | 進頁僅改 seen；點單筆／全部已讀改 read；不得跨收件人改狀態 |
-| 發布去重 | 已完成批次／事件識別，或可驗證等效方案 | 重整、重複排程或取消後再操作，不得重複建立通知；取消後再認領須是新操作事件 |
-
-上表是最小資料責任建議，不是宣稱 API 已存在。正式欄位命名與排程 API 在程式階段定案。
-
-### 持久化與重整
-
-- 沿用 `STORE_KEYS.sharedNotifications`；目前 Key 已存在，不需修改 `STORAGE_VERSION`、Catalog journal 或單位 Store。
-- 舊存檔沒有 pending 欄位時視為空陣列，不能將既有正式通知重新排入等待。
-- 保留未知存檔欄位、合法舊通知、原文及建立時間；不因缺 IDs／新狀態表而刪除歷史或重建 demo。
-- 舊單筆 read／seen 如何映射多收件人資料仍待程式階段確定，不能把一人的已讀直接當所有人已讀。
-- 先建下一份通知狀態，確認同一通知 Key 寫入成功後才套用記憶體；發布失敗不能先亮圓點或先清除 pending。
-- 不以跨 Key 完整交易保證作宣稱；補貨成功／Undo 成功與通知入列／取消之間的故障，需保存可追查錯誤，發布前再以用品／紀錄 ID 校驗，不能為通知重做補貨。
-- 啟動／回到前景恢復已保存批次，依原 deadline 排程；到期先處理固定視窗，不因新事件到來延長。清理計時器避免重複回呼。
-
-### 本次驗證界線
-
-本次僅更新規格與資料結構分析，未修改通知 Store／補貨／認領／單位週期程式。執行的現有測試與 Build 是相容性基準，不代表上述 60 秒、seen/read、全部已讀新規則已完成驗收；正式實作後須新增假時鐘、重整去重、59 秒取消、每收件人狀態及存檔失敗測試。
-
-## 實作進度更新（2026-10-18）
-
-先行完成「已補貨」持久化待發送、固定 60 秒合併、復原取消、重整恢復及穩定 ID 去重；見 [補貨通知交接](RESTOCK_NOTIFICATION_DELAY_HANDOFF.md)。上方「本次僅更新規格」描述的是前次規格工作；本次新增此項程式實作。認領／接手、鈴鐺查看與全部已讀、通知頁 V2 尚未實作，不視為整體驗收完成。
-
-## 通知 V2 實作更新（2026-10-18）
-
-前述「尚未實作／待實作」是分析階段記錄。本機 feature/final-integration 現已完成四類通知、三類操作固定 60 秒、取消與 Undo、每收件者 seen/read、全部已讀、導航例外及六個月保留；實際 API、148 項回歸及限制詳見 [NOTIFICATION_V2_HANDOFF.md](NOTIFICATION_V2_HANDOFF.md)。未 Commit／Push，不代表原分支或其他裝置已更新。
+本節取代先前接收者於事件建立時固定的規則。已認領、已接手及已補貨仍於第一筆事件起固定 60 秒發送；到期依目前有效空間成員及有效事件決定內容，排除操作者。新成員可收到目前有效事件，退出成員不收到。無有效事件、無有效接收者或舊事件無法安全確認時不建立通知並保留可追查原因。已發送通知及個別 seen/read 不回溯修改。不新增個人認購提醒類型或新計時規則。實作細節見 `docs/NOTIFICATION_RECIPIENT_PLAN.md`。

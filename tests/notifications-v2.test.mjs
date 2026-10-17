@@ -28,7 +28,7 @@ test('notification V2 integration', async t => {
   const piniaInstances = []
   try {
     const { useItemsStore } = await server.ssrLoadModule('/src/stores/items.js')
-    const { useSharedNotificationsStore } = await server.ssrLoadModule('/src/stores/sharedNotifications.js')
+    const { useSharedNotificationsStore, registerRestockNotificationSource } = await server.ssrLoadModule('/src/stores/sharedNotifications.js')
     const { createItem } = await server.ssrLoadModule('/src/models/item.js')
     const { STORAGE_VERSION } = await server.ssrLoadModule('/src/utils/persist.js')
     const { notificationDestination } = await server.ssrLoadModule('/src/utils/notificationNavigation.js')
@@ -37,7 +37,9 @@ test('notification V2 integration', async t => {
     const encode = data => JSON.stringify({ version: STORAGE_VERSION, data })
     const close = () => { for (const pinia of piniaInstances) for (const store of [...pinia._s.values()]) store.$dispose() }
     const fresh = () => {
-      close(); memory.clear(); install('localStorage', storage)
+      // Drain earlier fixture savers before replacing storage; pagehide must not replay a disposed store.
+      install('localStorage', storage); window.dispatchEvent(new Event('pagehide'))
+      close(); memory.clear()
       const items = ['甲', '乙', '丙'].map((name, i) => createItem({ id: `i${i}`, name, unit: '包', category: '生活日用品',
         spaceId: 'family', inShoppingList: true, shoppingClaimantId: null }))
       memory.set(key('items'), encode({ items, spaces: [{ id: 'personal', name: '個人', shared: false },
@@ -82,8 +84,10 @@ test('notification V2 integration', async t => {
       items.claimShoppingItem('i0')
       const first = now
       items.updateItem('i1', { shoppingClaimantId: 'm1' }); items.takeOverShoppingClaim('i1')
+      const other = items.addItem({ name: '他人用品', unit: '包', category: '清潔', spaceId: 'family', inShoppingList: true })
+      items.updateItem(other.id, { shoppingClaimantId: 'm1' })
       n.publishMemberEvent({ type: 'claimed', space: items.getSpace('family'), actorId: 'm1', actorName: '小明',
-        itemId: 'i2', itemName: '丙', operationId: 'other-op', memberIds: ['self', 'm1', 'm2'] })
+        itemId: other.id, itemName: other.name, operationId: other.shoppingClaimOperationId, memberIds: ['self', 'm1', 'm2'] })
       assert.equal(n.pendingBatches.length, 3)
       const company = items.addSpace({ name: '公司', shared: true })
       items.addSpaceMember(company.id, { id: 'm3', name: '同事' })
@@ -114,8 +118,13 @@ test('notification V2 integration', async t => {
       assert.equal(reloaded.records[0].deadlineAt, deadline)
       assert.equal(reloaded.pendingBatches.length, 0)
     })
-    const selfEvent = n => n.publishMemberEvent({ type: 'claimed', space: { id: 'family', name: '家庭', shared: true },
-      actorId: 'm1', actorName: '小明', itemId: 'i0', itemName: '甲', operationId: `operation-${now}`, memberIds: ['self', 'm1', 'm2'] })
+    const selfEvent = n => {
+      const items = useItemsStore()
+      const operationId = `operation-${now}`
+      items.updateItem('i0', { shoppingClaimantId: 'm1', shoppingClaimOperationId: operationId })
+      return n.publishMemberEvent({ type: 'claimed', space: items.getSpace('family'),
+        actorId: 'm1', actorName: '小明', itemId: 'i0', itemName: '甲', operationId, memberIds: ['self', 'm1', 'm2'] })
+    }
     await t.test('viewing clears only seen; individual and all-read changes are per recipient', () => {
       const { notifications: n } = fresh()
       selfEvent(n); n.flushPending(now + 60000)
@@ -208,7 +217,7 @@ test('notification V2 integration', async t => {
     await t.test('failed cancellation save suppresses delivery without rolling back the completed cancellation', () => {
       const { items, notifications: n } = fresh()
       items.claimShoppingItem('i0'); const deadline = n.pendingBatches[0].deadlineAt
-      install('localStorage', { ...storage, setItem() { throw new Error('quota') } })
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('shared-notifications')) throw new Error('quota'); storage.setItem(name, value) } })
       items.cancelShoppingClaim('i0')
       assert.equal(items.getItem('i0').shoppingClaimantId, null)
       install('localStorage', storage)
@@ -254,6 +263,266 @@ test('notification V2 integration', async t => {
       reloaded.seedPreviewHistory(items.spaces, items.items)
       assert.equal(reloaded.records.length, 12)
       assert.equal(reloaded.hasUnread, false)
+    })
+    await t.test('delivery uses current members and never rewrites historical recipients or read state', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      const deadline = n.pendingBatches[0].deadlineAt
+      items.getSpace('family').members = [{ id: 'm2', name: '花花' }, { id: 'new', name: '新成員' }]
+      n.flushPending(deadline)
+      assert.deepEqual(n.records[0].recipientIds, ['m2', 'new'])
+      n.markRead(n.records[0].id, 'new')
+      const historical = JSON.stringify(n.records[0])
+      items.getSpace('family').members = []
+      n.flushPending(deadline + 1000)
+      assert.equal(JSON.stringify(n.records[0]), historical)
+    })
+    await t.test('an initially empty recipient list does not discard events before a new member joins', () => {
+      const { items, notifications: n } = fresh()
+      items.getSpace('family').members = []
+      items.claimShoppingItem('i0')
+      assert.equal(n.pendingBatches.length, 1)
+      items.addSpaceMember('family', { id: 'new', name: '新成員' })
+      n.flushPending(n.pendingBatches[0].deadlineAt)
+      assert.deepEqual(n.records[0].recipientIds, ['new'])
+    })
+    await t.test('no eligible recipients cancels delivery with a persisted diagnostic', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      const deadline = n.pendingBatches[0].deadlineAt
+      items.getSpace('family').members = []
+      n.flushPending(deadline)
+      assert.equal(n.records.length, 0)
+      assert.equal(n.pendingBatches.length, 0)
+      assert.equal(n.deliveryDiagnostics.at(-1).reason, 'NO_ELIGIBLE_RECIPIENTS')
+      assert.equal(JSON.parse(memory.get(key('shared-notifications'))).data.deliveryDiagnostics.at(-1).reason, 'NO_ELIGIBLE_RECIPIENTS')
+    })
+    await t.test('cancel and reclaim cannot resurrect a stale claim even if an old pending batch is restored', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      const old = JSON.parse(JSON.stringify(n.pendingBatches[0]))
+      items.cancelShoppingClaim('i0')
+      now += 1000
+      items.claimShoppingItem('i0')
+      assert.notEqual(items.getItem('i0').shoppingClaimOperationId, old.events[0].operationId)
+      n.pendingBatches.push(old)
+      n.flushPending(old.deadlineAt)
+      assert.equal(n.records.length, 0)
+      assert.ok(n.deliveryDiagnostics.some(entry => entry.eventId === old.events[0].eventId))
+      n.flushPending(now + 60000)
+      assert.equal(n.records.length, 1)
+      assert.equal(n.records[0].eventIds.length, 1)
+    })
+    await t.test('mixed claim batches retain only current pending owners and discard completed items', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0'); items.claimShoppingItem('i1'); items.claimShoppingItem('i2')
+      const deadline = n.pendingBatches[0].deadlineAt
+      items.updateItem('i0', { shoppingClaimantId: 'm1' })
+      items.updateItem('i1', { shoppingCompletedAt: now })
+      n.flushPending(deadline)
+      assert.deepEqual(n.records[0].itemIds, ['i2'])
+      assert.equal(n.records[0].message, '使用者已認領「家庭」的丙。'.replace('使用者', n.records[0].actorName))
+      assert.equal(n.deliveryDiagnostics.length, 2)
+    })
+    await t.test('takeover identity is invalidated by reassignment and a later takeover is a distinct event', () => {
+      const { items, notifications: n } = fresh()
+      items.updateItem('i0', { shoppingClaimantId: 'm1' }); items.takeOverShoppingClaim('i0')
+      const old = JSON.parse(JSON.stringify(n.pendingBatches[0]))
+      items.updateItem('i0', { shoppingClaimantId: 'm2' })
+      now += 1000; items.takeOverShoppingClaim('i0')
+      assert.equal(n.pendingBatches[0].deadlineAt, old.deadlineAt)
+      assert.notEqual(n.pendingBatches[0].events[1].operationId, old.events[0].operationId)
+      n.flushPending(old.deadlineAt)
+      assert.equal(n.records.length, 1)
+      assert.deepEqual(n.records[0].eventIds, [n.processedEventIds.at(-1)])
+    })
+    await t.test('legacy claims without verifiable operation identity are dropped while legacy restock records remain valid', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      delete n.pendingBatches[0].events[0].operationId
+      items.completeRestock('i1', { quantity: 1 })
+      const deadline = Math.max(...n.pendingBatches.map(batch => batch.deadlineAt))
+      n.flushPending(deadline)
+      assert.equal(n.records.length, 1)
+      assert.equal(n.records[0].type, 'restocked')
+      assert.ok(n.deliveryDiagnostics.some(entry => entry.reason === 'UNVERIFIABLE_CLAIM_IDENTITY'))
+    })
+    await t.test('full reload revalidates stored claims against new membership rather than saved recipients', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      const deadline = n.pendingBatches[0].deadlineAt
+      const source = JSON.parse(memory.get(key('items')))
+      source.data.spaces.find(space => space.id === 'family').members = [{ id: 'new', name: '新成員' }]
+      close()
+      memory.set(key('items'), JSON.stringify(source))
+      const p = createPinia(); piniaInstances.push(p); setActivePinia(p)
+      now = deadline + 1
+      useItemsStore()
+      const loaded = useSharedNotificationsStore()
+      assert.deepEqual(loaded.records[0].recipientIds, ['new'])
+      assert.equal(loaded.records[0].deadlineAt, deadline)
+    })
+    await t.test('delivery storage failure retains pending state and retries with the latest membership only once', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0'); items.claimShoppingItem('i1')
+      const deadline = n.pendingBatches[0].deadlineAt
+      items.updateItem('i1', { shoppingClaimantId: 'm1' })
+      const before = JSON.stringify(n.pendingBatches)
+      install('localStorage', { ...storage, setItem() { throw new Error('quota') } })
+      assert.equal(n.flushPending(deadline).ok, false)
+      assert.equal(n.records.length, 0)
+      assert.equal(n.deliveryDiagnostics.length, 0)
+      assert.equal(JSON.stringify(n.pendingBatches), before)
+      items.getSpace('family').members = [{ id: 'new', name: '新成員' }]
+      install('localStorage', storage)
+      n.flushPending(deadline); n.flushPending(deadline + 1)
+      assert.equal(n.records.length, 1)
+      assert.deepEqual(n.records[0].recipientIds, ['new'])
+      assert.deepEqual(n.records[0].itemIds, ['i0'])
+      assert.equal(n.deliveryDiagnostics.length, 1)
+    })
+    await t.test('removed items or spaces cannot send stale claims', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0'); items.claimShoppingItem('i1')
+      const deadline = n.pendingBatches[0].deadlineAt
+      items.removeItem('i0')
+      items.spaces.splice(items.spaces.findIndex(space => space.id === 'family'), 1)
+      n.flushPending(deadline)
+      assert.equal(n.records.length, 0)
+      assert.equal(n.pendingBatches.length, 0)
+      assert.ok(n.deliveryDiagnostics.every(entry => entry.reason === 'SPACE_UNAVAILABLE'))
+    })
+    await t.test('source persistence failure never queues an unverifiable claim or rolls back the claim operation', () => {
+      const { items, notifications: n } = fresh()
+      install('localStorage', { ...storage, setItem(name, value) {
+        if (name === key('items')) throw new Error('quota')
+        storage.setItem(name, value)
+      } })
+      items.claimShoppingItem('i0')
+      assert.equal(items.getItem('i0').shoppingClaimantId, 'self')
+      assert.equal(n.pendingBatches.length, 0)
+      install('localStorage', storage)
+    })
+    await t.test('missing live membership lookup never falls back to stale recipient IDs', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      const dispose = registerRestockNotificationSource(piniaInstances.at(-1), { getItem: items.getItem, getSpace: items.getSpace })
+      try {
+        n.flushPending(n.pendingBatches[0].deadlineAt)
+        assert.equal(n.records.length, 0)
+        assert.equal(n.pendingBatches.length, 0)
+        assert.equal(n.deliveryDiagnostics.at(-1).reason, 'MEMBERS_UNVERIFIABLE')
+      } finally { dispose() }
+    })
+    await t.test('legacy pending claims are rejected on reload and retain durable reasons without changing old records', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      const deadline = n.pendingBatches[0].deadlineAt
+      const saved = JSON.parse(memory.get(key('shared-notifications')))
+      delete saved.data.pendingBatches[0].events[0].operationId
+      const historical = { id: 'history', type: 'claimed', source: 'event', spaceId: 'family', recipientIds: ['m1'],
+        message: '原通知', createdAt: now, recipientState: { m1: { seen: true, read: true } } }
+      saved.data.records.push(historical)
+      close(); memory.set(key('shared-notifications'), JSON.stringify(saved))
+      const p = createPinia(); piniaInstances.push(p); setActivePinia(p)
+      now = deadline + 1; useItemsStore()
+      const loaded = useSharedNotificationsStore()
+      assert.deepEqual(JSON.parse(JSON.stringify(loaded.records)), [historical])
+      assert.equal(loaded.pendingBatches.length, 0)
+      assert.equal(loaded.deliveryDiagnostics.at(-1).reason, 'UNVERIFIABLE_CLAIM_IDENTITY')
+      assert.equal(JSON.parse(memory.get(key('shared-notifications'))).data.deliveryDiagnostics.at(-1).reason, 'UNVERIFIABLE_CLAIM_IDENTITY')
+    })
+    await t.test('a stale cancellation Undo cannot resurrect a claim after a later claim/cancel cycle', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      const oldCancellation = items.cancelShoppingClaim('i0')
+      now += 1000; items.claimShoppingItem('i0')
+      items.cancelShoppingClaim('i0')
+      const latestIdentity = items.getItem('i0').shoppingClaimOperationId
+      items.undoShoppingOperation(oldCancellation)
+      assert.equal(items.getItem('i0').shoppingClaimantId, null)
+      assert.equal(items.getItem('i0').shoppingClaimOperationId, latestIdentity)
+      n.flushPending(now + 60000)
+      assert.equal(n.records.length, 0)
+    })
+    const abruptReload = () => {
+      const disk = new Map(memory)
+      close()
+      memory.clear(); for (const [name, value] of disk) memory.set(name, value)
+      install('localStorage', storage)
+      const p = createPinia(); piniaInstances.push(p); setActivePinia(p)
+      return { items: useItemsStore(), n: useSharedNotificationsStore() }
+    }
+    await t.test('failed notification cancellation cannot resurrect a claim after abrupt restart', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0'); const deadline = n.pendingBatches[0].deadlineAt
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('shared-notifications')) throw new Error('quota'); storage.setItem(name, value) } })
+      assert.ok(items.cancelShoppingClaim('i0'))
+      assert.equal(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'i0').shoppingClaimantId, null)
+      const loaded = abruptReload()
+      loaded.n.flushPending(deadline)
+      assert.equal(loaded.items.getItem('i0').shoppingClaimantId, null)
+      assert.equal(loaded.n.records.length, 0)
+    })
+    await t.test('source cancellation write failure leaves memory and durable claim unchanged and retryable', () => {
+      const { items, notifications: n } = fresh()
+      items.claimShoppingItem('i0')
+      const before = JSON.stringify(items.getItem('i0'))
+      const pending = JSON.stringify(n.pendingBatches)
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) throw new Error('quota'); storage.setItem(name, value) } })
+      assert.equal(items.cancelShoppingClaim('i0'), null)
+      assert.equal(JSON.stringify(items.getItem('i0')), before)
+      assert.equal(JSON.stringify(n.pendingBatches), pending)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'i0').shoppingClaimantId, 'self')
+      install('localStorage', storage)
+      assert.ok(items.cancelShoppingClaim('i0'))
+    })
+    await t.test('failed source Undo preserves cancellation and pending data; successful retry persists original identity', () => {
+      const { items, notifications: n } = fresh()
+      const claim = items.claimShoppingItem('i0')
+      const cancellation = items.cancelShoppingClaim('i0')
+      const cancelled = JSON.stringify(items.getItem('i0'))
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) throw new Error('quota'); storage.setItem(name, value) } })
+      assert.equal(items.undoShoppingOperation(cancellation).ok, false)
+      assert.equal(JSON.stringify(items.getItem('i0')), cancelled)
+      assert.equal(n.pendingBatches.length, 0)
+      install('localStorage', storage)
+      assert.equal(items.undoShoppingOperation(cancellation).ok, true)
+      assert.equal(items.getItem('i0').shoppingClaimOperationId, claim.operationId)
+      const loaded = abruptReload()
+      assert.equal(loaded.items.getItem('i0').shoppingClaimOperationId, claim.operationId)
+      loaded.n.flushPending(loaded.n.pendingBatches[0].deadlineAt)
+      assert.equal(loaded.n.records.length, 1)
+    })
+    await t.test('Store claim and takeover credentials reject legacy, stale and repeated Undo', () => {
+      const { items, notifications: n } = fresh()
+      const old = items.claimShoppingItem('i0')
+      assert.equal(old.operationId, items.getItem('i0').shoppingClaimOperationId)
+      items.cancelShoppingClaim('i0')
+      const current = items.claimShoppingItem('i0')
+      assert.equal(items.undoShoppingOperation(old).ok, false)
+      assert.equal(items.undoShoppingOperation({ id: 'i0', before: { shoppingClaimantId: null }, after: { shoppingClaimantId: 'self' } }).ok, false)
+      assert.equal(items.getItem('i0').shoppingClaimOperationId, current.operationId)
+      assert.equal(items.undoShoppingOperation(current).ok, true)
+      assert.equal(items.undoShoppingOperation(current).ok, false)
+      items.updateItem('i1', { shoppingClaimantId: 'm1' })
+      const takeover = items.takeOverShoppingClaim('i1')
+      assert.equal(takeover.operationId, items.getItem('i1').shoppingClaimOperationId)
+      assert.equal(items.undoShoppingOperation(takeover).ok, true)
+      assert.equal(items.getItem('i1').shoppingClaimantId, 'm1')
+      n.flushPending(now + 60000)
+      assert.equal(n.records.length, 0)
+    })
+    await t.test('claim Undo is durable even if notification cancellation fails, including abrupt restart', () => {
+      const { items, notifications: n } = fresh()
+      const claim = items.claimShoppingItem('i0')
+      const deadline = n.pendingBatches[0].deadlineAt
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('shared-notifications')) throw new Error('quota'); storage.setItem(name, value) } })
+      assert.equal(items.undoShoppingOperation(claim).ok, true)
+      const loaded = abruptReload()
+      loaded.n.flushPending(deadline)
+      assert.equal(loaded.n.records.length, 0)
+      assert.equal(loaded.items.getItem('i0').shoppingClaimantId, null)
     })
     await t.test('all four message rules retain exact names, counts and punctuation', () => {
       assert.equal(restockNotificationMessage('家庭', ['衛生紙']), '「家庭」的衛生紙該補貨了')

@@ -321,6 +321,71 @@ test('recordRestockBatch resolves space items by catalogId', async t => {
         assert.equal(new Set(item.restockRecords.map(record => record.id)).size, 2)
       } finally { console.error = originalError }
     })
+    await t.test('stale-link repair never persists partial records from a failed batch, including abrupt restart', () => {
+      const { items } = fresh()
+      const a = items.ensureCatalogItem('family', 'preset:tissues').item
+      const b = items.ensureCatalogItem('family', 'preset:trash-bags').item
+      items.updateItem(b.id, { name: '舊名稱', unit: '盒' })
+      window.dispatchEvent(new Event('pagehide'))
+      // The last persisted baseline is captured before any batch mutation.
+      const baseline = JSON.stringify(items.items)
+      const writes = []
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) writes.push(value); storage.setItem(name, value) } })
+      const result = items.recordRestockBatch([{ catalogId: 'preset:tissues', quantity: 1 },
+        { catalogId: 'preset:trash-bags', quantity: 1 }, { catalogId: 'missing', quantity: 1 }], { spaceId: 'family', date })
+      assert.equal(result.ok, false)
+      assert.equal(JSON.stringify(items.items), baseline)
+      assert.equal(writes.length, 0)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === a.id).restockRecords.length, 0)
+      const disk = new Map(memory)
+      for (const p of piniaInstances) for (const store of p._s.values()) store.$dispose()
+      memory.clear(); for (const [name, value] of disk) memory.set(name, value)
+      const p = createPinia(); piniaInstances.push(p); setActivePinia(p)
+      assert.equal(useItemsStore().getItem(a.id).restockRecords.length, 0)
+    })
+    await t.test('batch commit write failure restores existing and newly created items with no notifications', () => {
+      const { items } = fresh()
+      const before = JSON.stringify(items.items)
+      const disk = memory.get(key('items'))
+      const notices = useSharedNotificationsStore()
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) throw new Error('quota'); storage.setItem(name, value) } })
+      const result = items.recordRestockBatch([{ catalogId: 'preset:tissues', quantity: 1 },
+        { catalogId: 'preset:trash-bags', quantity: 2 }], { spaceId: 'family', date })
+      assert.equal(result.ok, false)
+      assert.equal(result.error.code, 'STORAGE_FAILED')
+      assert.equal(JSON.stringify(items.items), before)
+      assert.equal(memory.get(key('items')), disk)
+      assert.equal(notices.pendingBatches.length, 0)
+      install('localStorage', storage)
+    })
+    await t.test('successful batch writes only whole batches and is durable before notification delivery', () => {
+      const { items } = fresh()
+      const a = items.ensureCatalogItem('family', 'preset:tissues').item
+      const b = items.ensureCatalogItem('family', 'preset:trash-bags').item
+      items.updateItem(b.id, { name: '過時名稱' })
+      const counts = []
+      install('localStorage', { ...storage, setItem(name, value) {
+        if (name === key('items')) { const all = JSON.parse(value).data.items; counts.push([a.id, b.id].map(id => all.find(item => item.id === id).restockRecords.length)) }
+        storage.setItem(name, value)
+      } })
+      const result = items.recordRestockBatch([{ catalogId: 'preset:tissues', quantity: 1 },
+        { catalogId: 'preset:trash-bags', quantity: 2 }], { spaceId: 'family', date })
+      assert.equal(result.ok, true)
+      assert.ok(counts.length > 0)
+      assert.ok(counts.every(([first, second]) => first === 1 && second === 1))
+      const before = JSON.stringify(items.items)
+      const disk = memory.get(key('items'))
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) throw new Error('quota'); storage.setItem(name, value) } })
+      assert.equal(result.undo().ok, false)
+      assert.equal(JSON.stringify(items.items), before)
+      assert.equal(memory.get(key('items')), disk)
+      install('localStorage', storage)
+      assert.equal(result.undo().ok, true)
+      assert.equal(items.getItem(a.id).restockRecords.length, 0)
+      assert.equal(items.getItem(b.id).restockRecords.length, 0)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === a.id).restockRecords.length, 0)
+      assert.equal(result.undo().ok, false)
+    })
 
   } finally {
     for (const pinia of piniaInstances) for (const store of pinia._s.values()) store.$dispose()

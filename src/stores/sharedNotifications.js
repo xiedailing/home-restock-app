@@ -35,6 +35,7 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
   }
   const pendingBatches = ref(Array.isArray(saved?.pendingBatches) ? saved.pendingBatches.filter(validBatch) : [])
   // IDs are retained after cancellation too: replaying an old successful operation is not a new event.
+  const deliveryDiagnostics = ref(Array.isArray(saved?.deliveryDiagnostics) ? saved.deliveryDiagnostics.slice(-200) : [])
   const processedEventIds = ref(Array.isArray(saved?.processedEventIds) ? saved.processedEventIds.filter(id => typeof id === 'string') : [])
   const cancelledEventIds = ref(Array.isArray(saved?.cancelledEventIds) ? saved.cancelledEventIds : [])
   const recipientState = (entry, recipientId = 'self') => entry.recipientState?.[recipientId]
@@ -116,11 +117,12 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
   const clone = value => JSON.parse(JSON.stringify(value))
   function commit(nextRecords, nextPending, nextProcessed = processedEventIds.value, metadata = {}) {
     if (!savePersisted(STORE_KEYS.sharedNotifications, { ...saved, records: nextRecords,
-      pendingBatches: nextPending, processedEventIds: nextProcessed, cancelledEventIds: cancelledEventIds.value, previewHistorySeeded, ...metadata })) {
+      pendingBatches: nextPending, processedEventIds: nextProcessed, cancelledEventIds: cancelledEventIds.value, previewHistorySeeded, deliveryDiagnostics: deliveryDiagnostics.value, ...metadata })) {
       const error = new Error('通知資料儲存失敗，待發送批次未變更。')
       console.error('[restock-notification] Notification persistence failed', error)
       return { ok: false, error }
     }
+    deliveryDiagnostics.value = metadata.deliveryDiagnostics ?? deliveryDiagnostics.value
     previewHistorySeeded = metadata.previewHistorySeeded ?? previewHistorySeeded
     applying = true
     try { records.value = nextRecords; pendingBatches.value = nextPending; processedEventIds.value = nextProcessed }
@@ -128,35 +130,63 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
     schedule()
     return { ok: true }
   }
-  function eventExists(event, batch) {
-    if (cancelledEventIds.value.includes(event.eventId)) return false
-    const source = sources.get(pinia)
-    if (!source) return null // Without the live Items Store, never publish from a potentially stale disk snapshot.
-    if (batch.type !== 'restocked') return true // Claim cancellation is explicit and only changes still-open batches.
+  function invalidEventReason(event, batch, source) {
+    if (cancelledEventIds.value.includes(event.eventId)) return 'EVENT_CANCELLED'
     const space = source.getSpace(batch.spaceId)
     const item = source.getItem(event.itemId)
-    return !!space?.shared && item?.spaceId === batch.spaceId && item.restockRecords.some(record => record.id === event.recordId)
+    if (!space?.shared) return 'SPACE_UNAVAILABLE'
+    if (!item || item.spaceId !== batch.spaceId) return 'ITEM_UNAVAILABLE'
+    if (batch.type === 'restocked') {
+      return item.restockRecords?.some(record => record.id === event.recordId) ? null : 'RESTOCK_RECORD_MISSING'
+    }
+    if (!event.operationId || !item.shoppingClaimOperationId) return 'UNVERIFIABLE_CLAIM_IDENTITY'
+    if (event.operationId !== item.shoppingClaimOperationId) return 'CLAIM_OPERATION_REPLACED'
+    if (!item.inShoppingList || item.shoppingCompletedAt != null) return 'CLAIM_NO_LONGER_PENDING'
+    if (item.shoppingClaimantId !== batch.actorId) return 'CLAIM_OWNER_CHANGED'
+    return null
   }
   function message(batch, events) {
     const itemNames = [...new Map(events.map(event => [event.itemId, event.itemName])).values()]
     return memberNotificationMessage({ ...batch, itemNames })
   }
   function flushPending(now = Date.now()) {
-    if (!sources.has(pinia)) { schedule(); return { ok: true } }
+    const source = sources.get(pinia)
+    if (!source) { schedule(); return { ok: true } }
     const nextRecords = clone(records.value)
     const nextPending = []
+    const diagnostics = clone(deliveryDiagnostics.value)
+    const rejected = (batch, event, reason) => diagnostics.push({ batchId: batch.id,
+      ...(event ? { eventId: event.eventId, itemId: event.itemId } : {}), reason, checkedAt: now })
     for (const batch of pendingBatches.value) {
-      const events = batch.events.filter(event => eventExists(event, batch))
+      // Validate at delivery, not on every intervening state change during Undo/batch operations.
+      if (now < batch.deadlineAt) {
+        // Keep existing eager record-Undo reconciliation; claims are checked at delivery.
+        const events = batch.type === 'restocked' ? batch.events.filter(event => {
+          const reason = invalidEventReason(event, batch, source)
+          if (reason) rejected(batch, event, reason)
+          return !reason
+        }) : batch.events
+        if (events.length) nextPending.push({ ...clone(batch), events: clone(events) })
+        continue
+      }
+      const events = batch.events.filter(event => {
+        const reason = invalidEventReason(event, batch, source)
+        if (reason) rejected(batch, event, reason)
+        return !reason
+      })
       if (!events.length) continue
-      if (now < batch.deadlineAt) { nextPending.push({ ...clone(batch), events: clone(events) }); continue }
+      const members = source.getSpaceMembers?.(batch.spaceId)
+      if (!Array.isArray(members)) { rejected(batch, null, 'MEMBERS_UNVERIFIABLE'); continue }
+      const recipientIds = [...new Set(members.map(member => member?.id).filter(id => typeof id === 'string' && id && id !== batch.actorId))]
+      if (!recipientIds.length) { rejected(batch, null, 'NO_ELIGIBLE_RECIPIENTS'); continue }
       const id = `restock-batch:${batch.id}`
       if (!nextRecords.some(entry => entry.id === id)) {
         const unique = [...new Map(events.map(event => [event.itemId, event])).values()]
         nextRecords.push({ id, batchId: batch.id, type: batch.type, source: 'event', actorId: batch.actorId,
           actorName: batch.actorName, spaceId: batch.spaceId, spaceName: batch.spaceName,
-          recipientIds: batch.recipientIds, createdAt: now, firstEventAt: batch.firstEventAt,
+          recipientIds, createdAt: now, firstEventAt: batch.firstEventAt,
           deadlineAt: batch.deadlineAt, read: false, seen: false,
-          recipientState: Object.fromEntries(batch.recipientIds.map(id => [id, { read: false, seen: false }])),
+          recipientState: Object.fromEntries(recipientIds.map(id => [id, { read: false, seen: false }])),
           eventIds: events.map(event => event.eventId), itemIds: unique.map(event => event.itemId),
           itemNames: unique.map(event => event.itemName), message: message(batch, events) })
       }
@@ -164,7 +194,7 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
     if (JSON.stringify(nextPending) === JSON.stringify(pendingBatches.value) && nextRecords.length === records.value.length) {
       schedule(); return { ok: true }
     }
-    return commit(nextRecords, nextPending)
+    return commit(nextRecords, nextPending, processedEventIds.value, { deliveryDiagnostics: diagnostics.slice(-200) })
   }
   function schedule() {
     clearTimeout(timer)
@@ -180,7 +210,6 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
     if (!['restocked', 'claimed', 'takeover'].includes(type) || !space?.shared || !actorId) return { ok: true, skipped: true }
     if (!itemId || (type === 'restocked' ? !recordId : !operationId)) throw new Error('通知缺少用品或操作 ID。')
     const recipientIds = [...new Set(memberIds)].filter(id => id !== actorId)
-    if (!recipientIds.length) return { ok: true, skipped: true }
     const eventId = JSON.stringify([space.id, itemId, type === 'restocked' ? recordId : `${type}:${operationId}`])
     if (processedEventIds.value.includes(eventId)) return { ok: true, duplicate: true }
     const now = Date.now()
@@ -193,7 +222,7 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
       nextPending.push(batch)
     }
     batch.recipientIds = [...new Set([...batch.recipientIds, ...recipientIds])].filter(id => id !== actorId)
-    batch.events.push({ eventId, itemId, ...(recordId ? { recordId } : {}), itemName, occurredAt: now })
+    batch.events.push({ eventId, itemId, ...(recordId ? { recordId } : { operationId }), itemName, occurredAt: now })
     return commit(clone(records.value), nextPending, [...processedEventIds.value, eventId])
   }
   function pruneExpired(now = Date.now()) {
@@ -213,7 +242,7 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
   }
   // Preserve compatibility with existing direct records mutations and unknown WIP fields.
   watch(records, () => { if (!applying && !savePersisted(STORE_KEYS.sharedNotifications, {
-    ...saved, records: records.value, pendingBatches: pendingBatches.value, processedEventIds: processedEventIds.value, cancelledEventIds: cancelledEventIds.value, previewHistorySeeded,
+    ...saved, records: records.value, pendingBatches: pendingBatches.value, processedEventIds: processedEventIds.value, cancelledEventIds: cancelledEventIds.value, previewHistorySeeded, deliveryDiagnostics: deliveryDiagnostics.value,
   })) console.error('[restock-notification] Notification records persistence failed') }, { deep: true, flush: 'sync' })
   const reconcile = () => {
     try { flushPending() } catch (error) { console.error('[restock-notification] Pending reconciliation failed', error) }
@@ -228,6 +257,6 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
   })
   pruneExpired()
   schedule()
-  return { records, pendingBatches, processedEventIds, publishMemberEvent, trackRestockCompletion, pruneExpired, flushPending,
+  return { records, pendingBatches, processedEventIds, deliveryDiagnostics, publishMemberEvent, trackRestockCompletion, pruneExpired, flushPending,
     seedPreviewHistory, visibleRecords, hasUnseen, hasUnread, recipientState, markViewed, markRead, markAllRead, cancelMemberEvents, publishRestockReminders }
 })

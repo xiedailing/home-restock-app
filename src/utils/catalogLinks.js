@@ -1,4 +1,6 @@
-import { startUnitPeriod } from './unitPeriods.js'
+import { validateCategoryName } from './categoryNames.js'
+import { SYSTEM_CATEGORIES } from '../models/itemCategories.js'
+import { startUnitPeriod, migrateUnitPeriods } from './unitPeriods.js'
 // Catalog 關聯與同步交易：單位變更只新增週期與補齊歷史快照，不改紀錄日期／數量或推算公式。
 import { loadPersisted, savePersisted, commitCatalogStatePair, STORE_KEYS } from './persist.js'
 const bridges = new WeakMap()
@@ -73,7 +75,13 @@ export function commitCatalogWithLinks(pinia, beforeCatalog, afterCatalog, befor
   catch { return { ok: false, error: { code: 'RECOVERY_REQUIRED', message: '用品同步尚待復原，請重新整理後再試。' } } }
   if ((removedCategory || restoredCategory) && (!bridge?.applyCategories || !Array.isArray(beforeItems?.customCategories))) return { ok: false, error: { code: 'CATEGORY_CONTEXT_REQUIRED', message: '請從設定頁重新開啟分類後再試。' } }
   if (removedCategory && !beforeItems.customCategories.includes(removedCategory) && !beforeAll.some(item => item.category === removedCategory) && !beforeItems.items.some(item => item.category === removedCategory)) return { ok: false, error: { code: 'NOT_FOUND', message: '找不到此分類。' } }
-  if (restoredCategory && beforeItems.customCategories.includes(restoredCategory.name)) return { ok: false, error: { code: 'CATEGORY_NAME_TAKEN', message: '已有同名分類，無法復原。' } }
+  if (restoredCategory) {
+    // Deleted-category space items are historical associations, not a newly created selectable category.
+    const names = [...SYSTEM_CATEGORIES, ...beforeItems.customCategories,
+      ...beforeAll.map(item => item.category), ...beforeItems.items.map(item => item.category).filter(name => !beforeCatalog.deletedCategories?.includes(name))]
+    const validation = validateCategoryName(restoredCategory.name, names)
+    if (!validation.ok) return { ok: false, error: { code: validation.code === 'NAME_TAKEN' ? 'CATEGORY_NAME_TAKEN' : validation.code, message: validation.message } }
+  }
   if (!beforeItems || !Array.isArray(beforeItems.items)) {
     return savePersisted(STORE_KEYS.catalog, afterCatalog) ? { ok: true } : { ok: false, error: { code: 'STORAGE_FAILED', message: '無法儲存用品。' } }
   }
@@ -91,4 +99,29 @@ export function commitCatalogWithLinks(pinia, beforeCatalog, afterCatalog, befor
     if (removedCategory || restoredCategory) bridge.applyCategories(afterItems.customCategories)
   }
   return result.ok && removedCategory ? { ...result, categoryIndex: beforeItems.customCategories.indexOf(removedCategory) } : result
+}
+
+// Re-entry/ensure repair: only explicit catalogId links, planned before any write.
+export function planLinkedCatalogRefresh(items, catalogItems, targetIds) {
+  const selected = new Set(targetIds)
+  const byId = new Map(catalogItems.map(item => [item.id, item]))
+  const renamed = new Set()
+  const next = items.map(item => {
+    if (!selected.has(item.id)) return item
+    const current = item.catalogId ? byId.get(item.catalogId) : null
+    if (!current) return migrateUnitPeriods(item) // Deleted catalogs and unlinked history retain their original identity.
+    if (item.name !== current.name) renamed.add(item.id)
+    const updated = item.unit === current.unit ? migrateUnitPeriods(item) : startUnitPeriod(item, current.unit)
+    return { ...updated, name: current.name, category: current.category }
+  })
+  for (const item of next.filter(item => selected.has(item.id))) {
+    if (next.some(other => other !== item && other.id === item.id)) return { ok: false, error: { code: 'DUPLICATE_ITEM_ID', message: '空間用品 ID 重複，無法安全同步。' } }
+    if (item.catalogId && next.some(other => other.id !== item.id && other.spaceId === item.spaceId && other.catalogId === item.catalogId)) {
+      return { ok: false, error: { code: 'DUPLICATE_CATALOG_LINK', message: '此空間有重複的全域用品關聯，無法安全同步。' } }
+    }
+    if (renamed.has(item.id) && next.some(other => other.id !== item.id && other.spaceId === item.spaceId && normalizeCatalogName(other.name) === normalizeCatalogName(item.name))) {
+      return { ok: false, error: { code: 'SPACE_NAME_TAKEN', message: '此空間已有相同名稱的用品，無法同步修改。' } }
+    }
+  }
+  return { ok: true, items: next }
 }

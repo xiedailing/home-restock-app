@@ -8,7 +8,7 @@
 | --- | --- |
 | 該補貨了 | 依現有 reminderStatus／門檻／暫緩設定產生共享空間提醒，依單位週期及預計日建立穩定事件鍵，不改公式 |
 | 認領／接手／已補貨 | 三類操作成功後入列，資料立即更新；第一筆起固定 60 秒後正式建立 |
-| 合併與去重 | 同操作者／空間／類型合併，收件人快照合併去重；事件 ID 去重、用品 ID 計數，後續不延長 |
+| 合併與去重 | 同操作者／空間／類型合併，發送時查詢有效成員並排除操作者；事件 ID 去重、用品 ID 計數，後續不延長 |
 | 取消與 Undo | 合併期取消移除用品，全部取消無通知；復原取消於期限內還原原批次及截止時間；補貨 Undo 保留單位週期安全規則 |
 | 重整恢復 | 保存 pendingBatches、第一筆／截止時間、processedEventIds、取消事件標記，來源就緒後處理到期批次 |
 | 查看／已讀 | 每接收者 recipientState，進頁只標 seen；單筆及全部已讀標 read，互不影響其他成員 |
@@ -36,11 +36,11 @@
 - `src/App.vue`：只讀監聽現有用品提醒狀態，呼叫提醒產生 API，錯誤隔離；原轉場及 Toast provider 保留。
 - `tests/notifications-v2.test.mjs`（新增）、`tests/restock-catalog-link.test.mjs`（更新）：新規則及原補貨通知回歸。
 
-`persist.js`、Toast、用品模型、單位週期工具、補貨公式、RestockRecordView、歷史列表、分類刪除皆未因本次 V2 實作再修改。它們相對 main 的差異是此前已存在的最新用品基礎，不能當成本次通知新增內容。
+本輪未修改 persist.js、Toast、單位週期工具、補貨公式、RestockRecordView 或歷史列表。用品模型新增 shoppingClaimOperationId，分類復原補上共用重名驗證；其餘相對 main 的差異包含此前用品基礎。
 
 ## Store API
 
-- `publishMemberEvent({ type, space, actorId, actorName, itemName, memberIds, itemId, recordId?, operationId? })`：補貨需要 recordId；認領／接手需要穩定 operationId。成功入列 `{ok:true}`；重播 `{ok:true,duplicate:true}`；不適用／無其他成員 `{ok:true,skipped:true}`；保存失敗 `{ok:false,error}` 並記錄。
+- publishMemberEvent()：補貨使用 recordId，認領／接手使用與用品一致的 operationId。入列時沒有其他成員仍保留批次，發送時重新查詢有效成員；成功入列、重播、不適用、保存失敗分別沿用既有回傳格式。
 - `flushPending(now = Date.now())`：只讀來源校驗後，處理到期、取消及正式建立；穩定批次 ID 避免重複。正式通知 createdAt 是實際建立時間，另保留 firstEventAt/deadlineAt。
 - `cancelMemberEvents({itemId,actorId,spaceId,now?})`：只取消尚在原視窗的認領／接手事件，不建立新通知。回傳結果另含 `undo()`，僅能在原視窗內恢復，不延長截止時間。
 - `publishRestockReminders()`：讀現有狀態、空間及成員；按空間彙總新提醒，持久化事件鍵避免重整重複。
@@ -69,7 +69,7 @@
 
 ## 測試與手機版
 
-- 全部測試：149 項通過，無跳過。包含實際計時器假時鐘回呼、60 秒前不可見、到期一則、固定窗口／跨操作者／類型、取消部分／全部、取消 Undo、重整恢復、事件去重、seen/read／全部已讀、每接收者隔離、舊存檔、存檔失敗、刪除導航、六個月與原有單位／補貨／Undo 回歸。
+- 最新全部測試：178 項通過，無失敗、無跳過。包含固定窗口、發送時接收者與事件驗證、取消與 Undo、來源寫入失敗、中斷恢復、批次原子存檔、分類與單位重名、seen/read、導航及原有跨功能回歸。下方手機版為先前 Chromium 驗證，本輪未重新進行實體手機驗收。
 - Chromium 手機寬度 320／375／390／430 與桌面 1440：通知頁、全部已讀／停用、鈴鐺查看狀態、共享清單／我的用品跳轉、刪除 Toast，沒有橫向溢出或 pageerror。
 - 最新編輯 Sheet 另回歸四種手機寬度、單位確認／取消／儲存及重整。
 - 測試資料只存在隔離的瀏覽器 context；正式 App 無 initializeDemo 或展示事件產生器。
@@ -83,7 +83,7 @@
 2. 背景／關閉頁面不保證準點執行，到前景／重新開啟依原期限補處理。
 3. 跨分頁並行寫入沒有分散鎖；本次去重涵蓋單一執行環境、重播及正常重整。
 4. 通知保存失敗不回報通知成功；沒有無限自動重試。回前景／後續協調可重試。補貨資料與通知仍是不同 Key，瀏覽器在兩者都未保存且突然終止時無完整跨 Key 交易保證。失敗首次入列不會為補通知重建補貨。
-5. 取消保存失敗時，本執行環境保留取消標記避免誤發；在存檔仍失敗時立即崩潰／重整，無法宣稱未保存狀態必定恢復。
+5. 取消／Undo 的用品來源寫入失敗不套用操作；通知 Key 寫入失敗不撤銷已保存的來源狀態，重啟後重新驗證事件。來源保存與通知首次入列之間仍有漏發風險，詳見文末。
 6. 已刪用品的舊通知若根本沒有歷史 IDs，不能準確判斷全部／部分刪除；保留原文並正常開對應有效空間，不捏造刪除提示。
 7. processedEventIds／取消識別目前保留以防重播，長期大量操作的安全清理策略可後續制定；六個月正式通知清理已實作。
 8. 尚未檢查實體 iPhone Safari、實體鍵盤／系統推播。已完成 Chromium 響應式與實際互動測試。
@@ -98,3 +98,20 @@
 - 新增 notificationPreview.js 的開發用舊通知資料；source=demo／previewOnly、只建立一次，Production 不自動產生。
 - 上傳前完整測試 149 項通過、Build 通過；main 基底為 d13e8e8。此 PR 含完整用品 UI、Catalog 分類管理、自訂單位、單位週期與通知整合，並非單獨通知變更，請組員特別審查共用 items.js／item.js／catalogLinks.js／persist.js。
 - 文件中先前「尚未實作」「未上傳」屬歷史階段記錄；本節及本文件完成表為目前審查版本。PR 不自動合併。
+
+## 最新接收者驗證修正
+
+待發送批次的舊 recipientIds 不再作為投遞依據。發送時重新查詢有效成員及事件狀態；認領／接手核對持久化操作識別，已補貨核對紀錄 ID。未知舊認購事件取消並保存診斷，已發送通知與 seen/read 不改寫。詳細規則與限制見 [發送當下驗證](./NOTIFICATION_RECIPIENT_PLAN.md)。
+
+本次接收者驗證回歸：原有 155 項保留，新增 14 項，共 169 項通過；Build 通過。新增來源欄位 `shoppingClaimOperationId` 僅辨識認購生命週期，不改補貨紀錄或單位週期。既有直接呼叫 `publishMemberEvent()` 的認領／接手來源，必須提供與用品現有識別相同的 `operationId`；只傳任意操作 ID 的事件會於發送前被拒絕並記錄原因。
+
+## 整合審查修正：批次存檔與操作憑證
+
+- `recordRestockBatch()` 在同一同步操作中暫存整批變更，內部 `ensureCatalogItem(..., { persist: false })` 不提前寫入用品 Key。全部成功後只保存完整用品狀態，再處理通知；失敗還原原物件、用品清單及購買完成操作快取。未完成交易的中斷重啟只會讀到原存檔，不會讀到半批紀錄。
+- 批次 Undo、`restoreItem()` 與 `undoShoppingOperation()` 先完成來源存檔，成功後才協調待發送通知。來源寫入失敗會還原記憶體並回傳失敗；批次 Undo 成功前不消耗復原機會，可恢復儲存後重試。
+- `cancelShoppingClaim()` 來源寫入失敗時回傳 null，不顯示成功取消；通知 Key 失敗則不撤銷已成功保存的取消。錯誤留有 console 診斷。此處區分「用品來源寫入失敗」與「通知寫入失敗」。
+- `claimShoppingItem()`／`takeOverShoppingClaim()` 回傳 Store 建立的 `{ id, operationId, before, after }`，包含認購生命週期識別。ShoppingView 不再自行拼裝舊憑證；ItemDetail 的接手 Undo 同樣使用 Store 憑證。缺少識別或識別過期的非補貨操作不可復原。已補貨操作維持原 recordId 驗證。
+- 分類復原採共用名稱驗證，忽略大小寫、正規化前後空白；衝突拒絕，不覆寫新分類或歷史用品。已刪除分類留在空間用品上的歷史關聯不當成新分類衝突，仍完整保留。
+- 本輪新增 9 項測試，總計 178 項通過；Build 與 diff 檢查通過。
+
+安全範圍為單一用品 Key 的整批寫入及來源先於通知的處理順序。沒有新增跨用品／通知 Key 的持久化 outbox；用品成功保存後、通知首次入列前若程序中斷，仍可能缺少通知，不會重新執行補貨或留下半批補貨紀錄。多分頁並行寫入與跨裝置同步限制維持原狀。

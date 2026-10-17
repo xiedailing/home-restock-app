@@ -27,7 +27,7 @@ const systemCounts = computed(() => categoryCounts(catalog.allItems, SYSTEM_CATE
 const customCounts = computed(() => categoryCounts(catalog.allItems, [...new Set([...store.categoryOptions, ...catalog.allItems.map(item => item.category)])].filter(name => !SYSTEM_CATEGORIES.includes(name))))
 const categoryName = ref('')
 const error = ref('')
-const duplicateName = computed(() => [...systemCounts.value, ...customCounts.value].some(category => category.name === categoryName.value.trim()))
+const duplicateName = computed(() => store.validateCategoryName(categoryName.value).code === 'NAME_TAKEN')
 const nameError = computed(() => duplicateName.value ? '已有重複分類名稱' : error.value)
 const nameFocused = ref(false)
 const nameLimitExceeded = computed(() => limitSpaceName(categoryName.value.trim()) !== categoryName.value.trim())

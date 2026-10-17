@@ -87,10 +87,7 @@ const sharedItems = computed(() => allSharedItems.value.filter(item => !selected
 const pendingSharedSpaces = computed(() => store.sharedSpaces.filter(space => allSharedItems.value.some(item => item.spaceId === space.id && item.inShoppingList)))
 watch(pendingSharedSpaces, spaces => { if (selectedSpace.value && !spaces.some(space => space.id === selectedSpace.value)) selectedSpace.value = '' })
 function claimOperation(item, takeOver = false) {
-  const before = item.shoppingClaimantId
-  if (takeOver) store.takeOverShoppingClaim(item.id)
-  else store.claimShoppingItem(item.id)
-  return before !== 'self' && item.shoppingClaimantId === 'self' ? { id: item.id, before: { shoppingClaimantId: before }, after: { shoppingClaimantId: 'self' } } : null
+  return takeOver ? store.takeOverShoppingClaim(item.id) : store.claimShoppingItem(item.id)
 }
 const showClaimAll = computed(() => activeTab.value === 'shared' && unclaimedSpaceItems.value.length > 0)
 const unclaimedSpaceItems = computed(() => sharedItems.value.filter(item => item.inShoppingList && !item.shoppingClaimantId))

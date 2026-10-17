@@ -175,6 +175,8 @@ export function createItem(input = {}) {
     lastRestockDate: input.lastRestockDate ?? null,
     inShoppingList: input.inShoppingList ?? false,
     shoppingClaimantId: input.shoppingClaimantId ?? null,
+    // Notification claim identity; legacy claims remain unverified until a new operation.
+    shoppingClaimOperationId: typeof input.shoppingClaimOperationId === 'string' ? input.shoppingClaimOperationId : null,
     shoppingCompletedAt: input.shoppingCompletedAt ?? null,
     shoppingCompletedQuantity: input.shoppingCompletedQuantity ?? null,
     shoppingCompletedBy: input.shoppingCompletedBy ?? null,
