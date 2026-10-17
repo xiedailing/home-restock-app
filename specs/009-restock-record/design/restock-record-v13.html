@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>新增補貨紀錄｜介面草稿 v12</title>
+<title>新增補貨紀錄｜介面草稿 v13</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -181,7 +181,13 @@ body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); p
 .picker .add-space { flex: none; margin-top: 6px; border-top: 1px solid var(--border); padding-top: 4px; }
 .picker .add-space button { width: 100%; min-height: 52px; padding: 8px 14px; display: flex; align-items: center; gap: 14px; color: var(--primary); font-weight: 700; font-size: 15px; }
 .picker .plus { width: 14px; text-align: center; font-size: 20px; line-height: 1; }
-.cal-head { display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.cal-head button { width: 32px; height: 32px; font-size: 22px; line-height: 1; }
+.cal-head button:disabled { opacity: .3; cursor: default; }
+.date-field { position: relative; }
+.cal-backdrop { position: absolute; inset: 0; z-index: 11; }
+.cal-pop { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 12; padding: 12px; border: 1px solid var(--border); border-radius: 22px; background: var(--card-bg); box-shadow: var(--shadow-floating); }
+.cal-pop[hidden], .cal-backdrop[hidden] { display: none; }
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
 .cal .wd { font-size: 12px; color: var(--text-sub); padding: 4px 0; }
 .cal button { height: 40px; border-radius: 50%; font-size: 15px; }
@@ -269,8 +275,8 @@ body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); p
 <body>
 
 <header class="page-head">
-  <h1>新增補貨紀錄｜介面草稿 v12</h1>
-  <p>相較 v11：第一顆 pill 改成「全部」；頁首右上角多了「⋯」（目前只有「用品管理」捷徑）；頁首、空間膠囊、pills、格子之間的間距拉開。日期條維持原樣。每個畫面都能操作。<br>這是設計預覽，用品資料是示範用的假資料，不會寫進專案。</p>
+  <h1>新增補貨紀錄｜介面草稿 v13</h1>
+  <p>相較 v12：日期條改成「在上方展開日曆，點日期就套用並收起」（新增畫面 ⑧）；第一格文案「＋新增用品」；已選清單小字「上次補貨 M/D」；選了類別再按「＋新增用品」，新增用品頁預設該類別；從用品管理返回會回到這一頁（UT-34）。每個畫面都能操作。<br>這是設計預覽，用品資料是示範用的假資料，不會寫進專案。</p>
 </header>
 
 <main class="board">
@@ -296,18 +302,23 @@ body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); p
   </section>
   <section class="frame-wrap">
     <h2 class="cap">⑤ 點「⋯」</h2>
-    <p class="cap-sub">錨定在右上角，目前只有「用品管理」。點它會跳到設定的用品管理，已選的用品會保留（預覽裡只跳提示）。</p>
+    <p class="cap-sub">錨定在右上角，目前只有「用品管理」。點它會跳到設定的用品管理，按返回會回到這一頁，已選的用品、日期、類別都會保留（預覽裡只跳提示）。</p>
     <div class="phone" id="frame-e" data-kind="pick" data-space="personal" data-sel="衛生紙:1" data-open-more="1"></div>
   </section>
   <section class="frame-wrap">
     <h2 class="cap">⑥ 名稱最長＋已篩選</h2>
-    <p class="cap-sub">空間名稱 8 個中文字，加上右邊的「⋯」，膠囊仍放得下。</p>
+    <p class="cap-sub">空間名稱 8 個中文字，加上右邊的「⋯」，膠囊仍放得下。選了類別時點「＋新增用品」，新增用品頁會預設同一個類別（預覽裡只跳提示）。</p>
     <div class="phone" id="frame-f" data-kind="pick" data-space="longname" data-cat="寵物植物照護用品" data-sel="肥料:1"></div>
   </section>
   <section class="frame-wrap">
     <h2 class="cap">⑦ 沒有任何用品的空間</h2>
     <p class="cap-sub">跟 v11 一樣。</p>
     <div class="phone" id="frame-g" data-kind="pick" data-space="newhome"></div>
+  </section>
+  <section class="frame-wrap">
+    <h2 class="cap">⑧ 點日期條：展開日曆</h2>
+    <p class="cap-sub">日曆浮在日期條上方，不推擠版面；點日期就套用並收起，點外面或按 Esc 也收起。上限今天，之後的日期灰色不可選。</p>
+    <div class="phone" id="frame-h" data-kind="pick" data-space="personal" data-sel="衛生紙:1,垃圾袋:1" data-open-date="1"></div>
   </section>
 </main>
 
@@ -350,13 +361,15 @@ body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); p
 </template>
 
 <template id="tpl-date">
+  <div class="date-field">
   <div class="datebar">
     <button type="button" class="arrow" data-d="-1" aria-label="前一天"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 4v16L5 12z"/></svg></button>
-    <button type="button" class="day" data-day aria-haspopup="dialog">
+    <button type="button" class="day" data-day aria-haspopup="dialog" aria-expanded="false">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>
       <span data-r="date"></span>
     </button>
     <button type="button" class="arrow" data-d="1" aria-label="後一天"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 4v16l11-8z"/></svg></button>
+  </div>
   </div>
 </template>
 
@@ -464,10 +477,16 @@ function mountSpacePicker(root, state, onChange) {
 }
 
 function mountDatePicker(root, state, onChange) {
-  const sh = mountSheet(root, '選擇補貨日期');
-  const head = el('div', 'cal-head', '2026 年 10 月');
+  // 展開日曆（UT-34）：浮在日期條上方，點日期就套用並收起；點外面、Esc 也收起。
+  const field = root.querySelector('.date-field'); const dayBtn = field.querySelector('[data-day]');
+  const backdrop = el('div', 'cal-backdrop'); backdrop.hidden = true;
+  const pop = el('div', 'cal-pop'); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', '選擇補貨日期'); pop.hidden = true;
+  const prev = el('button', '', '‹'); prev.type = 'button'; prev.setAttribute('aria-label', '上個月');   // 預覽只畫 10 月，箭頭僅示意
+  const nextM = el('button', '', '›'); nextM.type = 'button'; nextM.setAttribute('aria-label', '下個月'); nextM.disabled = true;   // 上限今天，不能往後
+  const head = el('div', 'cal-head'); head.append(prev, el('span', '', '2026 年 10 月'), nextM);
   const cal = el('div', 'cal');
-  sh.box.append(head, cal);
+  pop.append(head, cal); field.append(pop); root.append(backdrop);
+  function close() { pop.hidden = true; backdrop.hidden = true; dayBtn.setAttribute('aria-expanded', 'false'); }
   function build() {
     cal.replaceChildren();
     WEEK.forEach((w) => cal.append(el('div', 'wd', w)));
@@ -475,11 +494,15 @@ function mountDatePicker(root, state, onChange) {
     for (let d = 1; d <= 31; d++) {
       const b = el('button', state.offset === d - 16 ? 'on' : '', String(d)); b.type = 'button';
       b.disabled = d > 16;                                           // 補貨日期最晚今天
-      b.onclick = () => { state.offset = d - 16; sh.close(); onChange(); };
+      b.onclick = () => { state.offset = d - 16; close(); onChange(); };
       cal.append(b);
     }
   }
-  root.addEventListener('click', (e) => { if (e.target.closest('[data-day]')) { build(); sh.open(); } });
+  function open() { build(); pop.hidden = false; backdrop.hidden = false; dayBtn.setAttribute('aria-expanded', 'true'); }
+  dayBtn.addEventListener('click', () => (pop.hidden ? open() : close()));
+  backdrop.addEventListener('click', close);
+  pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); dayBtn.focus(); } });
+  if (root.dataset.openDate) open();
 }
 
 /* ---------- 空間 popover：跟「我的用品」一樣錨定在頁首 ---------- */
@@ -566,11 +589,11 @@ function initPick(root) {
       b.onclick = () => { s.sel.has(n) ? s.sel.delete(n) : s.sel.set(n, 1); render(); };
       return b;
     };
-    // 「＋新用品」會跳到組員負責的新增用品頁，預覽裡只用提示代替
+    // 「＋新增用品」會跳到組員負責的新增用品頁，預覽裡只用提示代替
     const newTile = () => {
       const b = el('button', 'tile new'); b.type = 'button';
-      b.append(el('span', 'pic', '＋'), el('span', '', '新用品'));
-      b.onclick = () => toast('這裡會跳到新增用品頁（組員製作）', { undo: false });
+      b.append(el('span', 'pic', '＋'), el('span', '', '新增用品'));
+      b.onclick = () => toast(s.cat ? `這裡會跳到新增用品頁（組員製作），類別預設為「${s.cat}」` : '這裡會跳到新增用品頁（組員製作）', { undo: false });
       return b;
     };
     const g = el('div', 'grid'); g.append(newTile()); names.forEach((n) => g.append(tile(n))); stage.append(g);
@@ -592,7 +615,7 @@ function initPick(root) {
       const rec = existing()[n];
       const li = el('li', 'mrow');
       const pic = el('span', 'pic'); const im = el('img'); im.alt = ''; im.src = icon(CATALOG[n].icon); pic.append(im);
-      const info = el('span', 'info'); info.append(el('span', 'nm', n)); if (rec) info.append(el('span', 'meta', `上次 ${rec.d}`));
+      const info = el('span', 'info'); info.append(el('span', 'nm', n)); if (rec) info.append(el('span', 'meta', `上次補貨 ${rec.d}`));
       const rm = el('button', 'rm', '✕'); rm.type = 'button'; rm.setAttribute('aria-label', `移除${n}`); rm.onclick = () => { s.sel.delete(n); render(); };
       li.append(pic, info, stepper(q, CATALOG[n].unit, (v) => { s.sel.set(n, v); render(); }), rm);
       list.append(li);
@@ -613,7 +636,7 @@ function initPick(root) {
   const manage = el('button', 'more-opt'); manage.type = 'button'; manage.setAttribute('role', 'menuitem');
   manage.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>';
   manage.append(el('span', '', '用品管理'));
-  manage.onclick = () => { moreScrim.hidden = true; toast('這裡會跳到 設定 > 用品管理（組員負責）。已選的用品會保留。', { undo: false }); };
+  manage.onclick = () => { moreScrim.hidden = true; toast('這裡會跳到 設定 > 用品管理（組員負責）。按返回會回到這一頁，已選的用品會保留。', { undo: false }); };
   morePop.append(manage); moreScrim.append(morePop); root.append(moreScrim);
   moreScrim.addEventListener('click', (e) => { if (e.target === moreScrim) moreScrim.hidden = true; });
   root.querySelector('[data-morebtn]').addEventListener('click', () => { moreScrim.hidden = false; });

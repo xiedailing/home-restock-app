@@ -11,7 +11,7 @@
 | 來源 | 內容 | 讀取範圍 |
 |---|---|---|
 | 使用者決策 | 2026-10-15～16：UT-13、UT-15～UT-29 | — |
-| HTML 設計預覽 v4～v12 | 補貨頁（單筆／多筆合併）、空間膠囊與 popover、類別 pills、頁首「⋯」。本機暫存，未進專案；定案畫面以 v12 為準 | 完整 |
+| HTML 設計預覽 v4～v13 | 補貨頁（單筆／多筆合併）、空間膠囊與 popover、類別 pills、頁首「⋯」。本機暫存，未進專案；定案畫面以 v12 為準 | 完整 |
 | 可用性測試 2026-10-15 | 受測者反應字太多；「我的用品」的空間選擇看不出可以按 | 使用者轉述 |
 | `specs/001-reminder-restock/spec.md` | FR-002 開啟提醒與計算基準、FR-003 完成補貨、FR-004 補貨紀錄修改、FR-005 提醒開關 | FR-002～FR-005 |
 | 本機 repo | `App.vue`（`handleAddRecord`）、`router/index.js`、`InventoryView.vue`（空間 popover、類別浮層）、`stores/items.js`（`completeRestock`、`applyRestockRecords`、`categoryOptions`）、`models/item.js`、`models/itemCategories.js`、`utils/id.js`、`utils/persist.js`、`components/item-detail/RestockSheet.vue`、`components/add-item/DatePickerSheet.vue`、`AddItemView.vue` | 完整 |
