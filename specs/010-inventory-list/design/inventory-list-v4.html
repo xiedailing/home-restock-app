@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的用品｜購買清單標記 介面草稿 v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- 與專案 index.html 相同版本的 Font Awesome；導覽列「購買清單」用的是同一個 fa-clipboard-list -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+/* ---------- tokens（取自 src/assets/scss/_tokens.scss） ---------- */
+:root {
+  --bg-main: #efebe3;
+  --card-bg: #fcfbf8;
+  --input-bg: #f6f5f1;
+  --primary: #3f6f3b;
+  --primary-soft: #eef5ec;
+  --primary-subtle: #e4f2e8;
+  --accent-text: #9a5510;
+  --badge-orange: #ffebd7;
+  --text-main: #1d1d1f;
+  --text-body: #5a5a5f;
+  --text-sub: #6e6e73;
+  --text-disabled: #a1a1a6;
+  --border: #e7e7e3;
+  --icon-circle: #f5f5f6;
+  --font: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  --shadow-raised: -2px -2px 4px rgba(249,249,249,.6), 2px 3px 6px rgba(143,134,114,.2);
+  --shadow-inset: inset -3px -3px 10px rgba(255,255,255,.65), inset 2px 3px 6px rgba(105,99,85,.16);
+  --shadow-primary: -3px -3px 6px rgba(249,249,249,.4), 4px 5px 10px rgba(42,74,39,.4), inset 1.5px 2px 3px rgba(31,58,29,.35), inset -1.5px -1.5px 3px rgba(255,255,255,.15);
+  --shadow-card: -3px -3px 8px rgba(249,249,249,.3), 6px 8px 18px rgba(143,134,114,.22);
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); padding: 32px 16px 64px; }
+button { font: inherit; color: inherit; border: 0; background: none; }
+.page-head { max-width: 1500px; margin: 0 auto 28px; }
+.page-head h1 { font-size: 24px; }
+.page-head p { margin-top: 6px; color: var(--text-body); font-size: 14px; line-height: 1.6; max-width: 920px; }
+.board { max-width: 1500px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px 32px; justify-content: center; align-items: flex-start; }
+.frame-wrap { width: 390px; }
+.frame-wrap.narrow { width: 360px; }
+.cap { font-size: 16px; margin-bottom: 4px; }
+.cap-sub { font-size: 13px; color: var(--text-body); line-height: 1.55; margin-bottom: 14px; min-height: 60px; }
+
+/* ---------- 手機外框與頁面（對照 InventoryView） ---------- */
+.phone { position: relative; width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg-main); border-radius: 44px; outline: 8px solid #2b2a28; overflow: hidden; }
+.narrow .phone { width: 360px; }
+.status { height: 44px; padding: 14px 28px 0; display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; flex: none; }
+.batt { width: 24px; height: 12px; border: 1.5px solid var(--text-main); border-radius: 4px; position: relative; margin-top: 3px; }
+.batt::after { content: ""; position: absolute; inset: 1.5px; background: var(--text-main); border-radius: 1.5px; }
+.page { flex: 1; min-height: 0; padding: 4px 16px 0; display: flex; flex-direction: column; gap: 14px; }
+.top { display: flex; align-items: center; justify-content: space-between; height: 48px; flex: none; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-logo { width: 38px; height: 34px; display: block; }
+.space-pill { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 12px; border-radius: 999px; background: var(--card-bg); box-shadow: inset 0 0 0 1px #d9d6cc, var(--shadow-raised); font-size: 16px; font-weight: 700; }
+.space-pill .dot { width: 18px; height: 18px; border-radius: 50%; }
+.space-pill svg { color: var(--text-sub); }
+.avatar { width: 42px; height: 42px; border-radius: 50%; background: #cfe3cf; display: grid; place-items: center; }
+.avatar i { width: 28px; height: 26px; border-radius: 9px; background: var(--primary); display: block; }
+.search { flex: none; height: 44px; padding: 0 16px; border-radius: 999px; background: var(--input-bg); box-shadow: var(--shadow-inset); display: flex; align-items: center; gap: 10px; color: var(--text-disabled); font-size: 15px; }
+.cats { flex: none; display: flex; gap: 8px; overflow: hidden; padding: 2px 0 2px 2px; }
+.cat { flex: none; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--card-bg); box-shadow: var(--shadow-raised); font-size: 14px; color: var(--text-body); display: flex; align-items: center; }
+.cat.on { background: var(--primary); color: #fff; font-weight: 700; box-shadow: var(--shadow-primary); }
+.list { flex: none; border-radius: 22px; background: var(--card-bg); box-shadow: var(--shadow-card); overflow: hidden; }
+
+/* ---------- 列（照抄 ItemListRow.vue） ---------- */
+.item-row { position: relative; }
+.item-row:not(:last-child)::after { content: ''; position: absolute; inset: auto 0 0; height: 1px; background: var(--border); }
+.item-row-content { display: flex; align-items: center; gap: 14px; min-height: 96px; padding: 12px 12px 12px 18px; background: var(--card-bg); }
+.item-icon-circle { flex: 0 0 48px; width: 48px; height: 48px; overflow: hidden; border-radius: 999px; background: var(--icon-circle); box-shadow: inset -2.308px -2.308px 4.615px rgba(255,255,255,.9), inset 2.308px 2.308px 4.615px rgba(184,131,90,.22); }
+.item-icon { display: block; width: 48px; height: 48px; object-fit: contain; }
+.item-body { flex: 1; min-width: 0; }
+.item-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 0 0 5px; font-size: 17px; font-weight: 500; line-height: 24px; }
+.item-meta { display: flex; min-width: 0; overflow: hidden; color: var(--text-sub); font-size: 14px; line-height: 18px; white-space: nowrap; }
+.item-category { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.item-trailing { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.status-badge { flex-shrink: 0; padding: 3px 9px; border-radius: 999px; background: var(--badge-orange); color: var(--accent-text); font-size: 12px; font-weight: 500; line-height: 18px; white-space: nowrap; }
+.item-chevron { flex: 0 0 16px; width: 16px; height: 16px; }
+
+/* ---------- 新增：已在購買清單的標記（圓圈＋與導覽列相同的 fa-clipboard-list） ---------- */
+.list-chip { flex: none; width: 24px; height: 24px; margin-right: -2px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-subtle); color: var(--primary); font-size: 12px; }
+.list-chip.solid { background: var(--primary); color: #fff; }
+
+/* ---------- 方案 B：標記在名稱後面，名稱單行 ---------- */
+.name-row { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0 0 5px; }
+.name-row .item-name { flex: 0 1 auto; min-width: 0; margin: 0; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: unset; }
+.name-row .list-chip { width: 20px; height: 20px; margin: 0; font-size: 11px; }
+.item-name.one-line { display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: unset; }
+.status-badge.in-list { display: inline-flex; align-items: center; gap: 4px; background: var(--primary-subtle); color: var(--primary); }
+.status-badge.in-list i { font-size: 11px; }
+.section-title { flex-basis: 100%; font-size: 18px; margin: 8px 0 -12px; padding-top: 8px; border-top: 2px solid rgba(0,0,0,.12); }
+.section-title small { font-size: 13px; font-weight: 400; color: var(--text-body); margin-left: 8px; }
+
+/* ---------- 底部導覽（照 BottomNav） ---------- */
+.nav { position: absolute; left: 16px; bottom: 34px; right: 92px; height: 82px; padding: 0 8px; border-radius: 41px; background: var(--card-bg); box-shadow: var(--shadow-card); display: flex; align-items: center; justify-content: space-around; font-size: 12px; color: var(--text-sub); }
+.nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 12px; border-radius: 28px; font-weight: 500; }
+.nav-item i { font-size: 16px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
+.nav-item.on { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.nav-item.shop i { color: var(--primary); }          /* 與下方標記對照：同一個圖示 */
+.plus { position: absolute; right: 16px; bottom: 45px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 30px; box-shadow: var(--shadow-primary); }
+.home-ind { position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: var(--text-main); }
+
+/* ---------- 特寫面板 ---------- */
+.zoom { width: 390px; background: var(--card-bg); border-radius: 22px; box-shadow: var(--shadow-card); padding: 20px; }
+.zoom h3 { font-size: 15px; margin-bottom: 14px; }
+.zoom .row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 13px; color: var(--text-body); }
+.zoom .row .lbl { width: 74px; flex: none; }
+.zoom .big { zoom: 2.2; display: flex; align-items: center; gap: 8px; }
+.zoom .big .status-badge { font-size: 12px; }
+.zoom .note { font-size: 12px; color: var(--text-sub); line-height: 1.6; margin-top: 4px; }
+.navdemo { display: flex; align-items: center; gap: 14px; }
+.navdemo .nav-item { padding: 8px 12px; background: var(--primary-soft); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>我的用品｜購買清單標記 介面草稿 v4</h1>
+  <p>問題：個人空間的列表只顯示提醒狀態，使用者看到「該補貨了」，看不出這項其實已經在購買清單，要點進詳情才知道。<br>
+  <b>方案 A</b>（①～⑥）：標記在 pill 前面（右側），24px 圓圈，圖示 12px。<b>方案 B</b>（⑦～⑪）：標記放在用品名稱後面（20px 圓圈），名稱限制單行、過長就省略，pill 仍在右側。<b>方案 C</b>（⑫～⑮）：標記維持在右側 pill 前面（同 A，24px 圓圈），名稱改成單行、過長就省略。<b>方案 A+（⑯～⑳，v4 新增，建議）</b>：A 的版面，但「沒到補貨期、已在清單」那一列不放單獨的圓圈，改顯示綠色「購買清單中」pill（pill 裡帶同一個圖示）；只有「該補貨了＋已在清單」同時成立時，才在「該補貨了」pill 前面加圓圈。
+  做法：<b>pill 一律是提醒狀態</b>（該補貨了；不需補貨等不顯示）；只要用品已在購買清單，pill 前面多一個圓形標記，圖示與底部導覽「購買清單」相同。個人與共享空間用同一套規則。<br>
+  這是設計預覽，資料是示範用的假資料，不會寫進專案。</p>
+</header>
+
+<main class="board" id="board"></main>
+
+<script>
+/* ---------- 示範資料 ---------- */
+// reminder：該補貨了（overdue／dueSoon 同樣顯示）、none（不需補貨／未開啟提醒／紀錄不足，都不顯示 pill）
+// inList：已在購買清單
+const SETS = {
+  personalNow: [
+    { name: '垃圾袋', cat: '生活日用品', key: 'trash-bags', reminder: 'overdue', inList: true },
+    { name: '洗衣精', cat: '洗衣', key: 'laundry-detergent', reminder: 'dueSoon', inList: false },
+    { name: '洗碗精', cat: '廚房', key: 'dish-soap', reminder: 'none', inList: false },
+    { name: '海綿', cat: '清潔', key: 'sponge', reminder: 'none', inList: false },
+    { name: '狗狗糧食', cat: '寵物用品', key: 'dog-food', reminder: 'none', inList: false },
+  ],
+  personalNew: [
+    { name: '垃圾袋', cat: '生活日用品', key: 'trash-bags', reminder: 'overdue', inList: true },
+    { name: '洗衣精', cat: '洗衣', key: 'laundry-detergent', reminder: 'dueSoon', inList: false },
+    { name: '衛生紙', cat: '生活日用品', key: 'tissues', reminder: 'none', inList: true },
+    { name: '洗碗精', cat: '廚房', key: 'dish-soap', reminder: 'none', inList: false },
+    { name: '海綿', cat: '清潔', key: 'sponge', reminder: 'none', inList: false },
+  ],
+  family: [
+    { name: '衛生紙', cat: '生活日用品', key: 'tissues', reminder: 'dueSoon', inList: true },
+    { name: '垃圾袋', cat: '生活日用品', key: 'trash-bags', reminder: 'overdue', inList: false },
+    { name: '酒精', cat: '清潔', key: 'rubbing-alcohol', reminder: 'none', inList: true },
+    { name: '洗衣精', cat: '洗衣', key: 'laundry-detergent', reminder: 'none', inList: false },
+  ],
+  longNames: [
+    { name: '超大包裝家庭號無香精柔軟洗衣精補充包', cat: '洗衣與居家清潔用品（大容量）', key: 'laundry-detergent', reminder: 'overdue', inList: true },
+    { name: '廚房用抗菌洗碗精', cat: '廚房', key: 'dish-soap', reminder: 'dueSoon', inList: true },
+    { name: '海綿', cat: '清潔', key: 'sponge', reminder: 'none', inList: true },
+    { name: '狗狗糧食', cat: '寵物用品', key: 'dog-food', reminder: 'overdue', inList: false },
+  ],
+};
+const SPACES = {
+  personal: { name: '個人', color: '#3f6f3b' },
+  family: { name: '家庭', color: '#ff9e42' },
+};
+const ICON_STATE = { overdue: 'restock-needed', dueSoon: 'due-soon', none: 'in-stock' };
+const ASSETS = '../../../src/assets';
+const iconSrc = (key, reminder) => `${ASSETS}/household-icons-by-state/${ICON_STATE[reminder]}/${key}-${ICON_STATE[reminder]}.svg`;
+
+const FRAMES = [
+  { section: '方案 A', note: '標記在右側 pill 前面；名稱最多 2 行' },
+  { cap: '① 現在（個人空間）', sub: '垃圾袋其實已經在購買清單，但列表只看到「該補貨了」，和詳情頁頂部的「購買清單中」對不起來。', set: 'personalNow', space: 'personal', mark: false },
+  { cap: '② 新：個人空間', sub: '垃圾袋：該補貨了＋已在清單。洗衣精：只有該補貨了。衛生紙：沒到補貨期但已提早加入清單，只有圓形標記（沒有 pill）。', set: 'personalNew', space: 'personal', mark: true },
+  { cap: '③ 新：共享空間（家庭）', sub: '同一套規則。衛生紙：該補貨了＋已在清單；酒精：只有標記；垃圾袋：只有 pill。共享空間不再顯示「購買清單中」文字 pill。', set: 'family', space: 'family', mark: true },
+  { cap: '④ 名稱與類別很長', sub: '名稱最多 2 行再省略、類別單行省略。pill 和標記並排時，名稱區比原本窄約 30px，仍放得下。', set: 'longNames', space: 'personal', mark: true },
+  { cap: '⑤ 窄螢幕 360px', sub: '同 ④ 的資料，在較窄的手機上。', set: 'longNames', space: 'personal', mark: true, narrow: true },
+];
+const FRAMES_B = [
+  { section: '方案 B', note: '標記放在用品名稱後面；名稱限制單行，過長省略，標記固定跟在名稱後' },
+  { cap: '⑦ B：個人空間', sub: '垃圾袋：名稱後有標記，右側是該補貨了。衛生紙：只有名稱後的標記。標記跟名稱一起讀，pill 專心表達提醒狀態。', set: 'personalNew', space: 'personal', mark: true, layout: 'afterName' },
+  { cap: '⑧ B：共享空間（家庭）', sub: '同一套規則。酒精只有標記，垃圾袋只有 pill。', set: 'family', space: 'family', mark: true, layout: 'afterName' },
+  { cap: '⑨ B：名稱與類別很長', sub: '名稱單行省略，標記留在名稱後面不被擠掉；類別單行省略。不再有 2 行名稱，每列高度一致。', set: 'longNames', space: 'personal', mark: true, layout: 'afterName' },
+  { cap: '⑩ B：窄螢幕 360px', sub: '同 ⑨ 的資料，在較窄的手機上。名稱可見約 6 個字。', set: 'longNames', space: 'personal', mark: true, layout: 'afterName', narrow: true },
+];
+const FRAMES_C = [
+  { section: '方案 C', note: '標記在右側 pill 前面（同 A）；名稱限制單行，過長省略' },
+  { cap: '⑫ C：個人空間', sub: '位置同 A（標記在 pill 前、排成靠右一欄，掃描快），名稱單行。短名稱看起來和 A 一樣。', set: 'personalNew', space: 'personal', mark: true, oneLine: true },
+  { cap: '⑬ C：共享空間（家庭）', sub: '同一套規則。衛生紙：標記＋該補貨了；酒精：只有標記；垃圾袋：只有 pill。', set: 'family', space: 'family', mark: true, oneLine: true },
+  { cap: '⑭ C：名稱與類別很長', sub: '名稱單行省略、標記和 pill 都完整保留。名稱可見約 8 個字（390px），和 B 差不多；比 A 的兩行（約 15 字）少一半。', set: 'longNames', space: 'personal', mark: true, oneLine: true },
+  { cap: '⑮ C：窄螢幕 360px', sub: '同 ⑭ 的資料，在較窄的手機上。長名稱只剩約 6 個字。', set: 'longNames', space: 'personal', mark: true, oneLine: true, narrow: true },
+];
+
+const FRAMES_AP = [
+  { section: '方案 A+（建議）', note: 'A 的版面＋沒到補貨期的已在清單用品改顯示「購買清單中」pill；兩種狀態同時成立才用圓圈' },
+  { cap: '⑯ A+：個人空間', sub: '垃圾袋：該補貨了＋已在清單 → 圓圈＋該補貨了。衛生紙：沒到補貨期、已在清單 → 綠色「購買清單中」pill（帶同一個圖示），不再是單獨的圓圈。', set: 'personalNew', space: 'personal', mark: true, textPill: true },
+  { cap: '⑰ A+：共享空間（家庭）', sub: '同一套規則。衛生紙：圓圈＋該補貨了；酒精：綠色「購買清單中」pill；垃圾袋：只有該補貨了。', set: 'family', space: 'family', mark: true, textPill: true },
+  { cap: '⑱ A+：名稱與類別很長', sub: '綠色「購買清單中」pill 寬約 96px，和「圓圈＋該補貨了」（約 98px）差不多寬，名稱區最窄都是約 132px，最差情況沒有比 A 更擠。', set: 'longNames', space: 'personal', mark: true, textPill: true },
+  { cap: '⑲ A+：窄螢幕 360px', sub: '同 ⑱ 的資料，在較窄的手機上。', set: 'longNames', space: 'personal', mark: true, textPill: true, narrow: true },
+];
+
+/* ---------- 產生畫面 ---------- */
+const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+const chevron = `${ASSETS}/settings/chevron.svg`;
+
+function rowHtml(it, mark, layout, oneLine, textPill) {
+  const listPill = '<span class="status-badge in-list"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>購買清單中</span>';
+  const pill = it.reminder !== 'none' ? '<span class="status-badge">該補貨了</span>' : (textPill && it.inList ? listPill : '');
+  const chipHtml = '<span class="list-chip" role="img" aria-label="已在購買清單"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i></span>';
+  const after = layout === 'afterName';
+  const chip = mark && it.inList && !after && (!textPill || it.reminder !== 'none') ? chipHtml : '';
+  const nameHtml = after
+    ? `<p class="name-row"><span class="item-name">${it.name}</span>${mark && it.inList ? chipHtml : ''}</p>`
+    : `<p class="item-name${oneLine ? ' one-line' : ''}">${it.name}</p>`;
+  return `<li class="item-row"><div class="item-row-content">
+    <span class="item-icon-circle" aria-hidden="true"><img class="item-icon" src="${iconSrc(it.key, it.reminder)}" alt=""></span>
+    <div class="item-body">${nameHtml}<p class="item-meta"><span class="item-category">${it.cat}</span></p></div>
+    <div class="item-trailing">${chip}${pill}<img class="item-chevron" src="${chevron}" alt=""></div>
+  </div></li>`;
+}
+
+function frameHtml(f) {
+  const sp = SPACES[f.space];
+  return `<section class="frame-wrap${f.narrow ? ' narrow' : ''}">
+    <h2 class="cap">${f.cap}</h2><p class="cap-sub">${f.sub}</p>
+    <div class="phone">
+      <div class="status"><span>9:41</span><span class="batt" aria-hidden="true"></span></div>
+      <div class="page">
+        <div class="top">
+          <div class="brand"><img class="brand-logo" src="${ASSETS}/logo.svg" alt=""><button class="space-pill" type="button"><i class="dot" style="background:${sp.color}"></i>${sp.name}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button></div>
+          <span class="avatar"><i></i></span>
+        </div>
+        <div class="search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>搜尋用品</div>
+        <div class="cats"><span class="cat on">全部</span><span class="cat">生活日用品</span><span class="cat">清潔</span><span class="cat">洗衣</span><span class="cat">廚房</span></div>
+        <ul class="list" style="list-style:none;padding:0">${SETS[f.set].map((it) => rowHtml(it, f.mark, f.layout, f.oneLine, f.textPill)).join('')}</ul>
+      </div>
+      <nav class="nav" aria-label="主要導覽">
+        <span class="nav-item on"><i class="fa-solid fa-box-open"></i>我的用品</span>
+        <span class="nav-item"><i class="fa-solid fa-clipboard-list"></i>購買清單</span>
+        <span class="nav-item"><i class="fa-solid fa-gear"></i>設定</span>
+      </nav>
+      <span class="plus">＋</span>
+      <div class="home-ind"></div>
+    </div>
+  </section>`;
+}
+
+const zoomHtml = `<section class="frame-wrap">
+  <h2 class="cap">⑥ 標記特寫與樣式</h2>
+  <p class="cap-sub">放大 2.2 倍。上面是採用的樣式（淡綠底＋綠色圖示，同舊「購買清單中」pill 的配色）；下面是較搶眼的備選（實心綠底＋白色圖示）。圖示與導覽列「購買清單」相同。</p>
+  <div class="zoom">
+    <h3>已在清單＋該補貨了</h3>
+    <div class="row"><span class="lbl">採用（淡底）</span><span class="big"><span class="list-chip"><i class="fa-solid fa-clipboard-list"></i></span><span class="status-badge">該補貨了</span></span></div>
+    <div class="row"><span class="lbl">備選（實心）</span><span class="big"><span class="list-chip solid"><i class="fa-solid fa-clipboard-list"></i></span><span class="status-badge">該補貨了</span></span></div>
+    <h3 style="margin-top:22px">只有標記（沒到補貨期）</h3>
+    <div class="row"><span class="lbl">採用</span><span class="big"><span class="list-chip"><i class="fa-solid fa-clipboard-list"></i></span></span></div>
+    <h3 style="margin-top:22px">對照：導覽列「購買清單」</h3>
+    <div class="row"><span class="lbl">同一個圖示</span><span class="navdemo"><span class="nav-item shop"><i class="fa-solid fa-clipboard-list"></i>購買清單</span><span class="list-chip"><i class="fa-solid fa-clipboard-list"></i></span></span></div>
+    <p class="note">無障礙：標記是 <code>role="img"</code>＋<code>aria-label="已在購買清單"</code>，螢幕閱讀器會讀成「已在購買清單，該補貨了」。顏色與 pill 的橘色不同，不靠顏色單獨傳達。</p>
+  </div>
+</section>`;
+
+const zoomBHtml = `<section class="frame-wrap">
+  <h2 class="cap">⑪ B：標記特寫</h2>
+  <p class="cap-sub">放大 2.2 倍。標記 20px，與 17px 的名稱文字垂直置中，間距 6px。</p>
+  <div class="zoom">
+    <h3>名稱＋標記（右邊是 pill）</h3>
+    <div class="row"><span class="big" style="width:100%;justify-content:space-between"><span class="name-row" style="margin:0"><span class="item-name" style="font-size:17px;font-weight:500">垃圾袋</span><span class="list-chip"><i class="fa-solid fa-clipboard-list"></i></span></span></span></div>
+    <h3 style="margin-top:22px">名稱過長時</h3>
+    <div class="row"><span class="big" style="width:150px"><span class="name-row" style="margin:0;width:100%"><span class="item-name" style="font-size:17px;font-weight:500">超大包裝家庭號無香精柔軟洗衣精</span><span class="list-chip"><i class="fa-solid fa-clipboard-list"></i></span></span></span></div>
+    <p class="note">名稱先被省略，標記不縮小、不換行。無障礙同 A：<code>role="img"</code>＋<code>aria-label="已在購買清單"</code>。</p>
+  </div>
+</section>`;
+
+const zoomAPHtml = `<section class="frame-wrap">
+  <h2 class="cap">⑳ A+：規則對照</h2>
+  <p class="cap-sub">四種組合各自顯示什麼。放大 2.2 倍。綠色「購買清單中」pill 裡的圖示，與圓圈、導覽列「購買清單」是同一個。</p>
+  <div class="zoom">
+    <h3>右側顯示（pill 前面的圓圈只在第一種出現）</h3>
+    <div class="row"><span class="lbl">該補貨了<br>＋已在清單</span><span class="big"><span class="list-chip"><i class="fa-solid fa-clipboard-list"></i></span><span class="status-badge">該補貨了</span></span></div>
+    <div class="row"><span class="lbl">只有<br>該補貨了</span><span class="big"><span class="status-badge">該補貨了</span></span></div>
+    <div class="row"><span class="lbl">只有<br>已在清單</span><span class="big"><span class="status-badge in-list"><i class="fa-solid fa-clipboard-list"></i>購買清單中</span></span></div>
+    <div class="row"><span class="lbl">都沒有</span><span class="big" style="color:var(--text-disabled);font-size:12px">（不顯示）</span></div>
+    <p class="note">優先順序：該補貨了 &gt; 購買清單中。學習路徑：使用者先在「購買清單中」pill 裡看到「圖示＋文字」，之後圓圈單獨出現就認得。無障礙：圓圈 <code>role="img"</code>＋<code>aria-label="已在購買清單"</code>；pill 本身就有文字。</p>
+  </div>
+</section>`;
+
+const board = document.getElementById('board');
+const renderItems = (list) => list.forEach((f) => board.append(f.section ? h(`<h2 class="section-title">${f.section}<small>${f.note}</small></h2>`) : h(frameHtml(f))));
+renderItems(FRAMES);
+board.append(h(zoomHtml));
+renderItems(FRAMES_B);
+board.append(h(zoomBHtml));
+renderItems(FRAMES_C);
+renderItems(FRAMES_AP);
+board.append(h(zoomAPHtml));
+</script>
+</body>
+</html>
