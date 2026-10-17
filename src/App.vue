@@ -94,6 +94,10 @@ function onSpaceCreated(space) {
 <style scoped>
 .app-container {
   padding: 0 16px 34px;
+  /* 購買清單的群組抽屜用負邊距讓卡片陰影不被裁（.group-drawer-content），會比視窗寬約 8px；
+     手機 Safari 因此多出橫向捲動並縮放頁面，固定在底部的導覽列跟著跳動。
+     只在這一層裁掉超出視窗的部分（clip 不產生捲動容器，sticky 照常），卡片陰影仍可以畫到視窗邊緣。 */
+  overflow-x: clip;
 }
 
 .app-content {
