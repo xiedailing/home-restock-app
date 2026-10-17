@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>底部導覽與「＋」選單 介面草稿 v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+/* ---------- tokens（取自 src/assets/scss/_tokens.scss） ---------- */
+:root {
+  --bg-main: #efebe3;
+  --card-bg: #fcfbf8;
+  --input-bg: #f6f5f1;
+  --primary: #3f6f3b;
+  --primary-soft: #eef5ec;
+  --primary-subtle: #e4f2e8;
+  --accent-text: #9a5510;
+  --badge-orange: #ffebd7;
+  --text-main: #1d1d1f;
+  --text-body: #5a5a5f;
+  --text-sub: #6e6e73;
+  --text-disabled: #a1a1a6;
+  --border: #e7e7e3;
+  --icon-circle: #f5f5f6;
+  --font: "Chiron GoRound TC", "Noto Sans TC", sans-serif;
+  --shadow-raised: -2px -2px 4px rgba(249,249,249,.6), 2px 3px 6px rgba(143,134,114,.2);
+  --shadow-inset: inset -3px -3px 10px rgba(255,255,255,.65), inset 2px 3px 6px rgba(105,99,85,.16);
+  --shadow-primary: -3px -3px 6px rgba(249,249,249,.4), 4px 5px 10px rgba(42,74,39,.4), inset 1.5px 2px 3px rgba(31,58,29,.35), inset -1.5px -1.5px 3px rgba(255,255,255,.15);
+  --shadow-card: -3px -3px 8px rgba(249,249,249,.3), 6px 8px 18px rgba(143,134,114,.22);
+}
+* { box-sizing: border-box; margin: 0; }
+body { background: #d9d5cb; color: var(--text-main); font-family: var(--font); padding: 32px 16px 64px; }
+button { font: inherit; color: inherit; border: 0; background: none; }
+.page-head { max-width: 1500px; margin: 0 auto 28px; }
+.page-head h1 { font-size: 24px; }
+.page-head p { margin-top: 6px; color: var(--text-body); font-size: 14px; line-height: 1.6; max-width: 920px; }
+.board { max-width: 1500px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 40px 32px; justify-content: center; align-items: flex-start; }
+.frame-wrap { width: 390px; }
+.frame-wrap.narrow { width: 360px; }
+.cap { font-size: 16px; margin-bottom: 4px; }
+.cap-sub { font-size: 13px; color: var(--text-body); line-height: 1.55; margin-bottom: 14px; min-height: 60px; }
+
+/* ---------- 手機外框與頁面（對照 InventoryView） ---------- */
+.phone { position: relative; width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg-main); border-radius: 44px; outline: 8px solid #2b2a28; overflow: hidden; }
+.narrow .phone { width: 360px; }
+.status { height: 44px; padding: 14px 28px 0; display: flex; justify-content: space-between; font-size: 15px; font-weight: 700; flex: none; }
+.batt { width: 24px; height: 12px; border: 1.5px solid var(--text-main); border-radius: 4px; position: relative; margin-top: 3px; }
+.batt::after { content: ""; position: absolute; inset: 1.5px; background: var(--text-main); border-radius: 1.5px; }
+.page { flex: 1; min-height: 0; padding: 4px 16px 0; display: flex; flex-direction: column; gap: 14px; }
+.top { display: flex; align-items: center; justify-content: space-between; height: 48px; flex: none; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-logo { width: 38px; height: 34px; display: block; }
+.space-pill { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px 0 12px; border-radius: 999px; background: var(--card-bg); box-shadow: inset 0 0 0 1px #d9d6cc, var(--shadow-raised); font-size: 16px; font-weight: 700; }
+.space-pill .dot { width: 18px; height: 18px; border-radius: 50%; }
+.space-pill svg { color: var(--text-sub); }
+.avatar { width: 42px; height: 42px; border-radius: 50%; background: #cfe3cf; display: grid; place-items: center; }
+.avatar i { width: 28px; height: 26px; border-radius: 9px; background: var(--primary); display: block; }
+.search { flex: none; height: 44px; padding: 0 16px; border-radius: 999px; background: var(--input-bg); box-shadow: var(--shadow-inset); display: flex; align-items: center; gap: 10px; color: var(--text-disabled); font-size: 15px; }
+.cats { flex: none; display: flex; gap: 8px; overflow: hidden; padding: 2px 0 2px 2px; }
+.cat { flex: none; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--card-bg); box-shadow: var(--shadow-raised); font-size: 14px; color: var(--text-body); display: flex; align-items: center; }
+.cat.on { background: var(--primary); color: #fff; font-weight: 700; box-shadow: var(--shadow-primary); }
+.list { flex: none; border-radius: 22px; background: var(--card-bg); box-shadow: var(--shadow-card); overflow: hidden; }
+
+/* ---------- 列（照抄 ItemListRow.vue） ---------- */
+.item-row { position: relative; }
+.item-row:not(:last-child)::after { content: ''; position: absolute; inset: auto 0 0; height: 1px; background: var(--border); }
+.item-row-content { display: flex; align-items: center; gap: 14px; min-height: 96px; padding: 12px 12px 12px 18px; background: var(--card-bg); }
+.item-icon-circle { flex: 0 0 48px; width: 48px; height: 48px; overflow: hidden; border-radius: 999px; background: var(--icon-circle); box-shadow: inset -2.308px -2.308px 4.615px rgba(255,255,255,.9), inset 2.308px 2.308px 4.615px rgba(184,131,90,.22); }
+.item-icon { display: block; width: 48px; height: 48px; object-fit: contain; }
+.item-body { flex: 1; min-width: 0; }
+.item-name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; margin: 0 0 5px; font-size: 17px; font-weight: 500; line-height: 24px; }
+.item-meta { display: flex; min-width: 0; overflow: hidden; color: var(--text-sub); font-size: 14px; line-height: 18px; white-space: nowrap; }
+.item-category { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.item-trailing { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.status-badge { flex-shrink: 0; padding: 3px 9px; border-radius: 999px; background: var(--badge-orange); color: var(--accent-text); font-size: 12px; font-weight: 500; line-height: 18px; white-space: nowrap; }
+.item-chevron { flex: 0 0 16px; width: 16px; height: 16px; }
+
+/* ---------- 新增：已在購買清單的標記（圓圈＋與導覽列相同的 fa-clipboard-list） ---------- */
+.list-chip { flex: none; width: 24px; height: 24px; margin-right: -2px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-subtle); color: var(--primary); font-size: 12px; }
+.list-chip.solid { background: var(--primary); color: #fff; }
+
+/* ---------- 方案 B：標記在名稱後面，名稱單行 ---------- */
+.name-row { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 0 0 5px; }
+.name-row .item-name { flex: 0 1 auto; min-width: 0; margin: 0; display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: unset; }
+.name-row .list-chip { width: 20px; height: 20px; margin: 0; font-size: 11px; }
+.item-name.one-line { display: block; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: unset; }
+.status-badge.in-list { display: inline-flex; align-items: center; gap: 4px; background: var(--primary-subtle); color: var(--primary); }
+.status-badge.in-list i { font-size: 11px; }
+.section-title { flex-basis: 100%; font-size: 18px; margin: 8px 0 -12px; padding-top: 8px; border-top: 2px solid rgba(0,0,0,.12); }
+.section-title small { font-size: 13px; font-weight: 400; color: var(--text-body); margin-left: 8px; }
+
+/* ---------- 底部導覽（照 BottomNav） ---------- */
+.nav { position: absolute; left: 16px; bottom: 34px; right: 92px; height: 82px; padding: 0 8px; border-radius: 41px; background: var(--card-bg); box-shadow: var(--shadow-card); display: flex; align-items: center; justify-content: space-around; font-size: 12px; color: var(--text-sub); }
+.nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 12px; border-radius: 28px; font-weight: 500; }
+.nav-item i { font-size: 16px; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
+.nav-item.on { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.nav-item.shop i { color: var(--primary); }          /* 與下方標記對照：同一個圖示 */
+.plus { position: absolute; right: 16px; bottom: 45px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 30px; box-shadow: var(--shadow-primary); }
+.home-ind { position: absolute; left: 50%; bottom: 8px; width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; background: var(--text-main); }
+
+/* ---------- 特寫面板 ---------- */
+.zoom { width: 390px; background: var(--card-bg); border-radius: 22px; box-shadow: var(--shadow-card); padding: 20px; }
+.zoom h3 { font-size: 15px; margin-bottom: 14px; }
+.zoom .row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-size: 13px; color: var(--text-body); }
+.zoom .row .lbl { width: 74px; flex: none; }
+.zoom .big { zoom: 2.2; display: flex; align-items: center; gap: 8px; }
+.zoom .big .status-badge { font-size: 12px; }
+.zoom .note { font-size: 12px; color: var(--text-sub); line-height: 1.6; margin-top: 4px; }
+.navdemo { display: flex; align-items: center; gap: 14px; }
+.navdemo .nav-item { padding: 8px 12px; background: var(--primary-soft); }
+
+/* ---------- 底部導覽（可切換尺寸） ---------- */
+.bn { position: absolute; left: 16px; right: 16px; display: flex; align-items: center; gap: 12px; z-index: 20; }
+.bn .pill { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 38px; background: var(--card-bg); box-shadow: var(--shadow-floating, 0 -3px 10px rgba(255,255,255,.4), 0 -6px 24px rgba(140,136,127,.16)); }
+.bn .item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 18px; color: var(--text-sub); font-size: 11px; font-weight: 400; }
+.bn .item.on { gap: 2px; border-radius: 38px; color: var(--primary); background: #eef3ea; box-shadow: inset -1px -1px 4px rgba(255,255,255,.85), inset 1px 2px 5px rgba(138,158,136,.1); font-weight: 500; }
+.bn .item i { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
+.bn .plusbtn { flex: none; display: grid; place-items: center; border: 4px solid #fff; border-radius: 50%; background: var(--primary); box-shadow: 0 -3px 8px rgba(255,255,255,.8), 0 6px 13px rgba(75,94,72,.22); }
+.bn .plusbtn svg { display: block; }
+.bn.old { bottom: 34px; height: 82px; }
+.bn.old .pill { height: 82px; padding: 9px 8px; }
+.bn.old .item { height: 64px; }
+.bn.old .plusbtn { width: 56px; height: 56px; }
+.bn.new { bottom: 34px; height: 68px; }
+.bn.new .pill { height: 68px; padding: 7px 8px; }
+.bn.new .item { height: 52px; gap: 3px; }
+.bn.new .item.on { gap: 2px; }
+.bn.new .plusbtn { width: 56px; height: 56px; }
+.bn .plusbtn.noring { border: 0; box-shadow: 0 6px 13px rgba(75,94,72,.28); }
+
+/* ---------- 「＋」選單 ---------- */
+.menu-old { position: absolute; right: 16px; bottom: 115px; z-index: 30; width: 176px; padding: 8px; border: 1px solid var(--border); border-radius: 22px; background: var(--card-bg); box-shadow: 0 -3px 10px rgba(255,255,255,.4), 0 -6px 24px rgba(140,136,127,.16); }
+.menu-old .opt { display: flex; align-items: center; height: 40px; padding: 0 12px; border-radius: 14px; color: var(--text-main); font-size: 14px; font-weight: 500; }
+.scrim-nav { position: absolute; inset: 0; background: rgba(29,29,31,.32); z-index: 10; }
+.menu-new { position: absolute; right: 16px; bottom: 108px; z-index: 30; width: 220px; padding: 8px; border: 1px solid var(--border); border-radius: 22px; background: var(--card-bg); box-shadow: 0 8px 24px rgba(29,29,31,.18); }
+.menu-new .opt { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 10px; border-radius: 14px; color: var(--text-main); font-size: 16px; font-weight: 500; }
+.menu-new .opt + .opt { margin-top: 0; }
+.menu-new .ic { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-subtle); color: var(--primary); font-size: 15px; }
+
+/* ---------- Toast（導覽列上方 16px） ---------- */
+.toast-demo { position: absolute; left: 50%; transform: translateX(-50%); z-index: 15; width: max-content; max-width: calc(100% - 32px); min-height: 52px; padding: 8px 22px 8px 18px; display: flex; align-items: center; gap: 10px; border-radius: 999px; background: #302e29; color: #fcf9f1; font-size: 14px; font-weight: 500; box-shadow: 0 6px 16px rgba(29,29,31,.25); }
+.toast-demo b { color: #c7e7a2; font-weight: 700; }
+.toast-demo .ck { width: 22px; height: 22px; border-radius: 50%; background: #c7e7a2; color: #302e29; display: grid; place-items: center; font-size: 12px; }
+.dim { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px dashed rgba(184,58,38,.7); z-index: 40; }
+.dim span { position: absolute; right: 8px; top: -18px; font-size: 11px; color: #b83a26; background: rgba(252,251,248,.9); padding: 0 4px; border-radius: 4px; }
+
+/* ---------- 規格面板 ---------- */
+.spec { width: 390px; background: var(--card-bg); border-radius: 22px; box-shadow: var(--shadow-card); padding: 20px; }
+.spec h3 { font-size: 15px; margin-bottom: 12px; }
+.spec table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-body); line-height: 1.5; }
+.spec th { text-align: left; font-weight: 500; padding: 0 0 8px; color: var(--text-sub); font-size: 12px; }
+.spec td { padding: 9px 8px 9px 0; border-top: 1px solid var(--border); vertical-align: top; }
+.spec td:first-child { width: 96px; color: var(--text-main); font-weight: 500; }
+.spec .note { font-size: 12px; color: var(--text-sub); line-height: 1.6; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>底部導覽與「＋」選單 介面草稿 v2</h1>
+  <p>三個調整（UT-37）：①「＋」選單<b>加遮罩</b>，把背景壓暗，選單不再跟同色的列表卡片融在一起；②選項前面加<b>圓形圖示</b>，選項加高、選單加寬；③<b>只縮矮導覽列膠囊</b>：82→68px；「＋」鈕維持 56px、底部留白維持 34px，總佔用 116→102px（少 14px）。④選項改名「<b>記錄補貨</b>」（與用品詳情的按鈕一致，圖示也是＋）；「新增空間」改用中性的資料夾＋圖示，不再暗示多人。⑤「＋」鈕<b>拿掉白圈</b>（綠圓 56px，外徑不變）。已決定的項目見特寫 ⑦。<br>
+  這是設計預覽，資料是示範用的假資料。</p>
+</header>
+<main class="board" id="board"></main>
+<script>
+const ASSETS = '../../../src/assets';
+const ICON_STATE = { overdue: 'restock-needed', dueSoon: 'due-soon', none: 'in-stock' };
+const iconSrc = (key, r) => `${ASSETS}/household-icons-by-state/${ICON_STATE[r]}/${key}-${ICON_STATE[r]}.svg`;
+const chevron = `${ASSETS}/settings/chevron.svg`;
+const ROWS = [
+  { name: '垃圾袋', cat: '生活日用品', key: 'trash-bags', r: 'overdue', chip: true },
+  { name: '洗衣精', cat: '洗衣', key: 'laundry-detergent', r: 'dueSoon' },
+  { name: '衛生紙', cat: '生活日用品', key: 'tissues', r: 'none', listPill: true },
+  { name: '洗碗精', cat: '廚房', key: 'dish-soap', r: 'none' },
+  { name: '海綿', cat: '清潔', key: 'sponge', r: 'none' },
+  { name: '狗狗糧食', cat: '寵物用品', key: 'dog-food', r: 'none' },
+];
+const rowHtml = (it) => {
+  const chip = it.chip ? '<span class="list-chip" style="flex:none;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--primary-subtle);color:var(--primary);font-size:12px"><i class="fa-solid fa-clipboard-list"></i></span>' : '';
+  const pill = it.r !== 'none' ? '<span class="status-badge">該補貨了</span>' : (it.listPill ? '<span class="status-badge in-list" style="display:inline-flex;align-items:center;gap:4px;background:var(--primary-subtle);color:var(--primary)"><i class="fa-solid fa-clipboard-list" style="font-size:11px"></i>購買清單中</span>' : '');
+  return `<li class="item-row"><div class="item-row-content">
+    <span class="item-icon-circle"><img class="item-icon" src="${iconSrc(it.key, it.r)}" alt=""></span>
+    <div class="item-body"><p class="item-name">${it.name}</p><p class="item-meta"><span class="item-category">${it.cat}</span></p></div>
+    <div class="item-trailing"><span style="display:inline-flex;align-items:center;gap:6px">${chip}${pill}</span><img class="item-chevron" src="${chevron}" alt=""></div>
+  </div></li>`;
+};
+const PLUS = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`;
+const nav = (v) => `<div class="bn ${v}">
+  <div class="pill">
+    <span class="item on"><i class="fa-solid fa-box-open"></i>我的用品</span>
+    <span class="item"><i class="fa-solid fa-clipboard-list"></i>購買清單</span>
+    <span class="item"><i class="fa-solid fa-gear"></i>設定</span>
+  </div>
+  <span class="plusbtn${v === 'new' ? ' noring' : ''}" role="button" aria-haspopup="menu" aria-label="新增">${PLUS(v === 'old' ? 22 : 20)}</span>
+</div>`;
+const menuOld = '<div class="menu-old" role="menu"><div class="opt" role="menuitem">新增補貨紀錄</div><div class="opt" role="menuitem">新增空間</div></div>';
+const menuNew = '<div class="scrim-nav"></div><div class="menu-new" role="menu"><div class="opt" role="menuitem"><span class="ic"><i class="fa-solid fa-plus"></i></span>記錄補貨</div><div class="opt" role="menuitem"><span class="ic"><i class="fa-solid fa-folder-plus"></i></span>新增空間</div></div>';
+const toast = (v) => `<div class="toast-demo" style="bottom:${v === 'old' ? 132 : 118}px" role="status"><span class="ck">✓</span>已從「個人」移除 垃圾袋 <b>復原</b></div>`;
+
+function frame(f) {
+  const rows = ROWS.slice(0, 6).map(rowHtml).join('');
+  return `<section class="frame-wrap"><h2 class="cap">${f.cap}</h2><p class="cap-sub">${f.sub}</p>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span class="batt"></span></div>
+    <div class="page">
+      <div class="top"><div class="brand"><img class="brand-logo" src="${ASSETS}/logo.svg" alt=""><button class="space-pill" type="button"><i class="dot" style="background:#3f6f3b"></i>個人<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button></div><span class="avatar"><i></i></span></div>
+      <div class="search"><i class="fa-solid fa-magnifying-glass"></i>搜尋用品</div>
+      <div class="cats"><span class="cat on">全部</span><span class="cat">生活日用品</span><span class="cat">清潔</span><span class="cat">洗衣</span><span class="cat">廚房</span></div>
+      <ul class="list" style="list-style:none;padding:0">${rows}</ul>
+    </div>
+    ${f.menu === 'new' ? menuNew : ''}${f.menu === 'old' ? menuOld : ''}${f.toast ? toast(f.nav) : ''}${nav(f.nav)}
+    <div class="home-ind"></div>
+  </div></section>`;
+}
+const FRAMES = [
+  { cap: '① 現在：選單關閉', sub: '導覽列膠囊 82px、「＋」鈕 56px、底部留白 34px，共佔 116px。', nav: 'old' },
+  { cap: '② 現在：點「＋」', sub: '選單底色與列表卡片同為 #fcfbf8，只靠細邊框；沒有遮罩，選項只有字。', nav: 'old', menu: 'old' },
+  { cap: '③ 新：選單關閉', sub: '只縮膠囊：82→68px（導覽項按鈕 64→52px）；「＋」鈕維持 56px、底部留白維持 34px，共佔 102px（少 14px）。', nav: 'new' },
+  { cap: '④ 新：點「＋」', sub: '背景壓暗、導覽列留在遮罩上方；選項前有圓形圖示：「記錄補貨」用＋（同用品詳情的按鈕），「新增空間」用資料夾＋（中性，不暗示多人）。點遮罩或按 Esc 關閉。', nav: 'new', menu: 'new' },
+  { cap: '⑤ 新：Toast 位置', sub: '導覽列縮矮後，Toast 同步往下：底部從 132px 改 118px（導覽列頂端上方 16px）。', nav: 'new', toast: true },
+];
+const specHtml = `<section class="frame-wrap"><h2 class="cap">⑥ 尺寸對照</h2><p class="cap-sub">導覽列高度被多處依賴，會一起調整（見下表）。</p>
+<div class="spec"><table><thead><tr><th>項目</th><th>現在</th><th>新</th></tr></thead><tbody>
+<tr><td>膠囊高</td><td>82px</td><td>68px</td></tr>
+<tr><td>導覽項按鈕高</td><td>64px</td><td>52px</td></tr>
+<tr><td>「＋」鈕</td><td>56px（含 4px 白邊）</td><td>56px（不變；白圈有無見特寫）</td></tr>
+<tr><td>底部留白</td><td>34px</td><td>34px（不變）</td></tr>
+<tr><td><b>總佔用</b></td><td><b>116px</b></td><td><b>102px（−14px）</b></td></tr>
+<tr><td>Toast 底部</td><td>132px</td><td>118px</td></tr>
+<tr><td>選單</td><td>176×98px、列高 40px、字 14px、無圖示、無遮罩</td><td>220×122px、列高 52px、字 16px、36px 圓形圖示、遮罩 rgba(29,29,31,.32)</td></tr>
+<tr><td>名稱</td><td>新增補貨紀錄</td><td>記錄補貨（與用品詳情一致）</td></tr>
+</tbody></table>
+<p class="note">一起調整的地方：<code>App.vue</code> 內容底部留白、<code>$toast-bottom</code>（Toast、邀請成員 Sheet、空間設定頁、購買清單「全部認領」列、我的用品刪除 Toast 共用）。改用變數算（導覽列高度、留白、間距），避免日後漏改。</p></div></section>`;
+var ICONS = [['fa-folder-plus','資料夾＋（採用）'],['fa-layer-group','圖層'],['fa-house','房子'],['fa-table-cells-large','方格'],['fa-users','人像（現在）']];
+var cands = ICONS.map(function (p) { return '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:68px"><span style="width:48px;height:48px;border-radius:50%;background:var(--primary-subtle);color:var(--primary);display:grid;place-items:center;font-size:20px"><i class="fa-solid ' + p[0] + '"></i></span><span style="font-size:11px;color:var(--text-body);text-align:center;line-height:1.3">' + p[1] + '</span></div>'; }).join('');
+var ring = '<span style="width:56px;height:56px;border:4px solid #fff;border-radius:50%;background:var(--primary);display:grid;place-items:center;box-shadow:0 -3px 8px rgba(255,255,255,.8),0 6px 13px rgba(75,94,72,.22)">' + PLUS(22) + '</span>';
+var noring = '<span style="width:56px;height:56px;border-radius:50%;background:var(--primary);display:grid;place-items:center;box-shadow:0 6px 13px rgba(75,94,72,.28)">' + PLUS(22) + '</span>';
+var zoomHtml = '<section class="frame-wrap"><h2 class="cap">⑦ 特寫：白圈與圖示（已決定）</h2><p class="cap-sub">放大 2 倍。左：現在（綠圓 48＋4px 白圈）；右：<b>採用</b>：拿掉白圈（綠圓 56，外徑相同）。下方是「新增空間」的圖示候選，<b>採用資料夾＋</b>（人像會暗示多人共享，但空間可以是個人、旅行、公司）。</p><div class="spec" style="background:#efebe3"><div style="zoom:2;display:flex;gap:18px;align-items:center;padding:6px 4px">' + ring + noring + '</div><div style="display:flex;gap:12px;margin-top:18px;flex-wrap:wrap">' + cands + '</div></div></section>';
+const board = document.getElementById('board');
+const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+FRAMES.forEach((f) => board.append(h(frame(f))));
+board.append(h(specHtml));
+board.append(h(zoomHtml));
+</script>
+</body>
+</html>
