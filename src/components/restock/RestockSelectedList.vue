@@ -15,7 +15,7 @@ const emit = defineEmits(['update:quantity', 'remove'])
       <span class="selected-pic" aria-hidden="true"><img :src="entry.icon" alt="" /></span>
       <span class="selected-info">
         <span class="selected-name">{{ entry.name }}</span>
-        <span v-if="entry.lastDate" class="selected-meta">上次 {{ entry.lastDate }}</span>
+        <span v-if="entry.lastDate" class="selected-meta">上次補貨 {{ entry.lastDate }}</span>
       </span>
       <QuantityStepper
         :model-value="entry.quantity"

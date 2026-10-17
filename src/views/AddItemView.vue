@@ -17,7 +17,8 @@ const itemsStore = useItemsStore()
 const catalog = useCatalogStore()
 const route = useRoute()
 const fromItemManagement = route.query.from === 'item-management'
-const initialCategory = fromItemManagement && typeof route.query.category === 'string' && itemsStore.categoryOptions.includes(route.query.category) ? route.query.category : null
+// ?category= 預設類別：從用品管理分類頁、補貨頁（選了類別 pills）進來都會帶。
+const initialCategory = typeof route.query.category === 'string' && itemsStore.categoryOptions.includes(route.query.category) ? route.query.category : null
 const CUSTOM_UNIT = 'custom'
 const name = ref('')
 const category = ref(initialCategory)

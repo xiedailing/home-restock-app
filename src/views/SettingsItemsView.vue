@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import { useCatalogStore } from '../stores/catalog'
 import { SYSTEM_CATEGORIES } from '../models/itemCategories'
@@ -9,6 +10,14 @@ import backIcon from '../assets/settings/category-back.svg'
 import chevron from '../assets/settings/category-chevron.svg'
 const store = useItemsStore()
 const catalog = useCatalogStore()
+const route = useRoute()
+const router = useRouter()
+// 從補貨頁進來（?from=restock）時，返回要回到補貨頁，不是設定頁。
+function goBack(event) {
+  if (route.query.from !== 'restock' || !window.history.state?.back) return
+  event.preventDefault()
+  router.back()
+}
 const systemCounts = computed(() => categoryCounts(catalog.allItems, SYSTEM_CATEGORIES))
 const customCounts = computed(() => categoryCounts(catalog.allItems, [...new Set([...store.categoryOptions, ...catalog.allItems.map(item => item.category)])].filter(name => !SYSTEM_CATEGORIES.includes(name))))
 const categoryName = ref('')
@@ -131,7 +140,7 @@ function addCategory() {
 <template>
   <section class="management-page">
     <header class="management-header">
-      <RouterLink :to="{ name: 'settings' }" class="back-button" aria-label="返回設定"><img :src="backIcon" alt="" /></RouterLink>
+      <RouterLink :to="{ name: 'settings' }" class="back-button" :aria-label="route.query.from === 'restock' ? '返回補貨紀錄' : '返回設定'" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink>
       <h1>用品管理</h1><span />
     </header>
     <p class="management-hint">管理所有空間可選用的用品；分類刪除尚未開放。</p>

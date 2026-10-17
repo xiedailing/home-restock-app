@@ -1,11 +1,18 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useCatalogStore } from '../stores/catalog'
 import GlobalItemEditor from '../components/settings/GlobalItemEditor.vue'
 import backIcon from '../assets/settings/category-back.svg'
 const catalog = useCatalogStore()
 const route = useRoute()
+const router = useRouter()
+// 上一頁就是用品管理時直接退回，才會保留它的來源（例如從補貨頁進來）。
+function goBack(event) {
+  if (window.history.state?.back?.split('?')[0] !== '/settings/items') return
+  event.preventDefault()
+  router.back()
+}
 const category = computed(() => String(route.params.category))
 const items = computed(() => catalog.allItems.filter(item => item.category === category.value))
 const editorOpen = ref(false)
@@ -17,7 +24,7 @@ function edit(item = null) {
 </script>
 <template>
   <section class="category-page">
-    <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理"><img :src="backIcon" alt="" /></RouterLink><h1>{{ category }}</h1><span /></header>
+    <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink><h1>{{ category }}</h1><span /></header>
     <p class="preview-mode">全域用品可供所有空間選用；單位變更尚未開放。</p>
     <div v-if="items.length" class="category-card">
       <button v-for="item in items" :key="item.id" type="button" class="item-row" @click="edit(item)">{{ item.name }}</button>

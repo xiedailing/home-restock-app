@@ -142,11 +142,12 @@ function onMoreFocusout(event) {
 }
 function openItemManagement() {
   closeMore()
-  router.push({ name: 'item-management' })
+  router.push({ name: 'item-management', query: { from: 'restock' } })
 }
 
 function openNewItem() {
-  router.push({ name: 'add-item' })
+  // 目前選了類別 pills 時，新增用品頁預設同一個類別（選「全部」就不預設）。
+  router.push({ name: 'add-item', query: category.value ? { category: category.value } : {} })
 }
 
 // 從新增用品頁返回：全域用品剛新增完，自動選好並提示（FR-909）。
