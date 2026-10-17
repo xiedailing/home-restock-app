@@ -5,6 +5,7 @@
 // 紀錄涵蓋不到兩個不同日期時推算不出預計補貨日：卡片仍在，但沒有開關列，預計補貨日顯示「再補貨 N 次後預估」（009 FR-913）。
 import { computed } from 'vue'
 import { STATUS, countRecordDates, daysUntil } from '../../models/item'
+import { currentUnitRecords } from '../../utils/unitPeriods'
 import { useItemsStore } from '../../stores/items'
 import SwitchTrack from '../SwitchTrack.vue'
 
@@ -20,7 +21,7 @@ const emit = defineEmits(['restock', 'add-to-list', 'view-list', 'toggle-reminde
 const store = useItemsStore()
 
 // 還差幾個不同日期的紀錄才推算得出預計補貨日；0 ＝ 已經夠了。
-const recordsNeeded = computed(() => Math.max(0, 2 - countRecordDates(props.item.restockRecords)))
+const recordsNeeded = computed(() => Math.max(0, 2 - countRecordDates(currentUnitRecords(props.item))))
 
 const reminderStatus = computed(() => props.item.reminderStatus)
 // 該補貨了（含補貨時間已過）時預計補貨日用暖橘色，同摘要卡 pill 字色；不用紅色（UT-36）。

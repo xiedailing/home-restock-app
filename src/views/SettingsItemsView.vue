@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, inject, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
 import { useCatalogStore } from '../stores/catalog'
@@ -10,6 +10,9 @@ import backIcon from '../assets/settings/category-back.svg'
 import chevron from '../assets/settings/category-chevron.svg'
 const store = useItemsStore()
 const catalog = useCatalogStore()
+const appToast = inject('appToast')
+const deleting = ref(false)
+const deleteError = ref('')
 const route = useRoute()
 const router = useRouter()
 // 從補貨頁（?from=restock）或補貨明細（?from=detail）進來時，返回要回到來源頁，不是設定頁。
@@ -64,10 +67,32 @@ function finishSorting(event) {
 onMounted(() => document.addEventListener('pointerdown', finishSorting))
 onBeforeUnmount(() => { cancelPress(); document.removeEventListener('pointerdown', finishSorting) })
 const actionWidth = 88
-const deleteTitle = '刪除分類？'
-const deleteMessage = computed(() => `分類「${pendingCategory.value || ''}」的刪除功能尚未開放，既有用品與補貨紀錄會保留。`)
+const deleteTitle = computed(() => `刪除「${pendingCategory.value || ''}」分類？`)
+const deleteCount = computed(() => catalog.allItems.filter(item => item.category === pendingCategory.value).length)
+const deleteMessage = computed(() => deleteCount.value ? `將一併刪除分類內的 ${deleteCount.value} 項用品。` : '此分類目前沒有用品，確定要刪除嗎？')
+function confirmCategoryDeletion() {
+  if (deleting.value) return
+  deleting.value = true
+  const name = pendingCategory.value
+  const result = catalog.removeCustomCategory(name)
+  deleting.value = false
+  if (!result.ok) { deleteError.value = result.error.message; return }
+  deleteDialog.value?.close()
+  openCategory.value = null
+  swipeOffset.value = 0
+  appToast.showToast(`已刪除「${name}」分類及 ${result.removedIds.length} 項用品`, () => {
+    const restored = result.undo()
+    if (!restored.ok) appToast.showToast(restored.error.message)
+  })
+}
+function cancelCategoryDeletion() {
+  deleteDialog.value?.close()
+  openCategory.value = null
+  swipeOffset.value = 0
+}
 function requestDeletion(name) {
   pendingCategory.value = name
+  deleteError.value = ''
   deleteDialog.value.showModal()
 }
 function rowOffset(name) { return openCategory.value === name ? swipeOffset.value : 0 }
@@ -145,7 +170,6 @@ function addCategory() {
       <RouterLink :to="{ name: 'settings' }" class="back-button" :aria-label="backSource ? `返回${backSource}` : '返回設定'" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink>
       <h1>用品管理</h1><span />
     </header>
-    <p class="management-hint">管理所有空間可選用的用品；分類刪除尚未開放。</p>
     <h2>系統分類</h2>
     <div v-if="visibleSystemCategories.length" class="category-card system-category-card">
       <RouterLink v-for="category in visibleSystemCategories" :key="category.name" class="category-row" :to="{ name: 'item-category', params: { category: category.name } }">
@@ -157,7 +181,7 @@ function addCategory() {
         <h2>自訂分類</h2>
 
       </div>
-      <p class="management-hint">可自行新增分類並管理用品</p>
+      <p class="management-hint">可自行新增分類</p>
     </div>
     <div class="category-card custom-card">
       <p v-if="!customCounts.length" class="empty-category">尚無自訂分類</p>
@@ -179,13 +203,14 @@ function addCategory() {
       <p v-if="nameError" id="category-error" class="category-error" role="alert">{{ nameError }}</p>
     </div>
     <Teleport to="body">
-      <dialog ref="deleteDialog" class="category-delete-dialog" aria-labelledby="category-delete-title" aria-describedby="category-delete-message" @click="event => { if (event.target === deleteDialog) deleteDialog.close() }">
-        <form @submit.prevent>
+      <dialog ref="deleteDialog" class="category-delete-dialog" aria-labelledby="category-delete-title" aria-describedby="category-delete-message" @cancel="cancelCategoryDeletion" @click="event => { if (event.target === deleteDialog) cancelCategoryDeletion() }">
+        <form @submit.prevent="confirmCategoryDeletion">
           <h2 id="category-delete-title">{{ deleteTitle }}</h2>
-          <p id="category-delete-message">{{ deleteMessage }}</p>
+          <p id="category-delete-message">{{ deleteMessage }}<template v-if="deleteCount"><br />已加入空間的用品與補貨紀錄不受影響。</template></p>
+          <p v-if="deleteError" role="alert">{{ deleteError }}</p>
           <div class="category-delete-dialog-actions">
-            <button type="button" class="btn btn-secondary" autofocus @click="deleteDialog.close()">取消</button>
-            <button type="button" class="btn btn-danger" disabled>刪除（尚未開放）</button>
+            <button type="button" class="btn btn-secondary" :disabled="deleting" autofocus @click="cancelCategoryDeletion">取消</button>
+            <button type="submit" class="btn btn-danger" :disabled="deleting">刪除</button>
           </div>
         </form>
       </dialog>
@@ -209,6 +234,7 @@ h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
 .category-name-count { position: absolute; top: 24px; right: 14px; transform: translateY(-50%); color: t.$text-disabled; font-size: t.$font-size-caption; pointer-events: none; }
 .category-length-error { margin: 4px 0 0; color: t.$accent-text; font-size: t.$font-size-caption; }
 .management-hint { margin: 0; color: t.$text-sub; font-size: 12px; }
+.system-category-card + .custom-heading { margin-top: 15px; }
 .custom-heading { display: flex; flex-direction: column; gap: t.$space-8; }
 .custom-title { position: relative; height: 24px; display: flex; align-items: center; justify-content: space-between; min-height: 24px; i { display: inline-grid; place-items: center; width: 20px; height: 20px; color: t.$text-sub; font-size: 16px; flex-shrink: 0; } }
 .swipe-category { margin-inline: -16px; position: relative; overflow: hidden; @include layout.divider; touch-action: pan-y; }

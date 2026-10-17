@@ -8,10 +8,17 @@ import { useToast } from './composables/useToast'
 import { useBottomNavHidden } from './composables/useBottomNav'
 import { supportsPagePresentation, leavingPageScroll } from './utils/pagePresentation'
 import { useItemsStore } from './stores/items'
+import { useSharedNotificationsStore } from './stores/sharedNotifications'
 
 const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
+const notifications = useSharedNotificationsStore()
+if (import.meta.env.DEV) notifications.seedPreviewHistory(itemsStore.spaces, itemsStore.items)
+watch(() => itemsStore.itemsWithStatus, () => {
+  try { notifications.publishRestockReminders() }
+  catch (error) { console.error('[notifications] Reminder generation failed', error) }
+}, { deep: true, immediate: true })
 const { toast, showToast, runUndo } = useToast()
 // 補貨頁記錄成功後會回到上一頁，Toast（含復原）要跟得過去，所以提供 App 層的 Toast。
 provide('appToast', { showToast })
@@ -31,9 +38,12 @@ watch(() => route.path, (to, from) => {
   animateItemsPages.value = animate
   const toDepth = to.split('/').filter(Boolean).length
   const fromDepth = from.split('/').filter(Boolean).length
-  const goingBack = navPaths.includes(to) && navPaths.includes(from)
-    ? navPaths.indexOf(to) < navPaths.indexOf(from)
-    : toDepth < fromDepth
+  // 新增用品可從不同網址層級進入，不能用網址深度判斷前進／返回。
+  const goingBack = to === '/items/new' ? false
+    : from === '/items/new' ? true
+    : navPaths.includes(to) && navPaths.includes(from)
+      ? navPaths.indexOf(to) < navPaths.indexOf(from)
+      : toDepth < fromDepth
   pageTransition.value = goingBack ? 'page-back' : 'page-forward'
 }, { flush: 'sync' })
 

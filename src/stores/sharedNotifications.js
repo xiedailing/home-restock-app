@@ -1,22 +1,205 @@
-// 補貨整合的最小通知資料層：不含 UI、展示通知、提醒產生器或認領／接手觸發。
-import { ref, watch, onScopeDispose } from 'vue'
-import { defineStore } from 'pinia'
+// 共用補貨通知：資料立即完成，事件先持久化，固定 60 秒後才建立正式通知。
+import { computed, ref, watch, onScopeDispose } from 'vue'
+import { defineStore, getActivePinia } from 'pinia'
 import { loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 import { generateId } from '../utils/id.js'
 import { notificationCutoff } from '../utils/notificationRetention.js'
+import { previewNotificationHistory } from '../utils/notificationPreview.js'
+import { memberNotificationMessage, restockNotificationMessage } from '../utils/notificationCopy.js'
+
+export const RESTOCK_NOTIFICATION_DELAY_MS = 60000
+const sources = new WeakMap()
+const reconcilers = new WeakMap()
+export function registerRestockNotificationSource(pinia, source) {
+  sources.set(pinia, source)
+  return () => { if (sources.get(pinia) === source) sources.delete(pinia) }
+}
+export function reconcileRestockNotifications(pinia) { reconcilers.get(pinia)?.() }
 
 export const useSharedNotificationsStore = defineStore('shared-notifications', () => {
+  const pinia = getActivePinia()
   const saved = loadPersisted(STORE_KEYS.sharedNotifications)
-  // 保留既有 WIP 的通知與額外存檔欄位，不建立展示資料或遷移它們的內容。
   const valid = entry => entry && typeof entry.id === 'string' && typeof entry.message === 'string'
     && typeof entry.spaceId === 'string' && Number.isFinite(entry.createdAt)
     && ['demo', 'event'].includes(entry.source) && ['restock-due', 'claimed', 'takeover', 'restocked'].includes(entry.type)
     && Array.isArray(entry.recipientIds) && entry.recipientIds.every(id => typeof id === 'string')
   const records = ref(Array.isArray(saved?.records) ? saved.records.filter(valid) : [])
+  const validBatch = batch => batch && typeof batch.id === 'string' && ['restocked', 'claimed', 'takeover'].includes(batch.type)
+    && typeof batch.actorId === 'string' && typeof batch.spaceId === 'string'
+    && Number.isFinite(batch.firstEventAt) && batch.deadlineAt === batch.firstEventAt + RESTOCK_NOTIFICATION_DELAY_MS
+    && Array.isArray(batch.recipientIds) && batch.recipientIds.every(id => typeof id === 'string')
+    && Array.isArray(batch.events) && batch.events.every(event => typeof event.eventId === 'string'
+      && typeof event.itemId === 'string' && (batch.type !== 'restocked' || typeof event.recordId === 'string') && typeof event.itemName === 'string')
+  if (Array.isArray(saved?.pendingBatches) && saved.pendingBatches.some(batch => !validBatch(batch))) {
+    console.error('[restock-notification] Invalid pending batch ignored; inspect stored notification data')
+  }
+  const pendingBatches = ref(Array.isArray(saved?.pendingBatches) ? saved.pendingBatches.filter(validBatch) : [])
+  // IDs are retained after cancellation too: replaying an old successful operation is not a new event.
+  const processedEventIds = ref(Array.isArray(saved?.processedEventIds) ? saved.processedEventIds.filter(id => typeof id === 'string') : [])
+  const cancelledEventIds = ref(Array.isArray(saved?.cancelledEventIds) ? saved.cancelledEventIds : [])
+  const recipientState = (entry, recipientId = 'self') => entry.recipientState?.[recipientId]
+    ?? { read: entry.read === true, seen: entry.seen ?? entry.read === true }
+  const visibleRecords = computed(() => records.value.filter(entry => entry.recipientIds.includes('self')).sort((a, b) => b.createdAt - a.createdAt))
+  const hasUnseen = computed(() => visibleRecords.value.some(entry => !recipientState(entry).seen))
+  const hasUnread = computed(() => visibleRecords.value.some(entry => !recipientState(entry).read))
+  function markState(ids, changes, recipientId = 'self') {
+    const selected = new Set(ids)
+    const next = clone(records.value)
+    for (const entry of next) {
+      if (!selected.has(entry.id) || !entry.recipientIds.includes(recipientId)) continue
+      entry.recipientState ??= {}
+      entry.recipientState[recipientId] = { ...recipientState(entry, recipientId), ...changes }
+    }
+    return commit(next, clone(pendingBatches.value))
+  }
+  function markViewed(recipientId = 'self') { return markState(records.value.filter(entry => entry.recipientIds.includes(recipientId)).map(entry => entry.id), { seen: true }, recipientId) }
+  function markRead(id, recipientId = 'self') { return markState([id], { read: true, seen: true }, recipientId) }
+  function markAllRead(ids = visibleRecords.value.map(entry => entry.id), recipientId = 'self') { return markState(ids, { read: true, seen: true }, recipientId) }
+  function cancelMemberEvents({ itemId, actorId, spaceId, now = Date.now() }) {
+    const affected = clone(pendingBatches.value).map(batch => ({ ...batch, events: batch.events.filter(event =>
+      ['claimed', 'takeover'].includes(batch.type) && batch.actorId === actorId && batch.spaceId === spaceId && now < batch.deadlineAt && event.itemId === itemId) }))
+      .filter(batch => batch.events.length)
+    const cancelled = affected.flatMap(batch => batch.events.map(event => event.eventId))
+    cancelledEventIds.value = [...new Set([...cancelledEventIds.value, ...cancelled])]
+    const next = clone(pendingBatches.value).map(batch => ({ ...batch, events: batch.events.filter(event => !cancelled.includes(event.eventId)) }))
+      .filter(batch => batch.events.length)
+    const result = commit(clone(records.value), next)
+    let undone = false
+    function undo() {
+      if (undone) return { ok: true }
+      const next = clone(pendingBatches.value)
+      const restored = []
+      for (const batch of affected) {
+        if (Date.now() >= batch.deadlineAt) continue // Never rewrite a closed historical window.
+        let existing = next.find(entry => entry.id === batch.id)
+        if (!existing) { existing = { ...batch, events: [] }; next.push(existing) }
+        for (const event of batch.events) {
+          if (!existing.events.some(entry => entry.eventId === event.eventId)) existing.events.push(event)
+          restored.push(event.eventId)
+        }
+      }
+      cancelledEventIds.value = cancelledEventIds.value.filter(id => !restored.includes(id))
+      const saved = commit(clone(records.value), next)
+      if (saved.ok) undone = true
+      return saved
+    }
+    return { ...result, undo }
+  }
+  function publishRestockReminders() {
+    const source = sources.get(pinia)
+    if (!source?.reminderGroups) return { ok: true }
+    const next = clone(records.value)
+    const processed = [...processedEventIds.value]
+    for (const { space, items, recipientIds } of source.reminderGroups()) {
+      const fresh = items.filter(item => !processed.includes(`due:${space.id}:${item.id}:${item.unitPeriodId}:${item.nextRestockDate}`))
+      if (!space.shared || !fresh.length || !recipientIds.length) continue
+      const itemNames = fresh.map(item => item.name)
+      const eventIds = fresh.map(item => `due:${space.id}:${item.id}:${item.unitPeriodId}:${item.nextRestockDate}`)
+      next.push({ id: generateId(), type: 'restock-due', source: 'event', spaceId: space.id, spaceName: space.name,
+        recipientIds, itemIds: fresh.map(item => item.id), itemNames, eventIds, createdAt: Date.now(),
+        recipientState: Object.fromEntries(recipientIds.map(id => [id, { seen: false, read: false }])),
+        message: restockNotificationMessage(space.name, itemNames), targets: fresh.map(item => ({ itemId: item.id, completionRecordIds: [] })) })
+      processed.push(...eventIds)
+    }
+    if (next.length === records.value.length) return { ok: true }
+    return commit(next, clone(pendingBatches.value), processed)
+  }
+  let previewHistorySeeded = saved?.previewHistorySeeded === true
+  function seedPreviewHistory(spaces, items) {
+    if (!import.meta.env.DEV || previewHistorySeeded) return { ok: true, skipped: true }
+    const entries = previewNotificationHistory(spaces, items).filter(entry => !records.value.some(existing => existing.id === entry.id))
+    if (!entries.length) return { ok: true, skipped: true }
+    return commit([...clone(records.value), ...entries], clone(pendingBatches.value), processedEventIds.value, { previewHistorySeeded: true })
+  }
+  let applying = false
+  let timer = null
+  const clone = value => JSON.parse(JSON.stringify(value))
+  function commit(nextRecords, nextPending, nextProcessed = processedEventIds.value, metadata = {}) {
+    if (!savePersisted(STORE_KEYS.sharedNotifications, { ...saved, records: nextRecords,
+      pendingBatches: nextPending, processedEventIds: nextProcessed, cancelledEventIds: cancelledEventIds.value, previewHistorySeeded, ...metadata })) {
+      const error = new Error('通知資料儲存失敗，待發送批次未變更。')
+      console.error('[restock-notification] Notification persistence failed', error)
+      return { ok: false, error }
+    }
+    previewHistorySeeded = metadata.previewHistorySeeded ?? previewHistorySeeded
+    applying = true
+    try { records.value = nextRecords; pendingBatches.value = nextPending; processedEventIds.value = nextProcessed }
+    finally { applying = false }
+    schedule()
+    return { ok: true }
+  }
+  function eventExists(event, batch) {
+    if (cancelledEventIds.value.includes(event.eventId)) return false
+    const source = sources.get(pinia)
+    if (!source) return null // Without the live Items Store, never publish from a potentially stale disk snapshot.
+    if (batch.type !== 'restocked') return true // Claim cancellation is explicit and only changes still-open batches.
+    const space = source.getSpace(batch.spaceId)
+    const item = source.getItem(event.itemId)
+    return !!space?.shared && item?.spaceId === batch.spaceId && item.restockRecords.some(record => record.id === event.recordId)
+  }
+  function message(batch, events) {
+    const itemNames = [...new Map(events.map(event => [event.itemId, event.itemName])).values()]
+    return memberNotificationMessage({ ...batch, itemNames })
+  }
+  function flushPending(now = Date.now()) {
+    if (!sources.has(pinia)) { schedule(); return { ok: true } }
+    const nextRecords = clone(records.value)
+    const nextPending = []
+    for (const batch of pendingBatches.value) {
+      const events = batch.events.filter(event => eventExists(event, batch))
+      if (!events.length) continue
+      if (now < batch.deadlineAt) { nextPending.push({ ...clone(batch), events: clone(events) }); continue }
+      const id = `restock-batch:${batch.id}`
+      if (!nextRecords.some(entry => entry.id === id)) {
+        const unique = [...new Map(events.map(event => [event.itemId, event])).values()]
+        nextRecords.push({ id, batchId: batch.id, type: batch.type, source: 'event', actorId: batch.actorId,
+          actorName: batch.actorName, spaceId: batch.spaceId, spaceName: batch.spaceName,
+          recipientIds: batch.recipientIds, createdAt: now, firstEventAt: batch.firstEventAt,
+          deadlineAt: batch.deadlineAt, read: false, seen: false,
+          recipientState: Object.fromEntries(batch.recipientIds.map(id => [id, { read: false, seen: false }])),
+          eventIds: events.map(event => event.eventId), itemIds: unique.map(event => event.itemId),
+          itemNames: unique.map(event => event.itemName), message: message(batch, events) })
+      }
+    }
+    if (JSON.stringify(nextPending) === JSON.stringify(pendingBatches.value) && nextRecords.length === records.value.length) {
+      schedule(); return { ok: true }
+    }
+    return commit(nextRecords, nextPending)
+  }
+  function schedule() {
+    clearTimeout(timer)
+    timer = null
+    if (!pendingBatches.value.length || !sources.has(pinia)) return
+    const delay = Math.max(1, Math.min(...pendingBatches.value.map(batch => batch.deadlineAt)) - Date.now())
+    timer = setTimeout(() => {
+      timer = null
+      try { flushPending() } catch (error) { console.error('[restock-notification] Delayed delivery failed', error) }
+    }, delay)
+  }
+  function publishMemberEvent({ type, space, actorId, actorName, itemName, memberIds, itemId, recordId, operationId }) {
+    if (!['restocked', 'claimed', 'takeover'].includes(type) || !space?.shared || !actorId) return { ok: true, skipped: true }
+    if (!itemId || (type === 'restocked' ? !recordId : !operationId)) throw new Error('通知缺少用品或操作 ID。')
+    const recipientIds = [...new Set(memberIds)].filter(id => id !== actorId)
+    if (!recipientIds.length) return { ok: true, skipped: true }
+    const eventId = JSON.stringify([space.id, itemId, type === 'restocked' ? recordId : `${type}:${operationId}`])
+    if (processedEventIds.value.includes(eventId)) return { ok: true, duplicate: true }
+    const now = Date.now()
+    const nextPending = clone(pendingBatches.value)
+    let batch = nextPending.find(batch => batch.actorId === actorId && batch.spaceId === space.id
+      && batch.type === type && now >= batch.firstEventAt && now < batch.deadlineAt)
+    if (!batch) {
+      batch = { id: generateId(), type, actorId, actorName, spaceId: space.id, spaceName: space.name,
+        recipientIds, firstEventAt: now, deadlineAt: now + RESTOCK_NOTIFICATION_DELAY_MS, events: [] }
+      nextPending.push(batch)
+    }
+    batch.recipientIds = [...new Set([...batch.recipientIds, ...recipientIds])].filter(id => id !== actorId)
+    batch.events.push({ eventId, itemId, ...(recordId ? { recordId } : {}), itemName, occurredAt: now })
+    return commit(clone(records.value), nextPending, [...processedEventIds.value, eventId])
+  }
   function pruneExpired(now = Date.now()) {
     const cutoff = notificationCutoff(now)
     const retained = records.value.filter(entry => entry.createdAt >= cutoff)
-    if (retained.length !== records.value.length) records.value = retained
+    if (retained.length !== records.value.length) commit(clone(retained), clone(pendingBatches.value))
   }
   function trackRestockCompletion(itemId, recordId) {
     for (const entry of records.value) {
@@ -28,24 +211,23 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
       }
     }
   }
-  function publishMemberEvent({ type, space, actorId, actorName, itemName, memberIds }) {
-    // 本次只接入已審查的補貨事件；其他事件仍留在 WIP 分支。
-    if (type !== 'restocked' || !space?.shared || !actorId) return
-    const recipientIds = [...new Set(memberIds)].filter(id => id !== actorId)
-    if (!recipientIds.length) return
-    records.value.push({ id: generateId(), type, source: 'event', spaceId: space.id, actorId,
-      recipientIds, createdAt: Date.now(), read: false,
-      message: `${actorName}已補貨「${space.name}」的${itemName}。` })
+  // Preserve compatibility with existing direct records mutations and unknown WIP fields.
+  watch(records, () => { if (!applying && !savePersisted(STORE_KEYS.sharedNotifications, {
+    ...saved, records: records.value, pendingBatches: pendingBatches.value, processedEventIds: processedEventIds.value, cancelledEventIds: cancelledEventIds.value, previewHistorySeeded,
+  })) console.error('[restock-notification] Notification records persistence failed') }, { deep: true, flush: 'sync' })
+  const reconcile = () => {
+    try { flushPending() } catch (error) { console.error('[restock-notification] Pending reconciliation failed', error) }
   }
-  watch(records, () => savePersisted(STORE_KEYS.sharedNotifications, {
-    ...saved, records: records.value,
-  }), { deep: true, flush: 'sync' })
+  reconcilers.set(pinia, reconcile)
+  const onVisible = () => { if (document.visibilityState === 'visible') { pruneExpired(); reconcile(); publishRestockReminders() } }
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
+  onScopeDispose(() => {
+    clearTimeout(timer)
+    if (reconcilers.get(pinia) === reconcile) reconcilers.delete(pinia)
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
+  })
   pruneExpired()
-  if (typeof window !== 'undefined') {
-    const timer = window.setInterval(pruneExpired, 60000)
-    const onVisible = () => { if (document.visibilityState === 'visible') pruneExpired() }
-    document.addEventListener('visibilitychange', onVisible)
-    onScopeDispose(() => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible) })
-  }
-  return { records, publishMemberEvent, trackRestockCompletion, pruneExpired }
+  schedule()
+  return { records, pendingBatches, processedEventIds, publishMemberEvent, trackRestockCompletion, pruneExpired, flushPending,
+    seedPreviewHistory, visibleRecords, hasUnseen, hasUnread, recipientState, markViewed, markRead, markAllRead, cancelMemberEvents, publishRestockReminders }
 })

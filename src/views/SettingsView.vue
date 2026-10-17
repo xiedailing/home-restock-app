@@ -158,7 +158,7 @@ const dialog = ref(null)
 const editing = ref('')
 const duplicateJoinName = ref('')
 
-const { toast, showToast, hideToast, runUndo } = useToast()
+const { toast, showToast, hideToast, runUndo } = useToast({ duration: 8000, pauseOnInteraction: true })
 const noticeIsWarning = ref(false)
 const noticeAction = ref('')
 let createdToastTimer
@@ -221,7 +221,7 @@ function saveChanges() {
         </div>
         <div class="notification-hint-collapse" :class="{ expanded: !notifications }" :aria-hidden="notifications"><div class="notification-hint-inner"><p class="phone-notification-hint">關閉後仍會保留補貨日期與紀錄。</p></div></div>
         </div>
-        <template v-for="reminder in [{ type: 'restock', label: '補貨建議' }, { type: 'shopping', label: '購買清單提醒' }]" :key="reminder.type">
+        <template v-for="reminder in [{ type: 'restock', label: '補貨提醒' }, { type: 'shopping', label: '尚未購買提醒' }]" :key="reminder.type">
           <button type="button" class="settings-row" :class="{ 'last-reminder-row': reminder.type === 'shopping' }" data-reminder-control :aria-expanded="expandedReminder === reminder.type" :aria-controls="`reminder-options-${reminder.type}`" @click="toggleReminder(reminder.type)">
             <span>{{ reminder.label }}</span>
             <span class="row-value" :class="{ 'notification-muted': !notifications || reminderModes[reminder.type] === 'off' }">{{ reminderSummary(reminder.type) }}</span>
