@@ -1,18 +1,16 @@
 <script setup>
-// 用品詳情（specs/003-item-detail，003-A）。Figma：[Draft] 用品詳情・提醒開關（2293:19044）。
+// 補貨明細（原用品詳情；specs/011-item-detail-revision，沿革 specs/003-item-detail）。
+// 定位成「一個用品的補貨帳本」：名稱、圖示、分類、單位屬於全域用品，到「設定 > 用品管理」編輯；這裡不能改。
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
-import { getStatusMarks, matchItemIconKey } from '../models/item'
-import { limitSpaceName } from '../models/space'
+import { getStatusMarks } from '../models/item'
 import { getItemIconSrc } from '../assets/household-icons-by-state/index.js'
-import ItemIconEditor from '../components/ItemIconEditor.vue'
 import { useToast } from '../composables/useToast'
 import AppToast from '../components/AppToast.vue'
 import StatusMarks from '../components/items/StatusMarks.vue'
 import StatusCard from '../components/item-detail/StatusCard.vue'
-import BasicInfoSection from '../components/item-detail/BasicInfoSection.vue'
 import RestockSheet from '../components/item-detail/RestockSheet.vue'
 import RestockRecordList from '../components/item-detail/RestockRecordList.vue'
 import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
@@ -21,7 +19,7 @@ import backIcon from '../assets/add-item/back-chevron.svg'
 const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
-const { itemsWithStatus, spaces, persistFailed } = storeToRefs(itemsStore)
+const { itemsWithStatus, spaces } = storeToRefs(itemsStore)
 const { toast, showToast, runUndo } = useToast()
 
 const itemId = route.params.id
@@ -62,74 +60,42 @@ function changeWithUndo(message, change) {
   showToast(message, () => itemsStore.restoreItem(snapshot))
 }
 
-// ---------- 改名（FR-301）----------
-const editingName = ref(false)
-const nameDraft = ref('')
-const nameError = ref('')
-const nameInput = ref(null)
+// ---------- 「⋯」選單（specs/011 FR-1102）：做法同補貨頁 ----------
+const moreOpen = ref(false)
+const moreButton = ref(null)
+const morePopover = ref(null)
 
-async function startRename() {
-  nameDraft.value = item.value.name
-  nameError.value = ''
-  editingName.value = true
+async function toggleMore() {
+  moreOpen.value = !moreOpen.value
+  if (!moreOpen.value) return
   await nextTick()
-  nameInput.value?.focus()
-  nameInput.value?.select()
+  morePopover.value?.querySelector('button')?.focus()
 }
-
-// 長度規則同新增用品：中文算 2、英數算 1，上限 16；組字期間不截斷。
-function updateNameDraft(event) {
-  if (event.isComposing) return
-  const limited = limitSpaceName(event.target.value)
-  if (limited !== event.target.value) event.target.value = limited
-  nameDraft.value = limited
-  if (limited.trim()) nameError.value = ''
+function closeMore({ restoreFocus = false } = {}) {
+  moreOpen.value = false
+  if (restoreFocus) moreButton.value?.focus()
 }
-
-// 只在離開輸入框、Enter、點 ✓ 時儲存（specs/003 DET-06）。名稱為空時不儲存、留在編輯狀態。
-function saveName() {
-  if (!editingName.value) return
-  const name = nameDraft.value.trim()
-  if (!name) {
-    nameError.value = '請輸入用品名稱。'
-    return
-  }
-  editingName.value = false
-  if (name === item.value.name) return
-  // 手動指定過圖示就不再依名稱比對（specs/008 ICO-05）。
-  const changes = item.value.iconManual ? { name } : { name, iconKey: matchItemIconKey(name) }
-  changeWithUndo('已更新用品名稱', () => itemsStore.updateItem(itemId, changes))
+function onMoreFocusout(event) {
+  const target = event.relatedTarget
+  if (!moreOpen.value || !target) return
+  if (morePopover.value?.contains(target) || moreButton.value?.contains(target)) return
+  closeMore()
 }
-
-// ---------- 更換圖示（specs/008）----------
-function selectPresetIcon(key) {
-  if (!item.value.iconPhoto && item.value.iconKey === key) return
-  changeWithUndo('已更新用品圖示', () => itemsStore.updateItem(itemId, { iconKey: key, iconPhoto: null, iconManual: true }))
+// 帶 ?from=detail：用品管理的返回鈕會用 router.back() 回到這一頁（FR-1109）。
+function openItemManagement() {
+  closeMore()
+  router.push({ name: 'item-management', query: { from: 'detail' } })
 }
-function applyIconPhoto(dataUrl) {
-  changeWithUndo('已更新用品圖示', () => itemsStore.updateItem(itemId, { iconPhoto: dataUrl, iconManual: true }))
-}
-// 儲存空間不足時照片重新整理後可能消失（FR-807）；本次工作階段照常顯示。
-watch(persistFailed, (failed) => {
-  if (failed && item.value?.iconPhoto) showToast('儲存空間不足，重新整理後照片可能不會保留')
-})
-
-function cancelRename() {
-  editingName.value = false
-  nameError.value = ''
-}
-
-// ---------- 基本資訊（FR-303）----------
-const FIELD_LABELS = { spaceId: '所屬空間', category: '分類', unit: '補貨單位' }
-function onBasicInfoChange(field, value) {
-  changeWithUndo(`已更新${FIELD_LABELS[field]}`, () => itemsStore.updateItem(itemId, { [field]: value }))
+function askDelete() {
+  closeMore()
+  deleteDialog.value?.showModal()
 }
 
 // ---------- 補貨提醒（FR-304、FR-305）----------
 // 預計補貨日由補貨紀錄推算，不能手填或修改（specs/009 FR-912）；開關只在紀錄涵蓋兩個以上不同日期時出現（FR-913）。
 const reminderSwitchOn = computed(() => item.value.reminderEnabled)
 
-// 關閉前先跳確認 modal，說明後果（DET-22）；開啟時不再填寫，直接用紀錄重算。開啟與關閉都不顯示 Toast。
+// 關閉前先跳確認 modal，說明後果（DET-22）；開啟時直接用補貨紀錄重算。開啟與關閉都不顯示 Toast。
 const reminderOffDialog = ref(null)
 function toggleReminder() {
   if (item.value.reminderEnabled) reminderOffDialog.value?.showModal()
@@ -176,57 +142,51 @@ function confirmDelete() {
       <button type="button" class="icon-button" aria-label="返回" @click="goBack">
         <img :src="backIcon" alt="" />
       </button>
-      <h1>用品詳情</h1>
-      <button type="button" class="delete-button" aria-label="刪除用品" @click="deleteDialog.showModal()">
-        <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M3.5 5.5h13M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5 5.5l.8 10.1a1.5 1.5 0 0 0 1.5 1.4h5.4a1.5 1.5 0 0 0 1.5-1.4L15 5.5M8.5 8.5v5M11.5 8.5v5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+      <h1>補貨明細</h1>
+      <button
+        ref="moreButton"
+        type="button"
+        class="icon-button"
+        aria-haspopup="menu"
+        :aria-expanded="moreOpen"
+        aria-label="更多"
+        @click="toggleMore"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
       </button>
+
+      <template v-if="moreOpen">
+        <div class="more-backdrop" @click="closeMore()" />
+        <div
+          ref="morePopover"
+          class="more-popover"
+          role="menu"
+          aria-label="更多"
+          @keydown.esc.stop="closeMore({ restoreFocus: true })"
+          @focusout="onMoreFocusout"
+        >
+          <button type="button" class="more-option" role="menuitem" @click="openItemManagement">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2" /><rect x="13" y="4" width="7" height="7" rx="2" /><rect x="4" y="13" width="7" height="7" rx="2" /><rect x="13" y="13" width="7" height="7" rx="2" /></svg>
+            <span>用品管理</span>
+          </button>
+          <div class="more-divider" aria-hidden="true" />
+          <button type="button" class="more-option more-option--danger" role="menuitem" @click="askDelete">
+            <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M3.5 5.5h13M8 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M5 5.5l.8 10.1a1.5 1.5 0 0 0 1.5 1.4h5.4a1.5 1.5 0 0 0 1.5-1.4L15 5.5M8.5 8.5v5M11.5 8.5v5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span>刪除用品</span>
+          </button>
+        </div>
+      </template>
     </header>
 
-    <!-- 用品摘要（FR-301） -->
+    <!-- 用品摘要：名稱與圖示不可改（FR-1103） -->
     <section class="summary-card" aria-label="用品摘要">
-      <ItemIconEditor
-        :icon-key="item.iconKey"
-        :icon-photo="item.iconPhoto"
-        :preview-state="item.reminderStatus"
-        @select-preset="selectPresetIcon"
-        @apply-photo="applyIconPhoto"
-        @error="showToast($event)"
-      >
-        <span class="summary-icon" aria-hidden="true">
-          <img :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" />
-        </span>
-      </ItemIconEditor>
+      <span class="summary-icon" aria-hidden="true">
+        <img :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" />
+      </span>
       <div class="summary-body">
-        <div v-if="editingName" class="name-edit">
-          <input
-            ref="nameInput"
-            :value="nameDraft"
-            class="name-input"
-            :class="{ 'name-input--error': nameError }"
-            type="text"
-            aria-label="用品名稱"
-            autocomplete="off"
-            :aria-invalid="!!nameError"
-            :aria-describedby="nameError ? 'name-error' : undefined"
-            @input="updateNameDraft"
-            @compositionend="updateNameDraft"
-            @keydown.enter.prevent="saveName"
-            @keydown.esc.prevent="cancelRename"
-            @blur="saveName"
-          />
-          <button type="button" class="name-confirm" aria-label="儲存名稱" @mousedown.prevent @click="saveName">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 10.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-          </button>
-        </div>
-        <div v-else class="name-row">
-          <h2 class="item-name">{{ item.name }}</h2>
-          <button type="button" class="name-edit-button" aria-label="修改名稱" @click="startRename">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13.89 3.39L16.6 6.11C17.06 6.57 17.02 7.35 16.63 7.75L8.62 15.77L3.06 16.93L4.22 11.35C4.22 11.35 11.82 3.72 12.21 3.32C12.6 2.93 13.43 2.93 13.89 3.39ZM11.16 6.18L5.57 11.79L6.68 12.9L12.22 7.25L11.16 6.18ZM8.19 14.41L13.77 8.81L12.7 7.73L7.11 13.33L8.19 14.41Z" fill="currentColor" /></svg>
-          </button>
-        </div>
-        <p v-if="nameError" id="name-error" class="name-error">{{ nameError }}</p>
+        <h2 class="item-name">{{ item.name }}</h2>
         <p class="item-meta">{{ spaceName }}<template v-if="item.category">・{{ item.category }}</template></p>
       </div>
       <StatusMarks class="summary-status" :marks="marks" />
@@ -240,8 +200,6 @@ function confirmDelete() {
       @view-list="viewShoppingList"
       @toggle-reminder="toggleReminder"
     />
-
-    <BasicInfoSection :item="item" :spaces="spaces" @change="onBasicInfoChange" />
 
     <section class="detail-section" aria-labelledby="records-title">
       <div class="section-header">
@@ -272,7 +230,7 @@ function confirmDelete() {
     <!-- 關閉補貨提醒確認：版型同刪除確認，確認鈕用主色。 -->
     <dialog ref="reminderOffDialog" class="delete-dialog reminder-off-dialog" tabindex="-1" autofocus aria-labelledby="reminder-off-title" aria-describedby="reminder-off-desc">
       <h2 id="reminder-off-title">關閉補貨提醒？</h2>
-      <p id="reminder-off-desc">關閉後，「{{ item.name }}」不會再出現在首頁的補貨提醒。之後重新開啟時，需要重新設定庫存量與下次預計補貨日。</p>
+      <p id="reminder-off-desc">關閉後，「{{ item.name }}」不會再提醒補貨，也不會顯示預計補貨日。之後重新開啟，會用補貨紀錄重新推算。</p>
       <div class="delete-dialog-actions">
         <button type="button" class="delete-dialog-cancel" @click="reminderOffDialog.close()">取消</button>
         <button type="button" class="delete-dialog-confirm" @click="confirmReminderOff">關閉提醒</button>
@@ -303,6 +261,7 @@ function confirmDelete() {
 
 // ---------- App Bar ----------
 .app-bar {
+  position: relative;
   display: grid;
   grid-template-columns: 44px 1fr 44px;
   align-items: center;
@@ -318,19 +277,44 @@ function confirmDelete() {
   border-radius: 22px;
   background: t.$input-bg;
   box-shadow: t.$shadow-raised;
+  color: t.$text-main;
   img { display: block; }
 }
-.delete-button {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: t.$text-sub;
-  svg { width: 20px; height: 20px; }
+
+// ---------- 「⋯」選單（同補貨頁）----------
+.more-backdrop { position: fixed; inset: 0; z-index: 1; }
+.more-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 2;
+  width: 200px;
+  padding: t.$space-8;
+  border: 1px solid t.$border-color;
+  border-radius: t.$radius-popover;
+  background: t.$card-bg;
+  box-shadow: t.$shadow-floating;
 }
+.more-option {
+  display: flex;
+  align-items: center;
+  gap: t.$space-12;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: t.$text-main;
+  font: t.$font-weight-regular t.$font-size-button / normal t.$font-family;
+  text-align: left;
+  cursor: pointer;
+  svg { flex: none; color: t.$text-body; }
+  &:hover { background: t.$primary-soft; }
+  &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
+  &--danger { color: t.$danger; svg { color: t.$danger; } }
+}
+.more-divider { height: 1px; margin: t.$space-4 t.$space-8; background: t.$border-color; }
 
 // ---------- 用品摘要 ----------
 .summary-card {
@@ -354,36 +338,7 @@ function confirmDelete() {
   img { display: block; width: 52px; height: 52px; object-fit: contain; }
 }
 .summary-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: t.$space-4; }
-.name-row { display: flex; align-items: center; gap: t.$space-4; min-width: 0; }
 .item-name { margin: 0; min-width: 0; overflow-wrap: anywhere; font: t.$font-weight-bold 20px / 28px t.$font-family; }
-.name-edit-button, .name-confirm {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: t.$text-body;
-  svg { width: 18px; height: 18px; }
-}
-.name-edit { display: flex; align-items: center; gap: t.$space-4; }
-.name-input {
-  flex: 1;
-  min-width: 0;
-  height: 36px;
-  padding: 0 t.$space-8;
-  border: 1.5px solid t.$primary-green;
-  border-radius: t.$radius-sm;
-  background: t.$card-bg;
-  color: t.$text-main;
-  font: t.$font-weight-bold 18px / 24px t.$font-family;
-  &:focus { outline: none; }
-  // 名稱為空：暖橘外框（Figma 1208:13658）。
-  &--error { border-color: t.$accent-orange; }
-}
-.name-error { margin: 0; color: t.$accent-text; font: t.$font-weight-regular 13px / 18px t.$font-family; }
 .item-meta { margin: 0; color: t.$text-sub; font: t.$font-weight-regular 14px / 20px t.$font-family; overflow-wrap: anywhere; }
 // 右上角狀態標記：與名稱第一行（28px）垂直對齊；圓圈與 pill 固定不縮小（specs/010 FR-1004）。
 .summary-status { margin-top: 2px; }
