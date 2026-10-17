@@ -51,7 +51,7 @@ const hideBottomNav = useBottomNavHidden()
   color: t.$toast-text;
   font: t.$font-weight-medium 14px t.$font-family;
   img { width: 22px; height: 22px; flex-shrink: 0; }
-  // Bottom Nav 頂端在 116px（bottom 34 + 高 82），再留 16px，同我的用品刪除 Toast。
+  // Bottom Nav 頂端在 102px（bottom 34 + 高 68），再留 16px（$toast-bottom），同我的用品刪除 Toast。
   &--above-nav { bottom: t.$toast-bottom; }
   &--top { top: 80px; bottom: auto; }
 }

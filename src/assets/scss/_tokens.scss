@@ -106,7 +106,10 @@ $toast-min-height: 52px;
 $toast-inset-inline: $space-16;
 $toast-padding-block: 8px;
 $toast-padding-inline: 22px;
-$toast-bottom: 132px;
+// 底部導覽（specs/012、UT-37）：膠囊高 68px、底部留白 34px；Toast 等浮在導覽列頂端上方 16px。
+$bottom-nav-height: 68px;
+$bottom-nav-offset: 34px;
+$toast-bottom: $bottom-nav-offset + $bottom-nav-height + $space-16;
 
 /* Toast 顏色（深色底，對應 Figma Feedback / Toast） */
 $toast-background: #302e29;

@@ -535,12 +535,12 @@ function clearFilters() {
 .delete-dialog-cancel:focus-visible,
 .delete-dialog-confirm:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
 
-// Figma Toast / Success；固定在 Bottom Nav（約 106px 區域）上方。
+// Figma Toast / Success；固定在 Bottom Nav（約 102px 區域）上方。
 .delete-toast {
   position: fixed;
   left: 50%;
-  // Bottom Nav 頂端在 116px（bottom 34 + 高 82）；再留 16px 間距。寬度同 Bottom Nav（358px，窄螢幕兩側各 16px）。
-  bottom: 132px;
+  // Bottom Nav 頂端在 102px（bottom 34 + 高 68）；再留 16px 間距（$toast-bottom）。寬度同 Bottom Nav（358px，窄螢幕兩側各 16px）。
+  bottom: t.$toast-bottom;
   z-index: 1001;
   display: flex;
   align-items: center;

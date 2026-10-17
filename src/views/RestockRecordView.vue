@@ -18,7 +18,7 @@ import { getItemCategory } from '../models/itemCategories'
 import { getItemIconSrc } from '../assets/household-icons-by-state/index.js'
 import backIcon from '../assets/add-item/back-chevron.svg'
 
-// 新增補貨紀錄頁（specs/009 FR-901～FR-908）：選用品、調數量、選日期，按「記錄」。
+// 記錄補貨頁（原「新增補貨紀錄」，UT-37 改名；specs/009 FR-901～FR-908）：選用品、調數量、選日期，按「記錄」。
 const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
@@ -245,7 +245,7 @@ function record() {
         <img :src="backIcon" alt="" />
       </button>
       <div class="restock-header-center">
-        <h1 id="restock-title" class="visually-hidden">新增補貨紀錄</h1>
+        <h1 id="restock-title" class="visually-hidden">記錄補貨</h1>
         <SpacePill v-model="spaceId" :spaces="spaces" @add-space="addSpaceOpen = true" />
       </div>
       <button
