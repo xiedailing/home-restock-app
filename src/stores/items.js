@@ -20,6 +20,7 @@ import {
   daysUntil,
   getLatestRecord,
   getNextRestockDate,
+  getReminderStatus,
   getStatus,
   isSnoozed,
   sampleHistory,
@@ -143,6 +144,8 @@ export const useItemsStore = defineStore('items', () => {
       ...item,
       nextRestockDate: getNextRestockDate(item, remindWithinDays.value),
       status: getStatus(item, today.value, remindWithinDays.value),
+      // 提醒狀態（不看購買清單）：「我的用品」列表與詳情的標記、用品圖示依它決定（specs/010）。
+      reminderStatus: getReminderStatus(item, today.value, remindWithinDays.value),
     })),
   )
   const shoppingList = computed(() => items.value.filter((item) => item.inShoppingList))

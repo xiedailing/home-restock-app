@@ -1,8 +1,9 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { STATUS_LABELS, hasStatusBadge } from '../../models/item'
+import { getStatusMarks } from '../../models/item'
 import { getItemIconSrc } from '../../assets/household-icons-by-state/index.js'
 import chevronIcon from '../../assets/settings/chevron.svg'
+import StatusMarks from './StatusMarks.vue'
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -22,6 +23,9 @@ const CLOSE_THRESHOLD = ACTION_WIDTH - REVEAL_THRESHOLD // 展開狀態右滑超
 const dragOffset = ref(null) // null = 非拖曳中，使用 revealed 決定位置
 let gesture = null // { pointerId, startX, startY, base, axis: null | 'x' | 'y' }
 let justDragged = false
+
+// 狀態標記與圖示都由提醒狀態決定，不看購買清單；已在清單由標記表達（specs/010 FR-1001、FR-1005）。
+const marks = computed(() => getStatusMarks(props.item.reminderStatus, props.item.inShoppingList))
 
 const offset = computed(() => dragOffset.value ?? (props.revealed ? -ACTION_WIDTH : 0))
 
@@ -79,7 +83,7 @@ function onContentClick() {
 </script>
 
 <template>
-  <li class="item-row" :class="`item-row--${item.status}`" :data-item-id="item.id">
+  <li class="item-row" :data-item-id="item.id">
     <button
       type="button"
       class="item-delete-action"
@@ -98,7 +102,7 @@ function onContentClick() {
       @click="onContentClick"
     >
       <span class="item-icon-circle" aria-hidden="true">
-        <img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.status)" alt="" />
+        <img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" />
       </span>
       <div class="item-body">
         <p class="item-name">{{ item.name }}</p>
@@ -107,7 +111,7 @@ function onContentClick() {
         </p>
       </div>
       <div class="item-trailing">
-        <span v-if="hasStatusBadge(item.status)" class="status-badge">{{ STATUS_LABELS[item.status] }}</span>
+        <StatusMarks :marks="marks" />
         <img class="item-chevron" :src="chevronIcon" alt="" />
       </div>
     </div>
@@ -118,8 +122,6 @@ function onContentClick() {
 @use '../../assets/scss/tokens' as t;
 
 .item-row {
-  --badge-bg: #{t.$success-subtle};
-  --badge-text: #{t.$success};
   --icon-bg: #{t.$icon-circle-bg};
   position: relative;
   overflow: hidden;
@@ -156,10 +158,6 @@ function onContentClick() {
   cursor: pointer;
 }
 
-// 補貨時間已過與該補貨了同標籤、同顏色。
-.item-row--overdue, .item-row--dueSoon { --badge-bg: #ffebd7; --badge-text: #{t.$accent-text}; }
-.item-row--inShoppingList { --badge-bg: #{t.$primary-subtle}; --badge-text: #{t.$primary-green}; }
-
 .item-icon-circle {
   flex: 0 0 48px;
   width: 48px;
@@ -190,18 +188,6 @@ function onContentClick() {
 .item-meta { display: flex; min-width: 0; overflow: hidden; margin: 0; color: t.$text-sub; font-size: t.$font-size-body-sm; line-height: 18px; white-space: nowrap; }
 .item-category { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .item-trailing { display: flex; align-items: center; gap: t.$space-8; flex-shrink: 0; }
-
-.status-badge {
-  flex-shrink: 0;
-  padding: 3px 9px;
-  border-radius: t.$radius-pill;
-  background: var(--badge-bg);
-  color: var(--badge-text);
-  font-size: t.$font-size-caption;
-  font-weight: t.$font-weight-medium;
-  line-height: 18px;
-  white-space: nowrap;
-}
 
 .item-chevron { flex: 0 0 16px; width: 16px; height: 16px; }
 </style>

@@ -4,12 +4,13 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useItemsStore } from '../stores/items'
-import { STATUS_LABELS, hasStatusBadge, matchItemIconKey } from '../models/item'
+import { getStatusMarks, matchItemIconKey } from '../models/item'
 import { limitSpaceName } from '../models/space'
 import { getItemIconSrc } from '../assets/household-icons-by-state/index.js'
 import ItemIconEditor from '../components/ItemIconEditor.vue'
 import { useToast } from '../composables/useToast'
 import AppToast from '../components/AppToast.vue'
+import StatusMarks from '../components/items/StatusMarks.vue'
 import StatusCard from '../components/item-detail/StatusCard.vue'
 import BasicInfoSection from '../components/item-detail/BasicInfoSection.vue'
 import RestockSheet from '../components/item-detail/RestockSheet.vue'
@@ -26,6 +27,8 @@ const { toast, showToast, runUndo } = useToast()
 const itemId = route.params.id
 const item = computed(() => itemsWithStatus.value.find((entry) => entry.id === itemId))
 const itemSpace = computed(() => spaces.value.find((space) => space.id === item.value?.spaceId))
+// 右上角的狀態標記與用品圖示都依提醒狀態，不看購買清單；已在清單由標記表達，與列表同一套規則（specs/010 FR-1001、FR-1005）。
+const marks = computed(() => (item.value ? getStatusMarks(item.value.reminderStatus, item.value.inShoppingList) : { pill: null, showListMark: false }))
 const spaceName = computed(() => itemSpace.value?.name ?? '未指定空間')
 
 // 用品不存在（已刪除、重新整理後 id 失效）時回到我的用品；自己刪除時由 confirmDelete 導頁。
@@ -182,17 +185,17 @@ function confirmDelete() {
     </header>
 
     <!-- 用品摘要（FR-301） -->
-    <section class="summary-card" :class="`summary-card--${item.status}`" aria-label="用品摘要">
+    <section class="summary-card" aria-label="用品摘要">
       <ItemIconEditor
         :icon-key="item.iconKey"
         :icon-photo="item.iconPhoto"
-        :preview-state="item.status"
+        :preview-state="item.reminderStatus"
         @select-preset="selectPresetIcon"
         @apply-photo="applyIconPhoto"
         @error="showToast($event)"
       >
         <span class="summary-icon" aria-hidden="true">
-          <img :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.status)" alt="" />
+          <img :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" />
         </span>
       </ItemIconEditor>
       <div class="summary-body">
@@ -226,7 +229,7 @@ function confirmDelete() {
         <p v-if="nameError" id="name-error" class="name-error">{{ nameError }}</p>
         <p class="item-meta">{{ spaceName }}<template v-if="item.category">・{{ item.category }}</template></p>
       </div>
-      <span v-if="hasStatusBadge(item.status)" class="status-badge">{{ STATUS_LABELS[item.status] }}</span>
+      <StatusMarks class="summary-status" :marks="marks" />
     </section>
 
     <StatusCard
@@ -331,8 +334,6 @@ function confirmDelete() {
 
 // ---------- 用品摘要 ----------
 .summary-card {
-  --badge-bg: #{t.$success-subtle};
-  --badge-text: #{t.$success};
   --icon-bg: #{t.$icon-circle-bg};
   padding: t.$space-16;
   display: flex;
@@ -341,9 +342,6 @@ function confirmDelete() {
   border-radius: t.$radius-card;
   background: t.$card-bg;
   box-shadow: t.$shadow-card;
-  // 補貨時間已過併入「該補貨了」，標籤同色（可用性測試 2026-10-15）。
-  &--dueSoon, &--overdue { --badge-bg: #ffebd7; --badge-text: #{t.$accent-text}; }
-  &--inShoppingList { --badge-bg: #{t.$primary-subtle}; --badge-text: #{t.$primary-green}; }
 }
 .summary-icon {
   flex: 0 0 52px;
@@ -387,16 +385,8 @@ function confirmDelete() {
 }
 .name-error { margin: 0; color: t.$accent-text; font: t.$font-weight-regular 13px / 18px t.$font-family; }
 .item-meta { margin: 0; color: t.$text-sub; font: t.$font-weight-regular 14px / 20px t.$font-family; overflow-wrap: anywhere; }
-.status-badge {
-  flex-shrink: 0;
-  margin-top: 4px;
-  padding: 3px 9px;
-  border-radius: t.$radius-pill;
-  background: var(--badge-bg);
-  color: var(--badge-text);
-  font: t.$font-weight-medium #{t.$font-size-caption}/18px t.$font-family;
-  white-space: nowrap;
-}
+// 右上角狀態標記：與名稱第一行（28px）垂直對齊；圓圈與 pill 固定不縮小（specs/010 FR-1004）。
+.summary-status { margin-top: 2px; }
 
 // ---------- 補貨紀錄 ----------
 .section-header { display: flex; align-items: baseline; justify-content: space-between; padding-right: t.$space-4; }
