@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>底部導覽與「＋」選單 介面草稿 v2</title>
+<title>底部導覽與「＋」選單 介面草稿 v7</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.3.1/css/all.css" crossorigin="anonymous" referrerpolicy="no-referrer">
@@ -111,9 +111,10 @@ button { font: inherit; color: inherit; border: 0; background: none; }
 .navdemo { display: flex; align-items: center; gap: 14px; }
 .navdemo .nav-item { padding: 8px 12px; background: var(--primary-soft); }
 
+:root { --shadow-floating: 0 -3px 10px rgba(255,255,255,.4), 0 10px 28px rgba(140,136,127,.14); }
 /* ---------- 底部導覽（可切換尺寸） ---------- */
 .bn { position: absolute; left: 16px; right: 16px; display: flex; align-items: center; gap: 12px; z-index: 20; }
-.bn .pill { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 38px; background: var(--card-bg); box-shadow: var(--shadow-floating, 0 -3px 10px rgba(255,255,255,.4), 0 -6px 24px rgba(140,136,127,.16)); }
+.bn .pill { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 38px; background: var(--card-bg); box-shadow: var(--shadow-floating); }
 .bn .item { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 18px; color: var(--text-sub); font-size: 11px; font-weight: 400; }
 .bn .item.on { gap: 2px; border-radius: 38px; color: var(--primary); background: #eef3ea; box-shadow: inset -1px -1px 4px rgba(255,255,255,.85), inset 1px 2px 5px rgba(138,158,136,.1); font-weight: 500; }
 .bn .item i { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
@@ -130,8 +131,35 @@ button { font: inherit; color: inherit; border: 0; background: none; }
 .bn.new .plusbtn { width: 56px; height: 56px; }
 .bn .plusbtn.noring { border: 0; box-shadow: 0 6px 13px rgba(75,94,72,.28); }
 
+/* ---------- 浮動感補救 ---------- */
+.bn.lift .pill { box-shadow: 0 -3px 10px rgba(255,255,255,.4), 0 8px 22px rgba(75,70,60,.22), 0 2px 6px rgba(75,70,60,.12); }
+.bn.lift .plusbtn.noring { box-shadow: 0 8px 18px rgba(42,74,39,.38), 0 2px 5px rgba(42,74,39,.2); }
+.fadeband { position: absolute; left: 0; right: 0; bottom: 0; height: 156px; z-index: 15; pointer-events: none; background: linear-gradient(to top, #efebe3 0%, #efebe3 36%, rgba(239,235,227,0) 100%); }
+.bn.glass { --glass-a: .42; --glass-blur: 26px; --glass-sat: 1.8; }
+.bn.glass.strong { --glass-a: .30; --glass-blur: 32px; --glass-sat: 2; }
+/* 玻璃：半透明淡綠白＋背景模糊＋飽和度；邊緣上亮下暗，才有「一片玻璃」的厚度 */
+.bn.glass .pill { background: linear-gradient(180deg, rgba(255,255,255,calc(var(--glass-a) + .12)), rgba(244,248,242,var(--glass-a))); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)); border: 1px solid rgba(255,255,255,.85); box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -1px 0 rgba(120,130,115,.12), 0 8px 24px rgba(75,70,60,.18), 0 2px 6px rgba(75,70,60,.1); }
+.bn.glass .item { color: #45454a; }
+.bn.glass .item.on { color: var(--primary); background: rgba(255,255,255,.55); box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 1px 3px rgba(75,94,72,.12); font-weight: 700; }
+.bn.glass .plusbtn.noring { box-shadow: 0 8px 18px rgba(42,74,39,.36), 0 2px 5px rgba(42,74,39,.2); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .bn.glass .pill { background: var(--card-bg); } }
+.fadeband.ref { height: 135px; background: linear-gradient(to top, rgba(29,29,31,.27) 0%, rgba(29,29,31,.27) 50%, rgba(29,29,31,.10) 75.5%, rgba(29,29,31,0) 100%); }
+.bn.glass.ref { --glass-a: .62; --glass-blur: 14px; --glass-sat: 1.6; }
+.bn.glass.ref .item.on { background: rgba(63,111,59,.12); box-shadow: none; }
+.fadeband.ref16 { height: 135px; background: linear-gradient(to top, rgba(29,29,31,.16) 0%, rgba(29,29,31,.16) 50%, rgba(29,29,31,.06) 75.5%, rgba(29,29,31,0) 100%); }
+.fadeband.ref12 { height: 135px; background: linear-gradient(to top, rgba(29,29,31,.12) 0%, rgba(29,29,31,.12) 50%, rgba(29,29,31,.045) 75.5%, rgba(29,29,31,0) 100%); }
+.fadeband.warm28 { height: 135px; background: linear-gradient(to top, rgba(140,136,127,.28) 0%, rgba(140,136,127,.28) 50%, rgba(140,136,127,.10) 75.5%, rgba(140,136,127,0) 100%); }
+.fadeband.warm20 { height: 135px; background: linear-gradient(to top, rgba(140,136,127,.20) 0%, rgba(140,136,127,.20) 50%, rgba(140,136,127,.07) 75.5%, rgba(140,136,127,0) 100%); }
+.fadeband.dark { height: 150px; background: linear-gradient(to top, rgba(29,29,31,.36) 0%, rgba(29,29,31,.18) 45%, rgba(29,29,31,0) 100%); }
+.fadeband.low { height: 74px; background: linear-gradient(to top, #efebe3 0%, #efebe3 46%, rgba(239,235,227,0) 100%); }
+.phone.shift .top { margin-top: -118px; }
+.phone.shift2 .top { margin-top: -70px; }
+.home-ind { z-index: 25; }
+.section-banner { flex-basis: 100%; font-size: 18px; margin: 8px 0 -12px; padding-top: 8px; border-top: 2px solid rgba(0,0,0,.12); }
+.section-banner small { font-size: 13px; font-weight: 400; color: var(--text-body); margin-left: 8px; }
+
 /* ---------- 「＋」選單 ---------- */
-.menu-old { position: absolute; right: 16px; bottom: 115px; z-index: 30; width: 176px; padding: 8px; border: 1px solid var(--border); border-radius: 22px; background: var(--card-bg); box-shadow: 0 -3px 10px rgba(255,255,255,.4), 0 -6px 24px rgba(140,136,127,.16); }
+.menu-old { position: absolute; right: 16px; bottom: 115px; z-index: 30; width: 176px; padding: 8px; border: 1px solid var(--border); border-radius: 22px; background: var(--card-bg); box-shadow: var(--shadow-floating); }
 .menu-old .opt { display: flex; align-items: center; height: 40px; padding: 0 12px; border-radius: 14px; color: var(--text-main); font-size: 14px; font-weight: 500; }
 .scrim-nav { position: absolute; inset: 0; background: rgba(29,29,31,.32); z-index: 10; }
 .menu-new { position: absolute; right: 16px; bottom: 108px; z-index: 30; width: 220px; padding: 8px; border: 1px solid var(--border); border-radius: 22px; background: var(--card-bg); box-shadow: 0 8px 24px rgba(29,29,31,.18); }
@@ -159,8 +187,8 @@ button { font: inherit; color: inherit; border: 0; background: none; }
 <body>
 
 <header class="page-head">
-  <h1>底部導覽與「＋」選單 介面草稿 v2</h1>
-  <p>三個調整（UT-37）：①「＋」選單<b>加遮罩</b>，把背景壓暗，選單不再跟同色的列表卡片融在一起；②選項前面加<b>圓形圖示</b>，選項加高、選單加寬；③<b>只縮矮導覽列膠囊</b>：82→68px；「＋」鈕維持 56px、底部留白維持 34px，總佔用 116→102px（少 14px）。④選項改名「<b>記錄補貨</b>」（與用品詳情的按鈕一致，圖示也是＋）；「新增空間」改用中性的資料夾＋圖示，不再暗示多人。⑤「＋」鈕<b>拿掉白圈</b>（綠圓 56px，外徑不變）。已決定的項目見特寫 ⑦。<br>
+  <h1>底部導覽與「＋」選單 介面草稿 v7</h1>
+  <p>三個調整（UT-37）：①「＋」選單<b>加遮罩</b>，把背景壓暗，選單不再跟同色的列表卡片融在一起；②選項前面加<b>圓形圖示</b>，選項加高、選單加寬；③<b>只縮矮導覽列膠囊</b>：82→68px；「＋」鈕維持 56px、底部留白維持 34px，總佔用 116→102px（少 14px）。④選項改名「<b>記錄補貨</b>」（與用品詳情的按鈕一致，圖示也是＋）；「新增空間」改用中性的資料夾＋圖示，不再暗示多人。⑤「＋」鈕<b>拿掉白圈</b>（綠圓 56px，外徑不變）。已決定的項目見特寫 ⑦。<br>v6／v7：照使用者提供的參考圖（Instagram 導覽列）量到的數字重做底部黑色漸層與玻璃（畫面 ⑬～⑯）。v7：不透明膠囊不能直接套用參考圖的 27%（膠囊沒被壓暗，反差比參考圖高約 20%），改用校準後的 16%，並加入「淺暖灰＋較高透明度」的選項（⑯⑰）。v5 把玻璃做得更明顯：原本米色配奶油白，模糊前後差異太小看不出來。v3（畫面 ⑧～⑫）：實作後使用者回報「導覽列原本浮動的感覺不見了，跟卡片融為一體」，這裡比較舊的、現在的，以及兩種補救做法。<br>
   這是設計預覽，資料是示範用的假資料。</p>
 </header>
 <main class="board" id="board"></main>
@@ -187,7 +215,7 @@ const rowHtml = (it) => {
   </div></li>`;
 };
 const PLUS = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`;
-const nav = (v) => `<div class="bn ${v}">
+const nav = (v, lift, glass) => `<div class="bn ${v}${lift ? ' lift' : ''}${glass ? ' glass ' + glass : ''}">
   <div class="pill">
     <span class="item on"><i class="fa-solid fa-box-open"></i>我的用品</span>
     <span class="item"><i class="fa-solid fa-clipboard-list"></i>購買清單</span>
@@ -200,9 +228,11 @@ const menuNew = '<div class="scrim-nav"></div><div class="menu-new" role="menu">
 const toast = (v) => `<div class="toast-demo" style="bottom:${v === 'old' ? 132 : 118}px" role="status"><span class="ck">✓</span>已從「個人」移除 垃圾袋 <b>復原</b></div>`;
 
 function frame(f) {
-  const rows = ROWS.slice(0, 6).map(rowHtml).join('');
+  const plain = ROWS.filter(function (r) { return r.r === 'none' && !r.listPill; });
+  const colored = ROWS.filter(function (r) { return !(r.r === 'none' && !r.listPill); });
+  const rows = (f.pillsLast ? plain.concat(plain.slice(0, 3)).concat(colored) : (f.more ? ROWS.concat(ROWS.slice(0, 4)) : ROWS)).map(rowHtml).join('');
   return `<section class="frame-wrap"><h2 class="cap">${f.cap}</h2><p class="cap-sub">${f.sub}</p>
-  <div class="phone">
+  <div class="phone${f.shift ? ' shift' : ''}${f.shift2 ? ' shift2' : ''}">
     <div class="status"><span>9:41</span><span class="batt"></span></div>
     <div class="page">
       <div class="top"><div class="brand"><img class="brand-logo" src="${ASSETS}/logo.svg" alt=""><button class="space-pill" type="button"><i class="dot" style="background:#3f6f3b"></i>個人<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button></div><span class="avatar"><i></i></span></div>
@@ -210,7 +240,7 @@ function frame(f) {
       <div class="cats"><span class="cat on">全部</span><span class="cat">生活日用品</span><span class="cat">清潔</span><span class="cat">洗衣</span><span class="cat">廚房</span></div>
       <ul class="list" style="list-style:none;padding:0">${rows}</ul>
     </div>
-    ${f.menu === 'new' ? menuNew : ''}${f.menu === 'old' ? menuOld : ''}${f.toast ? toast(f.nav) : ''}${nav(f.nav)}
+    ${f.fade ? '<div class="fadeband' + (f.fade === 'low' ? ' low' : (f.fade === 'dark' ? ' dark' : (f.fade === 'ref' ? ' ref' : (f.fade === 'ref16' ? ' ref16' : (f.fade === 'ref12' ? ' ref12' : (f.fade === 'warm28' ? ' warm28' : (f.fade === 'warm20' ? ' warm20' : ''))))))) + '"></div>' : ''}${f.menu === 'new' ? menuNew : ''}${f.menu === 'old' ? menuOld : ''}${f.toast ? toast(f.nav) : ''}${nav(f.nav, f.lift, f.glass)}
     <div class="home-ind"></div>
   </div></section>`;
 }
@@ -238,11 +268,29 @@ var cands = ICONS.map(function (p) { return '<div style="display:flex;flex-direc
 var ring = '<span style="width:56px;height:56px;border:4px solid #fff;border-radius:50%;background:var(--primary);display:grid;place-items:center;box-shadow:0 -3px 8px rgba(255,255,255,.8),0 6px 13px rgba(75,94,72,.22)">' + PLUS(22) + '</span>';
 var noring = '<span style="width:56px;height:56px;border-radius:50%;background:var(--primary);display:grid;place-items:center;box-shadow:0 6px 13px rgba(75,94,72,.28)">' + PLUS(22) + '</span>';
 var zoomHtml = '<section class="frame-wrap"><h2 class="cap">⑦ 特寫：白圈與圖示（已決定）</h2><p class="cap-sub">放大 2 倍。左：現在（綠圓 48＋4px 白圈）；右：<b>採用</b>：拿掉白圈（綠圓 56，外徑相同）。下方是「新增空間」的圖示候選，<b>採用資料夾＋</b>（人像會暗示多人共享，但空間可以是個人、旅行、公司）。</p><div class="spec" style="background:#efebe3"><div style="zoom:2;display:flex;gap:18px;align-items:center;padding:6px 4px">' + ring + noring + '</div><div style="display:flex;gap:12px;margin-top:18px;flex-wrap:wrap">' + cands + '</div></div></section>';
+var FRAMES_FLOAT = [
+  { cap: '⑧ 舊：膠囊 82px＋白圈（對照）', sub: '導覽列是奶油色（#fcfbf8），與下面的列表卡片同色；浮起來的感覺靠較大的膠囊與「＋」鈕的白圈高光。', nav: 'old' },
+  { cap: '⑨ 現在（PR #64）：68px、無白圈', sub: '膠囊自己的邊框、顏色、陰影都沒改，但表面變小、「＋」鈕少了高光；膠囊壓在同色的卡片上，只剩很淡的陰影，看起來融在一起。', nav: 'new' },
+  { cap: '⑩ A：加強陰影', sub: '只把膠囊與「＋」鈕的陰影加深（下方陰影 alpha .14→.22，加一層近距離陰影）。內容仍會從導覽列後面透出。', nav: 'new', lift: true },
+  { cap: '⑪ B：底部漸層', sub: '導覽列後面加一條由下往上淡出的背景色漸層（約 156px），內容在導覽列後面淡出，膠囊坐在乾淨的底色上。', nav: 'new', fade: true },
+  { cap: '⑫ A＋B（建議）', sub: '漸層讓內容淡出、陰影讓膠囊浮起來，兩者並用；膠囊與卡片不再糊在一起。', nav: 'new', lift: true, fade: true },
+];
 const board = document.getElementById('board');
 const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
 FRAMES.forEach((f) => board.append(h(frame(f))));
 board.append(h(specHtml));
 board.append(h(zoomHtml));
+board.append(h('<h2 class="section-banner">浮動感比較<small>v3 新增</small></h2>'));
+FRAMES_FLOAT.forEach(function (f) { board.append(h(frame(f))); });
+var FRAMES_GLASS = [
+  { cap: '⑬ 對照：現在（不透明、無漸層）', sub: '螢幕最下面的卡片內容清楚可見，不透明膠囊與同色卡片疊在一起。', nav: 'new', shift2: true, pillsLast: true },
+  { cap: '⑭ 玻璃＋參考圖漸層（近黑 27%）', sub: '照參考圖的數字。玻璃膠囊被漸層一起壓暗，反差較柔和。', nav: 'new', glass: 'ref', fade: 'ref', shift2: true, pillsLast: true },
+  { cap: '⑮ 不透明膠囊＋近黑 16%', sub: '近黑色（29,29,31）校準後的數字，反差對齊參考圖。', nav: 'new', fade: 'ref16', shift2: true, pillsLast: true },
+  { cap: '⑯ 不透明膠囊＋淺暖灰 28%（色調淺）', sub: '陰影色換成淺暖灰（140,136,127，同 App 其他陰影），透明度數字較高但實際壓暗約 12%，疊在米色上不會變成髒灰。', nav: 'new', fade: 'warm28', shift2: true, pillsLast: true },
+  { cap: '⑰ 不透明膠囊＋淺暖灰 20%（最淡）', sub: '實際壓暗約 8%，只讓最底下的卡片稍微退後。', nav: 'new', fade: 'warm20', shift2: true, pillsLast: true },
+];
+board.append(h('<h2 class="section-banner">底部漸層與玻璃<small>v7：照參考圖並依膠囊是否透明校準；有顏色的 pill 捲到導覽列後面</small></h2>'));
+FRAMES_GLASS.forEach(function (f) { board.append(h(frame(f))); });
 </script>
 </body>
 </html>
