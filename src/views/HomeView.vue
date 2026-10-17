@@ -167,7 +167,7 @@ function onRestockConfirm(restock) {
           <p>有新的提醒時會出現在這裡</p>
         </div>
         <!-- Bottom Nav 已有新增入口；只有完全沒有用品時才放，給第一次使用的人（HOME-12）。 -->
-        <RouterLink v-if="!itemsStore.items.length" class="btn btn-primary empty-add" :to="{ name: 'add-item' }">
+        <RouterLink v-if="!itemsStore.items.length" class="btn btn-primary empty-add" :to="{ name: 'restock-record' }">
           <span class="add-symbol" aria-hidden="true">＋</span>
           新增用品
         </RouterLink>

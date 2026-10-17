@@ -1,6 +1,6 @@
 <script setup>
 import { useRoute, useRouter } from 'vue-router'
-import { ref, watch } from 'vue'
+import { provide, ref, watch } from 'vue'
 import BottomNav from './components/BottomNav.vue'
 import AddSpaceSheet from './components/add-item/AddSpaceSheet.vue'
 import AppToast from './components/AppToast.vue'
@@ -13,6 +13,8 @@ const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
 const { toast, showToast, runUndo } = useToast()
+// 補貨頁記錄成功後會回到上一頁，Toast（含復原）要跟得過去，所以提供 App 層的 Toast。
+provide('appToast', { showToast })
 const hideBottomNav = useBottomNavHidden()
 const pageTransition = ref('page-forward')
 const animateSettingsPages = ref(false)
@@ -50,11 +52,10 @@ function clearLeavingPage(element) {
   for (const key of ['position', 'top', 'left', 'width', 'boxSizing', 'minHeight', 'zIndex']) element.style[key] = ''
 }
 
-// 「＋」選單。在「我的用品」篩選某個空間時預帶該空間；其他頁面由新增頁預設為「個人」。
-// 暫時仍進入既有的新增用品頁；新增補貨紀錄流程完成後改接（可用性測試 2026-10-15）。
+// 「＋」選單的「新增補貨紀錄」。在「我的用品」篩選某個空間時預帶該空間；其他頁面由補貨頁預設為「個人」。
 const handleAddRecord = () => {
   const spaceId = route.name === 'inventory' ? itemsStore.inventorySpaceId : null
-  router.push({ name: 'add-item', query: spaceId ? { space: spaceId } : {} })
+  router.push({ name: 'restock-record', query: spaceId ? { space: spaceId } : {} })
 }
 
 // 新增空間：建立後切到新空間並回到我的用品。

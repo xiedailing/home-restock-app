@@ -13,6 +13,12 @@ export const routes = [
     meta: { title: '我的用品' },
   },
   {
+    path: '/restock/new',
+    name: 'restock-record',
+    component: () => import('../views/RestockRecordView.vue'),
+    meta: { title: '新增補貨紀錄', hideBottomNav: true },
+  },
+  {
     path: '/items/new',
     name: 'add-item',
     component: () => import('../views/AddItemView.vue'),
