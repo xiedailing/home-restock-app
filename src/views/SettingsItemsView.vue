@@ -12,9 +12,11 @@ const store = useItemsStore()
 const catalog = useCatalogStore()
 const route = useRoute()
 const router = useRouter()
-// 從補貨頁進來（?from=restock）時，返回要回到補貨頁，不是設定頁。
+// 從補貨頁（?from=restock）或補貨明細（?from=detail）進來時，返回要回到來源頁，不是設定頁。
+const BACK_SOURCES = { restock: '補貨紀錄', detail: '補貨明細' }
+const backSource = computed(() => BACK_SOURCES[route.query.from] ?? null)
 function goBack(event) {
-  if (route.query.from !== 'restock' || !window.history.state?.back) return
+  if (!backSource.value || !window.history.state?.back) return
   event.preventDefault()
   router.back()
 }
@@ -140,7 +142,7 @@ function addCategory() {
 <template>
   <section class="management-page">
     <header class="management-header">
-      <RouterLink :to="{ name: 'settings' }" class="back-button" :aria-label="route.query.from === 'restock' ? '返回補貨紀錄' : '返回設定'" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink>
+      <RouterLink :to="{ name: 'settings' }" class="back-button" :aria-label="backSource ? `返回${backSource}` : '返回設定'" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink>
       <h1>用品管理</h1><span />
     </header>
     <p class="management-hint">管理所有空間可選用的用品；分類刪除尚未開放。</p>

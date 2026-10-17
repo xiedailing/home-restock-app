@@ -1,5 +1,5 @@
 <script setup>
-// 補貨紀錄列表（specs/003 FR-307）：用品詳情區塊與完整列表頁共用。
+// 補貨紀錄列表（specs/003 FR-307）：補貨明細區塊與完整列表頁共用。
 // 點一筆開「編輯補貨紀錄」Sheet；儲存或刪除後 emit edited，由頁面顯示可復原的 Toast。
 // 不再有「開始追蹤」起點：預計補貨日改由補貨紀錄推算，沒有手填的庫存量與開啟日（specs/009 FR-913）。
 import { computed, ref } from 'vue'
@@ -52,6 +52,7 @@ function remove() {
           <span class="record-dot" aria-hidden="true" />
           <span class="record-date">{{ entry.date.replaceAll('-', '/') }}</span>
           <span class="record-quantity">+{{ entry.quantity }} {{ item.unit }}</span>
+          <i class="fa-solid fa-chevron-right record-chevron" aria-hidden="true"></i>
         </button>
       </li>
     </ul>
@@ -111,5 +112,7 @@ function remove() {
 }
 .record-date { flex: 1; color: t.$text-main; font: t.$font-weight-medium 15px / normal t.$font-family; }
 .record-quantity { color: t.$text-body; font: t.$font-weight-regular 14px / normal t.$font-family; }
+// 提示點進去可以編輯或刪除（specs/011 FR-1106）。
+.record-chevron { flex: none; color: t.$text-disabled; font-size: 12px; }
 .record-empty { margin: 0; padding: t.$space-16; color: t.$text-disabled; font: t.$font-weight-regular 14px / 20px t.$font-family; }
 </style>

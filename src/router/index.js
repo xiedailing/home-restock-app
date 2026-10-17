@@ -28,7 +28,7 @@ export const routes = [
     path: '/items/:id',
     name: 'item-detail',
     component: () => import('../views/ItemDetailView.vue'),
-    meta: { title: '用品詳情', hideBottomNav: true },
+    meta: { title: '補貨明細', hideBottomNav: true },
   },
   {
     path: '/items/:id/records',
