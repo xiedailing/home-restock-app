@@ -102,7 +102,7 @@ function onContentClick() {
       @click="onContentClick"
     >
       <span class="item-icon-circle" aria-hidden="true">
-        <img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" />
+        <img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" draggable="false" />
       </span>
       <div class="item-body">
         <p class="item-name">{{ item.name }}</p>
@@ -112,7 +112,7 @@ function onContentClick() {
       </div>
       <div class="item-trailing">
         <StatusMarks :marks="marks" />
-        <img class="item-chevron" :src="chevronIcon" alt="" />
+        <img class="item-chevron" :src="chevronIcon" alt="" draggable="false" />
       </div>
     </div>
   </li>

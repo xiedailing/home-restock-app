@@ -106,14 +106,12 @@ onBeforeUnmount(() => {
 // 底部漸層：高 ＝ 導覽列頂端（留白＋膠囊高）再往上 33px。顏色是淺暖灰（同 App 其他陰影 140,136,127），
 // 最深 20%（膠囊中段以下固定）、膠囊頂端約 7%、頂端 0；照參考圖（Instagram 導覽列）量到的形狀，
 // 強度依不透明膠囊校準（實測暗帶亮度約 224、與膠囊反差約 27，參考圖約 52）。z-index 低於遮罩（999）與導覽列（1000）。
+// 寬度不限 390px：桌機寬螢幕時延伸到整個視窗，不會在欄位兩側留下色差。
 .bottom-nav-fade {
   position: fixed;
   inset-inline: 0;
   bottom: 0;
   z-index: 998;
-  width: 100%;
-  max-width: 390px;
-  margin-inline: auto;
   height: t.$bottom-nav-offset + t.$bottom-nav-height + 33px;
   pointer-events: none;
   background: linear-gradient(
