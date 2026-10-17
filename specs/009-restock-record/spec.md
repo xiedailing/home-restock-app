@@ -150,8 +150,8 @@
 共享空間的用品若**已被其他成員認領**，不能在補貨頁記錄補貨，要先到購買清單（或補貨明細）接手認領。待認領（沒人認領）與自己已認領的可以直接記錄。原則是「資訊先行」：使用者進頁面就看得到誰認領，不用點了才跳視窗。
 
 - **被擋的條件**：頁首所選空間是共享空間，該空間已有這個全域用品的空間用品（以 `catalogId` 配對，FR-909），它在購買清單中，且 `shoppingClaimantId` 是自己以外的成員。個人空間、不在清單的用品、尚未認領、自己認領的都不擋。
-- **格子標記（補充 FR-904）**：被擋的格子圖示變淡（不透明度 .45）、名稱改 `$text-sub`、右上角小鎖（20px 圓，底 `$badge-orange`、圖示 `$accent-text`）、名稱下方一行 11px 橘字「{名字}認領中」（`$accent-text`；名字太長以「⋯」截斷，「認領中」固定顯示）。格子的欄距要用 `minmax(0, 1fr)`，否則長名字會撐開欄位。
-- **點被擋的格子**：不選取（沒有勾勾、`aria-disabled="true"`）；頁內 Toast（頂部，沿用 `AppToast placement="top"`）顯示「{名字}已認領「{用品名}」，請先到購買清單接手認領」。
+- **格子標記（補充 FR-904）**：被擋的格子圖示變淡（不透明度 .45）、名稱改 `$text-sub`、右上角小鎖（20px 圓，底 `#ffebd7`——同 `StatusMarks` 的橘色 pill，專案沒有對應 token；圖示 `$accent-text`）、名稱下方一行 11px 橘字「{名字}認領中」（`$accent-text`；名字太長以「⋯」截斷，「認領中」固定顯示）。格子的欄距要用 `minmax(0, 1fr)`，否則長名字會撐開欄位。
+- **點被擋的格子**：不選取（沒有勾勾、`aria-disabled="true"`）；頁內 Toast（頂部，沿用 `AppToast placement="top"`，訊息最多兩行）顯示「{名字}已認領「{用品名}」，請先到購買清單接手認領」。
 - **記錄時再檢查一次（補充 FR-907）**：批次記錄前，只要有一項被擋，**整批都不記錄**（沿用「任一項失敗整批復原」），錯誤碼 `CLAIMED_BY_OTHER`，Toast 同上，留在補貨頁。這是防止頁面停留期間認領狀態改變的最後一道防線。
 - **切換空間**：格子標記依新空間重算。已選用品在新空間被他人認領時，不特別處理，記錄時由上一條檢查擋下（見「待確認」）。
 - **記錄成功後**：用品被移出清單（既有行為），並清掉認領欄位，不留殘值。
@@ -186,6 +186,7 @@
 | `src/views/HomeView.vue` | 空狀態按鈕導向補貨頁 |
 | `src/views/AddItemView.vue`、`SettingsItemsView.vue`、`SettingsItemCategory.vue` | 組員負責，不在本規格 |
 | `src/components/restock/RestockItemGrid.vue`、`src/views/RestockRecordView.vue` | FR-915：被他人認領的格子標記與點擊提示、記錄時的錯誤顯示 |
+| `src/components/AppToast.vue` | 訊息由單行省略改為最多兩行，較長的提示不截掉後半句 |
 | `src/stores/items.js`（共用） | FR-915：`recordRestockBatch` 批次記錄前檢查被他人認領（錯誤碼 `CLAIMED_BY_OTHER`）；`completeRestock` 成功後清掉認領欄位 |
 
 ## 驗收
