@@ -53,6 +53,8 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
+  <!-- 底部漸層（UT-37）：螢幕最下面由下往上淡出的淺暖灰，卡片內容不會在導覽列後面與縫隙清楚露出，膠囊才浮得起來。不攔截點擊。 -->
+  <div class="bottom-nav-fade" aria-hidden="true" />
   <!-- 遮罩：把背景壓暗，選單才不會跟同色的卡片融在一起；導覽列（z-index 1000）留在遮罩上方。點遮罩由 dismiss 關閉。 -->
   <div v-if="menuOpen" class="plus-scrim" aria-hidden="true" />
   <nav class="bottom-nav-wrapper" aria-label="主要導覽">
@@ -100,6 +102,28 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
+
+// 底部漸層：高 ＝ 導覽列頂端（留白＋膠囊高）再往上 33px。顏色是淺暖灰（同 App 其他陰影 140,136,127），
+// 最深 20%（膠囊中段以下固定）、膠囊頂端約 7%、頂端 0；照參考圖（Instagram 導覽列）量到的形狀，
+// 強度依不透明膠囊校準（實測暗帶亮度約 224、與膠囊反差約 27，參考圖約 52）。z-index 低於遮罩（999）與導覽列（1000）。
+.bottom-nav-fade {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 998;
+  width: 100%;
+  max-width: 390px;
+  margin-inline: auto;
+  height: t.$bottom-nav-offset + t.$bottom-nav-height + 33px;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(140, 136, 127, 0.2) 0,
+    rgba(140, 136, 127, 0.2) (t.$bottom-nav-offset + t.$bottom-nav-height * 0.5),
+    rgba(140, 136, 127, 0.07) (t.$bottom-nav-offset + t.$bottom-nav-height),
+    rgba(140, 136, 127, 0) (t.$bottom-nav-offset + t.$bottom-nav-height + 33px)
+  );
+}
 
 .bottom-nav-wrapper {
   // 移到 body 下，固定於視窗，避免祖先容器 transform 影響定位。
