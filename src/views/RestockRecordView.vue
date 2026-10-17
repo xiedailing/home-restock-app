@@ -79,9 +79,13 @@ function removeItem(id) {
 }
 
 // ---------- 已選清單 ----------
-function findSpaceItem(name) {
-  const key = name.trim().toLowerCase()
-  return itemsStore.items.find((item) => item.spaceId === spaceId.value && item.name.trim().toLowerCase() === key)
+// 以 (空間, catalogId) 找空間用品；舊資料關聯有歧義時 Store 會丟錯，這裡視為沒有紀錄可顯示。
+function findSpaceItem(catalogId) {
+  try {
+    return itemsStore.getItemByCatalogId(spaceId.value, catalogId)
+  } catch {
+    return null
+  }
 }
 
 function formatMonthDay(dateString) {
@@ -94,7 +98,7 @@ const entries = computed(() =>
   selected.value.flatMap((entry) => {
     const item = catalog.getById(entry.id)
     if (!item) return []
-    const latest = getLatestRecord(findSpaceItem(item.name)?.restockRecords ?? [])
+    const latest = getLatestRecord(findSpaceItem(item.id)?.restockRecords ?? [])
     return [{
       id: item.id,
       name: item.name,
@@ -201,20 +205,19 @@ function record() {
   const batchEntries = selected.value.flatMap((entry) => {
     const item = catalog.getById(entry.id)
     if (!item) return []
-    return [{
-      name: item.name,
-      iconKey: item.iconKey,
-      iconPhoto: item.iconPhoto,
-      iconManual: item.iconManual,
-      category: item.category,
-      unit: item.unit,
-      quantity: entry.quantity,
-    }]
+    return [{ catalogId: item.id, quantity: entry.quantity }]
   })
   if (!batchEntries.length) return
   recording = true
 
-  const { results, undo } = itemsStore.recordRestockBatch(batchEntries, { spaceId: spaceId.value, date: date.value })
+  const batch = itemsStore.recordRestockBatch(batchEntries, { spaceId: spaceId.value, date: date.value })
+  if (!batch.ok) {
+    // 整批已復原，留在頁面讓使用者調整。
+    recording = false
+    showToast(batch.error.message)
+    return
+  }
+  const { results, undo } = batch
   const first = results[0]
   const message = results.length > 1
     ? `已記錄 ${results.length} 項`
