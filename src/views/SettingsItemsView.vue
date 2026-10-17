@@ -134,7 +134,7 @@ function addCategory() {
       <RouterLink :to="{ name: 'settings' }" class="back-button" aria-label="返回設定"><img :src="backIcon" alt="" /></RouterLink>
       <h1>用品管理</h1><span />
     </header>
-    <p class="management-hint">管理所有空間可選用的用品；編輯與刪除功能尚未開放。</p>
+    <p class="management-hint">管理所有空間可選用的用品；分類刪除尚未開放。</p>
     <h2>系統分類</h2>
     <div v-if="visibleSystemCategories.length" class="category-card system-category-card">
       <RouterLink v-for="category in visibleSystemCategories" :key="category.name" class="category-row" :to="{ name: 'item-category', params: { category: category.name } }">

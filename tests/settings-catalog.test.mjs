@@ -138,11 +138,12 @@ test('settings global catalog integration', async t => {
       assert.doesNotMatch(await render({ changed: true, oldUnit: '包', newUnit: '箱', hasHistory: false }), /舊紀錄|尚未串接/)
       assert.doesNotMatch(await render({ changed: false, oldUnit: '包', newUnit: '包', hasHistory: true }), /舊紀錄/)
     })
-    await t.test('delete and editor save stay disabled; no space item changes', () => {
+    await t.test('category deletion stays disabled; editor writes are gated and no unsolicited space changes', () => {
       assert.equal(JSON.stringify(items.items), beforeItems)
       const editor = readFileSync('src/components/settings/GlobalItemEditor.vue', 'utf8')
       assert.match(editor, /type="submit"[^>]*disabled/)
-      assert.doesNotMatch(editor, /emit\('preview'|applyItemPreview|addCatalogItem|removeItem/)
+      assert.doesNotMatch(editor, /emit\('preview'|applyItemPreview|addCatalogItem|itemsStore\.removeItem/)
+      assert.match(editor, /:disabled="!canSave"/)
       const categories = readFileSync('src/views/SettingsItemsView.vue', 'utf8')
       assert.doesNotMatch(categories, /removeCategories\(|deleteCategories\(/)
       assert.match(categories, /disabled>刪除（尚未開放）/)

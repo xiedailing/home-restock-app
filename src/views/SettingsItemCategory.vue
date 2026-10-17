@@ -18,7 +18,7 @@ function edit(item = null) {
 <template>
   <section class="category-page">
     <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理"><img :src="backIcon" alt="" /></RouterLink><h1>{{ category }}</h1><span /></header>
-    <p class="preview-mode">全域用品可供所有空間選用；目前編輯與刪除尚未開放。</p>
+    <p class="preview-mode">全域用品可供所有空間選用；單位變更尚未開放。</p>
     <div v-if="items.length" class="category-card">
       <button v-for="item in items" :key="item.id" type="button" class="item-row" @click="edit(item)">{{ item.name }}</button>
     </div>

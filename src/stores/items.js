@@ -1,5 +1,7 @@
-import { computed, ref, shallowRef, toRaw, watch } from 'vue'
+import { computed, ref, shallowRef, toRaw, watch, onScopeDispose } from 'vue'
 import { defineStore } from 'pinia'
+import { useCatalogStore } from './catalog'
+import { migrateCatalogLinks, assertCatalogLinkUnique, catalogLinkError, normalizeCatalogName } from '../utils/catalogLinks.js'
 import { isValidInviteCode } from '../utils/inviteCode'
 import { generateId } from '../utils/id.js'
 import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
@@ -79,6 +81,10 @@ export const useItemsStore = defineStore('items', () => {
     }
     demoSeeds.add(familyAlcoholSeed)
   }
+  const catalog = useCatalogStore()
+  const linkedItems = migrateCatalogLinks(items.value, catalog.allItems, catalog.deletedCatalogItems)
+  const needsCatalogSave = linkedItems.some((item, index) => item.catalogId !== items.value[index].catalogId)
+  items.value = linkedItems
   const systemCategoryCounts = computed(() => SYSTEM_CATEGORIES.map(name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length })))
   const customCategoryCounts = computed(() => {
     const names = new Set([...customCategories.value, ...items.value.map(getItemCategory).filter(name => name && !SYSTEM_CATEGORIES.includes(name))])
@@ -153,8 +159,11 @@ export const useItemsStore = defineStore('items', () => {
   }
 
   function addItem(input) {
+    if (input.catalogId && !catalog.getById(input.catalogId)) throw catalogLinkError('NOT_FOUND', '找不到全域用品。')
+    assertCatalogLinkUnique(items.value, { ...input, spaceId: input.spaceId ?? DEFAULT_SPACE_ID })
     const preset = PRESET_ITEMS.find(option => option.iconKey === input.iconKey)
     const item = createItem({ ...input, category: input.category ?? preset?.category })
+    assertCatalogLinkUnique(items.value, item)
     items.value.push(item)
     return item
   }
@@ -162,6 +171,10 @@ export const useItemsStore = defineStore('items', () => {
   function updateItem(id, changes) {
     const item = getItem(id)
     if (!item) return
+    if ((Object.hasOwn(changes, 'catalogId') && changes.catalogId !== item.catalogId) || (Object.hasOwn(changes, 'spaceId') && changes.spaceId !== item.spaceId)) {
+      assertCatalogLinkUnique(items.value, { ...item, ...changes }, id)
+    }
+    if (['iconKey', 'iconPhoto', 'iconManual'].some(key => Object.hasOwn(changes, key)) && !Object.hasOwn(changes, 'catalogIconInherited')) changes = { ...changes, catalogIconInherited: false }
     Object.assign(item, changes, { updatedAt: new Date().toISOString() })
   }
 
@@ -174,7 +187,10 @@ export const useItemsStore = defineStore('items', () => {
   // 以 snapshotItem 的結果還原整筆用品（各種「復原」共用）。
   function restoreItem(snapshot) {
     const item = getItem(snapshot.id)
-    if (item) Object.assign(item, structuredClone(snapshot))
+    if (item) {
+      if (snapshot.catalogId !== item.catalogId || snapshot.spaceId !== item.spaceId) assertCatalogLinkUnique(items.value, snapshot, snapshot.id)
+      Object.assign(item, structuredClone(snapshot))
+    }
   }
 
   function removeItem(id) {
@@ -194,8 +210,9 @@ export const useItemsStore = defineStore('items', () => {
   function undoRemoveItem() {
     const removed = recentlyRemoved.value
     if (!removed) return
+    if (getItem(removed.item.id)) { recentlyRemoved.value = null; return }
+    assertCatalogLinkUnique(items.value, removed.item)
     recentlyRemoved.value = null
-    if (getItem(removed.item.id)) return
     items.value.splice(Math.min(removed.index, items.value.length), 0, structuredClone(removed.item))
   }
 
@@ -502,19 +519,54 @@ export const useItemsStore = defineStore('items', () => {
   // 最近刪除、購買完成復原記錄、今天、篩選等暫態不存。
   // 寫入失敗（儲存空間不足等）時為 true，讓畫面提示照片可能不會保留（specs/008 FR-807）。
   const persistFailed = ref(false)
-  const scheduleSave = createDebouncedSaver(() => {
-    persistFailed.value = !savePersisted(STORE_KEYS.items, {
-      demoSeeds: [...demoSeeds],
-      items: toRaw(items.value),
-      spaces: toRaw(spaces.value),
-      customCategories: toRaw(customCategories.value),
-      departedSpaces: toRaw(departedSpaces.value),
-    })
-  })
+  function catalogPersistenceSnapshot() {
+    return JSON.parse(JSON.stringify({ demoSeeds: [...demoSeeds], items: toRaw(items.value), spaces: toRaw(spaces.value),
+      customCategories: toRaw(customCategories.value), departedSpaces: toRaw(departedSpaces.value) }))
+  }
+  function applyCatalogLinkedItems(nextItems) {
+    const byId = new Map(nextItems.map(item => [item.id, item]))
+    const fields = ['catalogId', 'name', 'category', 'iconKey', 'iconPhoto', 'iconManual', 'catalogIconInherited']
+    for (const item of items.value) {
+      const next = byId.get(item.id)
+      if (next) for (const field of fields) if (Object.hasOwn(next, field)) item[field] = next[field]
+    }
+  }
+  const unregisterBridge = catalog.registerItemsBridge({ snapshot: catalogPersistenceSnapshot, apply: applyCatalogLinkedItems })
+  onScopeDispose(unregisterBridge)
+  function getItemByCatalogId(spaceId, catalogId) {
+    if (typeof catalogId !== 'string' || !catalogId) throw catalogLinkError('INVALID_INPUT', '全域用品 ID 無效。')
+    const matches = items.value.filter(item => item.spaceId === spaceId && item.catalogId === catalogId)
+    if (matches.length > 1) throw catalogLinkError('AMBIGUOUS_CATALOG_LINK', '此空間有多筆相同關聯，請先確認舊資料。')
+    return matches[0] ?? null
+  }
+  function ensureCatalogItem(spaceId, catalogId) {
+    if (!getSpace(spaceId)) return { ok: false, error: { code: 'NOT_FOUND', message: '找不到空間。' } }
+    const globalItem = catalog.getById(catalogId)
+    if (!globalItem) return { ok: false, error: { code: 'NOT_FOUND', message: '找不到全域用品。' } }
+    try {
+      const existing = getItemByCatalogId(spaceId, catalogId)
+      if (existing) return { ok: true, item: existing, created: false }
+      if (items.value.some(item => item.spaceId === spaceId && normalizeCatalogName(item.name) === normalizeCatalogName(globalItem.name))) {
+        return { ok: false, error: { code: 'SPACE_NAME_TAKEN', message: '此空間已有同名但未能安全關聯的用品。' } }
+      }
+      const item = addItem({ name: globalItem.name, category: globalItem.category, unit: globalItem.unit,
+        iconKey: globalItem.iconKey, iconPhoto: globalItem.iconPhoto, iconManual: false, catalogIconInherited: true, spaceId, catalogId })
+      return { ok: true, item, created: true }
+    } catch (error) { return { ok: false, error: { code: error.code || 'INVALID_INPUT', message: error.message } } }
+  }
+  function migrateCatalogAssociations() {
+    const next = migrateCatalogLinks(items.value, catalog.allItems, catalog.deletedCatalogItems)
+    const snapshot = catalogPersistenceSnapshot()
+    if (!savePersisted(STORE_KEYS.items, { ...snapshot, items: next })) return { ok: false, error: { code: 'STORAGE_FAILED', message: '無法儲存用品關聯。' } }
+    applyCatalogLinkedItems(next)
+    return { ok: true }
+  }
+  const scheduleSave = createDebouncedSaver(() => { persistFailed.value = !savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot()) })
   watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
-  if (needsFamilyAlcoholSeed) scheduleSave()
+  if (needsFamilyAlcoholSeed || needsCatalogSave) scheduleSave()
 
   return {
+    getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations,
     persistFailed,
     customCategories,
     systemCategoryCounts,

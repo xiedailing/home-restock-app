@@ -161,6 +161,8 @@ export function createItem(input = {}) {
   const now = new Date().toISOString()
   return {
     id: input.id ?? generateId(),
+    catalogId: typeof input.catalogId === 'string' && input.catalogId ? input.catalogId : null,
+    catalogIconInherited: input.catalogIconInherited === true,
     name: input.name ?? '',
     iconKey: input.iconKey ?? null,
     // 使用者自己的照片（256×256 JPEG data URL）；有值時優先於 iconKey，所有狀態同一張（specs/008）。
