@@ -69,7 +69,7 @@ test('Catalog handoff contract', async t => {
       await new Promise(resolve => setTimeout(resolve, 350))
       const saved = JSON.parse(memory.get(key))
       assert.equal(saved.version, STORAGE_VERSION)
-      assert.deepEqual(Object.keys(saved.data), ['catalogItems'])
+      assert.deepEqual(Object.keys(saved.data).sort(), ['catalogItems', 'deletedCatalogItems', 'presetOverrides'])
       assert.equal(saved.data.catalogItems.length, 2)
       assert.ok(saved.data.catalogItems.every(item => !item.id.startsWith('preset:')))
       catalog = fresh()

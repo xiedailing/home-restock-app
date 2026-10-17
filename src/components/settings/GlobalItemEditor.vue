@@ -22,7 +22,12 @@ const customUnit = ref('')
 const unit = computed(() => unitChoice.value === CUSTOM_UNIT ? customUnit.value.trim() : unitChoice.value)
 const openPanel = ref(null)
 const iconError = ref('')
-const deleteHint = ref(false)
+const deleteDialog = ref(null)
+const operationError = ref('')
+const saving = ref(false)
+const unitChanged = computed(() => !!props.item && unit.value !== props.item.unit)
+const hasHistory = computed(() => !!props.item && itemsStore.items.some(item => item.catalogId === props.item.id && item.restockRecords?.length > 0))
+const canSave = computed(() => !saving.value && !duplicate.value && !unitChanged.value && !Object.values(errors.value).some(Boolean))
 const categoryOptions = computed(() => [...new Set([...itemsStore.categoryOptions, props.item?.category].filter(Boolean))])
 const isPreset = computed(() => props.item?.id?.startsWith('preset:'))
 const duplicate = computed(() => isOtherCatalogNameTaken(catalog.allItems, draft.value.name || '', props.item?.id))
@@ -37,7 +42,8 @@ watch(() => props.open, async open => {
   customUnit.value = unitChoice.value === CUSTOM_UNIT ? props.item?.unit || '' : ''
   openPanel.value = null
   iconError.value = ''
-  deleteHint.value = false
+  operationError.value = ''
+  saving.value = false
   await nextTick()
   if (!dialog.value?.open) dialog.value?.showModal()
 })
@@ -58,13 +64,28 @@ function applyPhoto(dataUrl) {
 function toggle(panel) { openPanel.value = openPanel.value === panel ? null : panel }
 function chooseCategory(name) { draft.value.category = name; openPanel.value = null }
 function chooseUnit(value) { unitChoice.value = value; openPanel.value = value === CUSTOM_UNIT ? 'unit' : null }
+function save() {
+  if (!canSave.value) return
+  saving.value = true
+  const result = catalog.updateCatalogItem(props.item.id, { name: draft.value.name.trim(), category: draft.value.category,
+    unit: props.item.unit, iconKey: iconKey.value, iconPhoto: draft.value.iconPhoto ?? null, iconManual: draft.value.iconManual ?? false })
+  saving.value = false
+  if (!result.ok) { operationError.value = result.error.code === 'NAME_TAKEN' ? '此用品已經存在' : result.error.message; return }
+  emit('close')
+}
+function remove() {
+  const result = catalog.removeCatalogItem(props.item.id)
+  if (!result.ok) { operationError.value = result.error.message; deleteDialog.value?.close(); return }
+  deleteDialog.value?.close()
+  emit('close')
+}
 </script>
 <template>
   <Teleport to="body">
     <dialog ref="dialog" class="global-editor" aria-labelledby="global-editor-title" @cancel.prevent="emit('close')" @close="emit('close')">
-      <form novalidate @submit.prevent>
+      <form novalidate @submit.prevent="save">
         <h2 id="global-editor-title">編輯全域用品</h2>
-        <p class="mode" id="editor-save-status">編輯預覽：儲存尚未開放，修改不會套用到用品或補貨紀錄。</p>
+        <p class="mode" id="editor-save-status">名稱、圖示與分類會同步至已關聯空間；空間自訂圖示保留。</p>
         <div class="icon-preview"><ItemIconEditor :icon-key="iconKey" :icon-photo="draft.iconPhoto" @select-preset="selectIcon" @apply-photo="applyPhoto" @error="iconError = $event"><span class="icon-circle"><img :src="iconSrc" :class="{ photo: draft.iconPhoto }" alt="" /></span></ItemIconEditor></div>
         <p v-if="iconError" class="error" role="alert">{{ iconError }}</p>
         <div class="form-card">
@@ -81,10 +102,16 @@ function chooseUnit(value) { unitChoice.value = value; openPanel.value = value =
             <div v-if="openPanel === 'unit'" id="global-units"><div class="pills" role="group" aria-label="單位"><button v-for="option in [...UNITS, CUSTOM_UNIT]" :key="option" type="button" class="pill" :aria-pressed="unitChoice === option" @click="chooseUnit(option)"><img v-if="unitChoice === option" :src="pillCheck" alt="" />{{ option === CUSTOM_UNIT ? '自訂單位' : option }}</button></div><div v-if="unitChoice === CUSTOM_UNIT" class="custom-unit"><label for="global-unit" class="visually-hidden">自訂單位</label><input id="global-unit" v-model="customUnit" required maxlength="4" placeholder="例如：盒、袋、罐" :aria-invalid="errors.unit" /><button type="button" class="pill" @click="unit && (openPanel = null)">完成</button></div></div>
           </div>
         </div>
-        <UnitChangeHint :old-unit="item?.unit || ''" :new-unit="unit" :has-history="null" />
-        <template v-if="item && !isPreset"><button type="button" class="delete-preview" @click="deleteHint = true">刪除用品</button><p v-if="deleteHint" class="mode" role="status">刪除功能尚未開放，用品不會被刪除。</p></template>
-        <div class="actions"><button type="button" class="btn btn-secondary" @click="emit('close')">取消</button><button type="submit" class="btn btn-primary" disabled aria-describedby="editor-save-status">儲存（尚未開放）</button></div>
+        <UnitChangeHint :old-unit="item?.unit || ''" :new-unit="unit" :has-history="hasHistory" />
+        <p v-if="unitChanged" class="mode" role="status">單位週期尚未串接，請還原原單位後再儲存其他修改。</p>
+        <p v-if="operationError" class="error" role="alert">{{ operationError }}</p>
+        <button v-if="item && !isPreset" type="button" class="delete-preview" @click="deleteDialog.showModal()">刪除用品</button>
+        <div class="actions"><button type="button" class="btn btn-secondary" @click="emit('close')">取消</button><button type="submit" class="btn btn-primary" :disabled="!canSave" aria-describedby="editor-save-status">儲存</button></div>
       </form>
+    </dialog>
+    <dialog ref="deleteDialog" class="global-editor" aria-labelledby="global-delete-title">
+      <h2 id="global-delete-title">刪除全域用品？</h2><p>僅移除「{{ item?.name }}」的全域選項，各空間用品、購買清單與補貨歷史均保留。</p>
+      <div class="actions"><button type="button" class="btn btn-secondary" @click="deleteDialog.close()">取消</button><button type="button" class="btn btn-danger" @click="remove">刪除</button></div>
     </dialog>
   </Teleport>
 </template>

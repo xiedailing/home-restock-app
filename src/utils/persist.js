@@ -1,11 +1,27 @@
+import { recoverCatalogTransaction, commitCatalogTransaction } from './catalogTransaction.js'
 // localStorage 持久化：所有讀寫都包 try/catch，無痕模式、禁用儲存或空間已滿時照常運作，只是不保存。
 // 存檔格式帶版本號；版本不符或 JSON 損壞時回傳 null，由呼叫端改用示範資料。
 export const STORAGE_VERSION = 2
 const PREFIX = 'home-restock:v1:'
 
-export const STORE_KEYS = { items: 'items', profile: 'profile', notifications: 'notifications', catalog: 'catalog' }
+export const STORE_KEYS = { items: 'items', profile: 'profile', notifications: 'notifications', catalog: 'catalog', catalogIntegration: 'catalog-integration' }
 
+const catalogTransactionConfig = { prefix: PREFIX, version: STORAGE_VERSION, journalKey: STORE_KEYS.catalogIntegration }
+function checkCatalogRecovery(name) {
+  // 未開放本機儲存時沿用既有讀取降級；可讀到交易時才必須先復原。
+  try { if (!localStorage.getItem(PREFIX + STORE_KEYS.catalogIntegration)) return } catch { return }
+  if ([STORE_KEYS.catalog, STORE_KEYS.items].includes(name) && !recoverCatalogTransaction(catalogTransactionConfig)) {
+    const error = new Error('用品同步存檔尚待復原，請恢復本機儲存後重新整理。')
+    error.code = 'RECOVERY_REQUIRED'
+    throw error
+  }
+}
+export function commitCatalogStatePair(before, after) {
+  return commitCatalogTransaction(catalogTransactionConfig, before, after)
+}
 export function loadPersisted(name) {
+  // 復原失敗不可回傳 null，否則呼叫端可能以示範資料覆蓋真實資料。
+  checkCatalogRecovery(name)
   try {
     const raw = localStorage.getItem(PREFIX + name)
     if (!raw) return null
@@ -20,6 +36,7 @@ export function loadPersisted(name) {
 // 回傳是否寫入成功；失敗（空間已滿等）不丟錯。
 export function savePersisted(name, data) {
   try {
+    checkCatalogRecovery(name)
     localStorage.setItem(PREFIX + name, JSON.stringify({ version: STORAGE_VERSION, data }))
     return true
   } catch {
