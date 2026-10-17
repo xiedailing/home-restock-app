@@ -1,0 +1,9 @@
+// iOS Safari 在輸入框字級小於 16px 時，點進去會自動放大整個頁面，固定在底部的導覽列也會跟著錯位。
+// 只在觸控裝置把文字輸入框、textarea、select 設成 16px；用 !important 蓋過各元件自己的字級，不必逐一修改。
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="range"], [type="checkbox"], [type="radio"], [type="file"], [type="hidden"], [type="button"], [type="submit"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
