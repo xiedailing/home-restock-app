@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ItemListRow from '../components/items/ItemListRow.vue'
 import AddSpaceSheet from '../components/add-item/AddSpaceSheet.vue'
 import SpacePill from '../components/SpacePill.vue'
@@ -110,6 +110,13 @@ function undoDelete() {
 }
 
 const router = useRouter()
+const route = useRoute()
+onMounted(() => {
+  if (route.query.notificationRestocked !== '1') return
+  showToast('此通知的用品皆已補貨')
+  const { notificationRestocked, ...query } = route.query
+  router.replace({ path: route.path, query, hash: route.hash })
+})
 
 function openItemDetail(item) {
   router.push({ name: 'item-detail', params: { id: item.id } })

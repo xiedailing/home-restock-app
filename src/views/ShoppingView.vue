@@ -72,6 +72,11 @@ const route = useRoute()
 const fromSharedItem = route.query.tab === 'shared'
 const selectedSpace = ref(fromSharedItem && store.getSpace(route.query.space)?.shared ? route.query.space : '')
 const activeTab = ref(fromSharedItem ? 'shared' : 'personal')
+// 同在購買清單時點通知，路由只變 query，仍須更新頁籤與空間。
+watch(() => [route.query.tab, route.query.space], ([tab, space]) => {
+  activeTab.value = tab === 'shared' ? 'shared' : 'personal'
+  selectedSpace.value = tab === 'shared' && store.getSpace(space)?.shared ? space : ''
+})
 const personalItems = computed(() => store.shoppingList.filter(item => !store.getSpace(item.spaceId)?.shared))
 const allSharedItems = computed(() => store.items.filter(item => (item.inShoppingList || item.shoppingCompletedAt != null) && store.getSpace(item.spaceId)?.shared))
 const sharedItems = computed(() => allSharedItems.value.filter(item => !selectedSpace.value || selectedSpace.value === item.spaceId))

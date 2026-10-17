@@ -6,6 +6,7 @@ export const routes = [
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { title: '登入', hideBottomNav: true } },
   // 首頁已併入我的用品（可用性測試 2026-10-15）；舊連結導向我的用品。
   { path: '/home', redirect: '/inventory' },
+  { path: '/notifications', name: 'notifications', component: () => import('../views/NotificationsView.vue'), meta: { title: '通知', hideBottomNav: true } },
   {
     path: '/inventory',
     name: 'inventory',

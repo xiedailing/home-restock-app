@@ -7,6 +7,7 @@ import { generateId } from '../utils/id.js'
 import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 import { avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 import { profile } from './profile'
+import { useSharedNotificationsStore } from './sharedNotifications'
 import { useNotificationSettingsStore } from './notificationSettings'
 import { SYSTEM_CATEGORIES, PRESET_ITEMS, getItemCategory } from '../models/itemCategories'
 import { SPACE_COLORS, limitSpaceName } from '../models/space'
@@ -272,7 +273,7 @@ export const useItemsStore = defineStore('items', () => {
   }
 
   // 001 FR-003：新增紀錄、移出購買清單並清除待買數量。
-  function completeRestock(id, { date = toDateString(), quantity = 1 } = {}) {
+  function completeRestock(id, { date = toDateString(), quantity = 1 } = {}, notificationQueue = null) {
     const item = getItem(id)
     if (!item) return
     clearShoppingCompletion(id)
@@ -282,6 +283,30 @@ export const useItemsStore = defineStore('items', () => {
       addedToShoppingListDate: null,
       snoozedUntil: null,
     })
+    const recordId = item.restockRecords.at(-1).id
+    const deliver = () => {
+      runRestockNotification('publish', item, recordId, () => notifySharedOperation(item, 'restocked'))
+      runRestockNotification('track-completion', item, recordId, () => useSharedNotificationsStore().trackRestockCompletion(id, recordId))
+    }
+    if (notificationQueue) notificationQueue.push(deliver)
+    else deliver()
+  }
+
+  // 僅隔離通知副作用；補貨資料與推算錯誤仍由原流程處理，不可吞掉。
+  function runRestockNotification(operation, item, recordId, deliver) {
+    try { deliver() }
+    catch (error) {
+      console.error('[restock-notification] Notification failed after restock', {
+        operation, itemId: item.id, spaceId: item.spaceId, recordId, error,
+      })
+    }
+  }
+
+  function notifySharedOperation(item, type) {
+    const space = getSpace(item.spaceId)
+    if (!space?.shared) return
+    useSharedNotificationsStore().publishMemberEvent({ type, space, actorId: 'self', actorName: profile.name,
+      itemName: item.name, memberIds: getSpaceMembers(space.id).map(member => member.id) })
   }
 
   // specs/009 FR-907：補貨頁一次記錄多個用品。每項以 (空間, catalogId) 呼叫 ensureCatalogItem
@@ -295,6 +320,7 @@ export const useItemsStore = defineStore('items', () => {
     const createdIds = []
     const snapshots = []
     const results = []
+    const notificationQueue = []
     function undo() {
       for (const snapshot of snapshots) restoreItem(snapshot)
       if (createdIds.length) items.value = items.value.filter((item) => !createdIds.includes(item.id))
@@ -309,7 +335,7 @@ export const useItemsStore = defineStore('items', () => {
       if (created) createdIds.push(item.id)
       else snapshots.push(snapshotItem(item.id))
       const datesBefore = countRecordDates(item.restockRecords)
-      completeRestock(item.id, { date, quantity: entry.quantity })
+      completeRestock(item.id, { date, quantity: entry.quantity }, notificationQueue)
       const datesAfter = countRecordDates(getItem(item.id).restockRecords)
       results.push({
         id: item.id,
@@ -320,6 +346,8 @@ export const useItemsStore = defineStore('items', () => {
         startedInferring: datesBefore === 1 && datesAfter === 2,
       })
     }
+    // 整批成功後才投遞；驗證失敗復原時不留下半批通知。
+    for (const deliver of notificationQueue) deliver()
     return { ok: true, results, undo }
   }
 
@@ -410,6 +438,7 @@ export const useItemsStore = defineStore('items', () => {
     const item = getItem(id)
     if (!item?.inShoppingList || !getSpace(item.spaceId)?.shared || item.shoppingClaimantId) return
     updateItem(id, { shoppingClaimantId: 'self' })
+    notifySharedOperation(item, 'claimed')
   }
 
   function cancelShoppingClaim(id) {
@@ -423,6 +452,7 @@ export const useItemsStore = defineStore('items', () => {
     const item = getItem(id)
     if (!item?.inShoppingList || !item.shoppingClaimantId || item.shoppingClaimantId === 'self' || !getSpace(item.spaceId)?.shared) return
     updateItem(id, { shoppingClaimantId: 'self' })
+    notifySharedOperation(item, 'takeover')
   }
 
   function clearExpiredShoppingItems(now = Date.now()) {
