@@ -101,11 +101,6 @@ export const STATUS_LABELS = {
   [STATUS.NOT_NEEDED]: '不需補貨',
 }
 
-// 只有「該補貨了」「購買清單中」顯示狀態標籤；其他狀態不顯示（可用性測試 2026-10-15）。
-export function hasStatusBadge(status) {
-  return status === STATUS.OVERDUE || status === STATUS.DUE_SOON || status === STATUS.IN_SHOPPING_LIST
-}
-
 // 圖示狀態與業務狀態分開；View 透過 getIconState() 取得圖示狀態。
 export const ITEM_STATUS = Object.freeze({
   RESTOCK_NEEDED: 'restock-needed',
@@ -272,6 +267,15 @@ export function getReminderStatus(item, today = toDateString(), remindWithinDays
 export function getStatus(item, today = toDateString(), remindWithinDays = REMIND_WITHIN_DAYS) {
   if (item.inShoppingList) return STATUS.IN_SHOPPING_LIST
   return getReminderStatus(item, today, remindWithinDays)
+}
+
+// 「我的用品」列表與用品詳情的狀態標記（specs/010 FR-1001）：由提醒狀態與是否已在購買清單決定。
+// pill 只顯示最重要的一個狀態（該補貨了 > 購買清單中）；清單標記（圓圈）只在「該補貨了＋已在清單」時出現，
+// 因為這時 pill 位置已被「該補貨了」佔走。傳入的是提醒狀態（getReminderStatus），不是 getStatus。
+export function getStatusMarks(reminderStatus, inShoppingList) {
+  const due = reminderStatus === STATUS.OVERDUE || reminderStatus === STATUS.DUE_SOON
+  if (due) return { pill: reminderStatus, showListMark: !!inShoppingList }
+  return { pill: inShoppingList ? STATUS.IN_SHOPPING_LIST : null, showListMark: false }
 }
 
 // 延後中：今天早於延後到期日。不影響狀態，只用於首頁補貨提醒與詳情提示（specs/005 SNZ-03）。

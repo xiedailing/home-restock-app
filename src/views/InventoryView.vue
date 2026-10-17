@@ -9,7 +9,7 @@ import CategoryPills from '../components/CategoryPills.vue'
 import AppToast from '../components/AppToast.vue'
 import { useToast } from '../composables/useToast'
 import { useItemsStore } from '../stores/items'
-import { DEFAULT_SPACE_ID, STATUS, getReminderStatus } from '../models/item'
+import { DEFAULT_SPACE_ID, STATUS, getStatusMarks } from '../models/item'
 import { getItemCategory } from '../models/itemCategories'
 import BrandLogo from '../components/BrandLogo.vue'
 import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
@@ -21,7 +21,7 @@ const searchIcon = 'data:image/svg+xml;base64,PHN2ZyBwcmVzZXJ2ZUFzcGVjdFJhdGlvPS
 
 const itemsStore = useItemsStore()
 // 空間選擇存在 store，讓 Bottom Nav【＋】可預帶目前空間；仍不持久化。
-const { items, itemsWithStatus, spaces, inventorySpaceId: storedSpaceId, recentlyRemoved, today, remindWithinDays } = storeToRefs(itemsStore)
+const { items, itemsWithStatus, spaces, inventorySpaceId: storedSpaceId, recentlyRemoved } = storeToRefs(itemsStore)
 // 沒有「所有空間」：store 尚未選過（或已選空間被退出而重設）時，一律回到個人空間。
 const selectedSpaceId = computed({
   get: () => storedSpaceId.value ?? DEFAULT_SPACE_ID,
@@ -164,20 +164,18 @@ function statusRank(status) {
   return index === -1 ? STATUS_PRIORITY.length : index
 }
 
-function sortByUrgency(list) {
-  return [...list].sort((a, b) => statusRank(a.status) - statusRank(b.status))
+// 排序用 pill 狀態（該補貨了 > 購買清單中 > 不需補貨 > 未開啟提醒，specs/010 FR-1006）。
+function pillStatus(item) {
+  return getStatusMarks(item.reminderStatus, item.inShoppingList).pill ?? item.reminderStatus
 }
 
-// 非共享空間只有自己，加入購買清單不代表已補貨，列表仍顯示提醒狀態（該補貨了）；
-// 共享空間要讓其他成員一眼看到「購買清單中」。只影響本頁列表，不動共用的 getStatus。
-const displayItems = computed(() =>
-  itemsWithStatus.value.map((item) => {
-    if (item.status !== STATUS.IN_SHOPPING_LIST || itemsStore.getSpace(item.spaceId)?.shared) return item
-    return { ...item, status: getReminderStatus(item, today.value, remindWithinDays.value) }
-  }),
-)
+function sortByUrgency(list) {
+  return [...list].sort((a, b) => statusRank(pillStatus(a)) - statusRank(pillStatus(b)))
+}
+
+// 列表的狀態標記與圖示由提醒狀態決定（specs/010）；兩種空間規則相同，不再覆寫 status（取代 UT-31）。
 const spaceItems = computed(() =>
-  sortByUrgency(filterBySpace(displayItems.value, selectedSpaceId.value)),
+  sortByUrgency(filterBySpace(itemsWithStatus.value, selectedSpaceId.value)),
 )
 const selectedCategory = ref(null) // null = 全部；僅頁面層、單選、不持久化
 // 類別只在目前空間有用品時列出（ADD-14）。搜尋不影響，避免輸入時選項跳動。
