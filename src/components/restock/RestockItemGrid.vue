@@ -2,7 +2,7 @@
 import { getItemIconSrc } from '../../assets/household-icons-by-state/index.js'
 import { ITEM_STATUS } from '../../models/item'
 
-// 補貨頁的用品格子（specs/009 FR-904）：4 欄，第一格固定「＋新用品」，點格子切換選取。
+// 補貨頁的用品格子（specs/009 FR-904）：4 欄，第一格固定「＋新增用品」，點格子切換選取。
 // items：全域用品（順序由 catalog.allItems 決定，這裡不重排）；selectedIds：已選的全域用品 id。
 defineProps({
   items: { type: Array, required: true },
@@ -16,7 +16,7 @@ const emit = defineEmits(['toggle', 'new-item'])
     <li>
       <button type="button" class="tile tile--new" @click="emit('new-item')">
         <span class="tile-pic" aria-hidden="true">＋</span>
-        <span class="tile-name">新用品</span>
+        <span class="tile-name">新增用品</span>
       </button>
     </li>
     <li v-for="item in items" :key="item.id">
