@@ -137,6 +137,33 @@ test('claimed-by-other shared items cannot be restocked until taken over', async
       assert.equal(item.inShoppingList, true)
       assert.equal(item.restockRecords.length, 1)
     })
+    await t.test('shopping snooze persists only its date and preserves history and claimant', () => {
+      const { items } = fresh()
+      const before = structuredClone(JSON.parse(JSON.stringify(items.getItem('mine'))))
+      assert.equal(items.snoozeShoppingReminder('mine', '2099-01-10').ok, true)
+      const after = JSON.parse(JSON.stringify(items.getItem('mine')))
+      assert.deepEqual({ ...after, updatedAt: before.updatedAt }, { ...before, reminderSnoozes: { self: '2099-01-10' } })
+      const persisted = JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'mine')
+      assert.equal(persisted.reminderSnoozes.self, '2099-01-10')
+    })
+    await t.test('shopping snooze rejects invalid dates, removed and completed items', () => {
+      const { items } = fresh()
+      for (const date of ['2020-01-01', '2099-02-31', 'invalid']) assert.equal(items.snoozeShoppingReminder('mine', date).ok, false)
+      assert.equal(items.snoozeShoppingReminder('missing', '2099-01-10').ok, false)
+      assert.equal(items.snoozeShoppingReminder('free', '2099-01-10').ok, false)
+      items.completeShoppingItem('mine')
+      assert.equal(items.snoozeShoppingReminder('mine', '2099-01-10').ok, false)
+    })
+    await t.test('shopping snooze storage failure rolls back memory and disk', () => {
+      const { items } = fresh()
+      const before = memory.get(key('items'))
+      const write = storage.setItem
+      storage.setItem = () => { throw new Error('quota') }
+      try { assert.equal(items.snoozeShoppingReminder('mine', '2099-01-10').ok, false) }
+      finally { storage.setItem = write }
+      assert.equal(items.getItem('mine').snoozedUntil, null)
+      assert.equal(memory.get(key('items')), before)
+    })
   } finally {
     for (const pinia of piniaInstances) for (const store of pinia._s.values()) store.$dispose()
     stopIntervals()
