@@ -1,4 +1,4 @@
-# Feature 010｜我的用品：購買清單標記（列表與詳情）（草案）
+# Feature 010｜我的用品：購買清單標記（列表與詳情）（修訂版 1）
 
 > 草案日：2026-10-17。決策 UT-35 見 `docs/DECISION_LOG.md`〈決策紀錄｜可用性測試修改（2026-10-15）〉。
 > 狀態判斷沿用 `specs/001-reminder-restock/spec.md` 與 `models/item.js` 的 `getReminderStatus`；詳情頁提醒區沿用 `specs/003-item-detail/spec.md` FR-302；用品圖示取用沿用 `specs/008-item-icon/spec.md`。
