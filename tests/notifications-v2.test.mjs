@@ -206,6 +206,27 @@ test('notification V2 integration', async t => {
       const reload = useSharedNotificationsStore()
       reload.publishRestockReminders(); assert.equal(reload.records.length, 1)
     })
+    await t.test('personal snooze excludes only its operator and resumes once at expiry', () => {
+      const { items, notifications: n } = fresh()
+      const item = items.getItem('i0')
+      items.updateItem('i0', { restockRecords: [
+        { id: 'personal-due-1', date: '2026-01-01', quantity: 1, unit: item.unit, unitPeriodId: item.unitPeriodId },
+        { id: 'personal-due-2', date: '2026-01-10', quantity: 1, unit: item.unit, unitPeriodId: item.unitPeriodId },
+      ] })
+      assert.equal(items.snoozeShoppingReminder('i0', '2099-01-10').ok, true)
+      n.publishRestockReminders()
+      assert.equal(n.records.length, 1)
+      assert.equal(n.records[0].recipientIds.includes('self'), false)
+      assert.equal(n.records[0].recipientIds.includes('m1'), true)
+      assert.equal(n.records[0].recipientIds.includes('m2'), true)
+      assert.equal(item.snoozedUntil, null)
+      items.updateItem('i0', { reminderSnoozes: { self: '2020-01-01' } })
+      n.publishRestockReminders()
+      assert.equal(n.records.length, 2)
+      assert.deepEqual(n.records[1].recipientIds, ['self'])
+      n.publishRestockReminders()
+      assert.equal(n.records.length, 2)
+    })
     await t.test('claim and takeover notification faults never interrupt successful member operations', () => {
       const { items, notifications: n } = fresh()
       n.publishMemberEvent = () => { throw new Error('delivery failed') }

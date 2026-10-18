@@ -185,6 +185,7 @@ export function createItem(input = {}) {
     addedToShoppingListDate: input.addedToShoppingListDate ?? null,
     // 「暫時不用補貨」的延後到期日；當天起重新出現在首頁補貨提醒（specs/005 SNZ-02）。
     snoozedUntil: input.snoozedUntil ?? null,
+    reminderSnoozes: input.reminderSnoozes && typeof input.reminderSnoozes === 'object' ? { ...input.reminderSnoozes } : {},
     // 依新增順序排列；同一天多筆時，較晚新增者為最新一筆。
     restockRecords: input.restockRecords ?? [],
     createdAt: input.createdAt ?? now,
@@ -285,8 +286,8 @@ export function getStatusMarks(reminderStatus, inShoppingList) {
 }
 
 // 延後中：今天早於延後到期日。不影響狀態，只用於首頁補貨提醒與詳情提示（specs/005 SNZ-03）。
-export function isSnoozed(item, today = toDateString()) {
-  return !!item.snoozedUntil && today < item.snoozedUntil
+export function isSnoozed(item, today = toDateString(), memberId = 'self') {
+  return (!!item.snoozedUntil && today < item.snoozedUntil) || today < (item.reminderSnoozes?.[memberId] || '')
 }
 
 // 示範資料：日期相對今天計算，展示當天看到的狀態才會對（specs/009 FR-914、UT-27）。

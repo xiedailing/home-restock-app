@@ -1,5 +1,8 @@
 <script setup>
 import AppToast from '../components/AppToast.vue'
+import BottomSheet from '../components/BottomSheet.vue'
+import RestockDateBar from '../components/restock/RestockDateBar.vue'
+import { addDays, toDateString } from '../models/item'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SharedNotificationsMenu from '../components/SharedNotificationsMenu.vue'
@@ -13,6 +16,22 @@ import { profile } from '../stores/profile'
 import { getItemIconSrc } from '../assets/household-icons-by-state'
 const store = useItemsStore()
 const { toast, showToast, hideToast, runUndo } = useToast({ duration: 8000, pauseOnInteraction: true })
+const snoozeItemId = ref(null)
+const snoozeOpen = ref(false)
+const snoozeDate = ref('')
+const snoozeToday = ref(toDateString())
+function openSnooze(item) {
+  snoozeToday.value = toDateString()
+  snoozeItemId.value = item.id
+  snoozeDate.value = item.reminderSnoozes?.self > snoozeToday.value ? item.reminderSnoozes.self : addDays(snoozeToday.value, 1)
+  snoozeOpen.value = true
+}
+function saveSnooze(close) {
+  const result = store.snoozeShoppingReminder(snoozeItemId.value, snoozeDate.value)
+  if (!result.ok) { showToast(result.error.message, null, '復原', 'error'); return }
+  showToast(`已延後提醒至 ${snoozeDate.value.replaceAll('-', '/')}`)
+  close()
+}
 function completeItem(item) {
   if (item.shoppingCompletedAt != null) {
     store.reopenShoppingItem(item.id)
@@ -49,7 +68,8 @@ function confirmRemoval() {
 const personalExpandedItems = ref([])
 const sharedExpandedItems = ref([])
 const expandedItems = computed({
-  get: () => activeTab.value === 'personal' ? personalExpandedItems.value : sharedExpandedItems.value,
+  get: () => (activeTab.value === 'personal' ? personalExpandedItems.value : sharedExpandedItems.value)
+    .filter(id => { const item = store.getItem(id); return item && item.shoppingCompletedAt == null }),
   set: value => {
     if (activeTab.value === 'personal') personalExpandedItems.value = value
     else sharedExpandedItems.value = value
@@ -60,6 +80,8 @@ function toggleCard(event, id) {
   toggleItem(id)
 }
 function toggleItem(id) {
+  const item = store.getItem(id)
+  if (!item || item.shoppingCompletedAt != null) return
   expandedItems.value = expandedItems.value.includes(id) ? expandedItems.value.filter(value => value !== id) : [...expandedItems.value, id]
 }
 function changeQuantity(item, delta) {
@@ -248,14 +270,17 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
                 <input class="shopping-checkbox" type="checkbox" :checked="group.id === 'completed'"  :aria-label="`${item.name}已補貨`" @change="completeItem(item)" />
                 <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
                 <div class="item-info"><h3>{{ item.name }}</h3><SpaceTag :space-id="item.spaceId" /><p>補貨數量 {{ group.id === 'completed' ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
-                <button type="button" class="item-expand" :aria-expanded="expandedItems.includes(item.id)" :aria-controls="`item-controls-${item.id}`" :aria-label="`${expandedItems.includes(item.id) ? '收起' : '展開'}${item.name}`" @click="toggleItem(item.id)"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+                <button v-if="item.shoppingCompletedAt == null" type="button" class="item-expand" :aria-expanded="expandedItems.includes(item.id)" :aria-controls="`item-controls-${item.id}`" :aria-label="`${expandedItems.includes(item.id) ? '收起' : '展開'}${item.name}`" @click="toggleItem(item.id)"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
               </div>
               <div class="item-expand-region" :class="{ open: expandedItems.includes(item.id) }" :inert="!expandedItems.includes(item.id)">
                 <div class="item-expand-inner" :id="`item-controls-${item.id}`">
                   <div class="item-controls">
                     <div class="quantity-field"><span>補貨數量</span><div class="quantity-stepper"><button type="button" :disabled="item.shoppingCompletedAt != null || (item.quantity ?? 1) <= 1" :aria-label="`減少${item.name}補貨數量`" @click="changeQuantity(item, -1)">−</button><span class="quantity-value">{{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} <small>{{ item.unit }}</small></span><button type="button" :disabled="item.shoppingCompletedAt != null" :aria-label="`增加${item.name}補貨數量`" @click="changeQuantity(item, 1)">+</button></div></div>
                     <button v-if="group.id === 'claimed'" type="button" class="btn claim-button cancel-claim-button personal-cancel-claim" @click="requestClaimChange(item, 'cancel')"><i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>取消認領</button>
+                    <div v-if="item.shoppingCompletedAt == null" class="shopping-secondary-actions">
                     <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
+                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i>延後提醒</button>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -283,7 +308,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
               <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
               <div class="item-info"><h3>{{ item.name }}</h3><p>{{ store.getSpace(item.spaceId)?.name }}</p><p>補貨數量 {{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
               <span class="claim-status" :class="{ claimed: item.shoppingClaimantId, restocked: item.shoppingCompletedAt != null }">{{ claimStatus(item) }}</span>
-              <button type="button" class="item-expand" :aria-expanded="expandedItems.includes(item.id)" :aria-controls="`shared-item-controls-${item.id}`" :aria-label="`${expandedItems.includes(item.id) ? '收起' : '展開'}${item.name}`" @click="toggleItem(item.id)"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
+              <button v-if="item.shoppingCompletedAt == null" type="button" class="item-expand" :aria-expanded="expandedItems.includes(item.id)" :aria-controls="`shared-item-controls-${item.id}`" :aria-label="`${expandedItems.includes(item.id) ? '收起' : '展開'}${item.name}`" @click="toggleItem(item.id)"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
             </div>
             <div class="item-expand-region" :class="{ open: expandedItems.includes(item.id) }" :inert="!expandedItems.includes(item.id)">
               <div class="item-expand-inner" :id="`shared-item-controls-${item.id}`">
@@ -292,7 +317,10 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
                   <button v-if="item.inShoppingList && !item.shoppingClaimantId" type="button" class="btn btn-primary claim-button" @click="requestClaimChange(item, 'claim')"><i class="fa-regular fa-hand" aria-hidden="true"></i>我要認領</button>
                   <button v-else-if="item.inShoppingList && item.shoppingClaimantId === 'self'" type="button" class="btn claim-button cancel-claim-button" @click="requestClaimChange(item, 'cancel')"><i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>取消認領</button>
                   <button v-else-if="item.inShoppingList" type="button" class="btn claim-button takeover-button" @click="requestClaimChange(item, 'takeover')"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>接手認領</button>
-                  <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
+                  <div v-if="item.shoppingCompletedAt == null" class="shopping-secondary-actions">
+                    <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
+                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i>延後提醒</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -305,6 +333,16 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
     </div>
   </section>
   <Teleport to="body">
+    <BottomSheet :open="snoozeOpen" labelledby="snooze-reminder-title" @close="snoozeOpen = false">
+      <template #default="{ close }">
+        <div class="snooze-reminder-sheet">
+          <h2 id="snooze-reminder-title">延後提醒</h2>
+          <p>選擇下次提醒日期</p>
+          <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
+          <button type="button" class="btn btn-primary" @click="saveSnooze(close)">確認延後</button>
+        </div>
+      </template>
+    </BottomSheet>
     <dialog ref="restockAllDialog" class="shopping-delete-dialog" aria-labelledby="restock-all-title" @close="restockAllIds = []"><form @submit.prevent="confirmRestockAll"><h2 id="restock-all-title">全部補貨？</h2><p>將 {{ restockAllIds.length }} 項用品標記為已補貨。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="restockAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">已購買</button></div></form></dialog>
     <dialog ref="claimAllDialog" class="shopping-delete-dialog" aria-labelledby="claim-all-title" @close="claimAllRequest = null"><form @submit.prevent="confirmClaimAll"><h2 id="claim-all-title">全部認領 {{ claimAllRequest?.ids.length }} 項？</h2><p>將認領「{{ claimAllRequest?.name }}」中的{{ claimAllRequest?.ids.length }}項用品。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">認領</button></div></form></dialog>
     <dialog ref="claimDialog" class="shopping-delete-dialog" aria-labelledby="claim-change-title" @close="pendingClaim = null">
@@ -376,7 +414,7 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .expanded .item-expand i { transform: rotate(180deg); }
 .item-expand-region { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s ease; &.open { grid-template-rows: 1fr; } }
 .item-expand-inner { min-height: 0; overflow: hidden; }
-.item-controls { border-top: 1px solid t.$border-color; padding-top: t.$space-20; padding-bottom: t.$space-12; }
+.item-controls { border-top: 1px solid t.$border-color; padding-top: t.$space-20; padding-bottom: t.$space-20; }
 .quantity-field { display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; min-height: 72px; padding-inline: t.$space-20; border-radius: t.$radius-popover; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-sub; font-size: t.$font-size-body-sm; }
 .quantity-stepper { display: flex; align-items: center; gap: t.$space-12; button { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: t.$radius-pill; color: t.$primary-green; background: t.$input-bg; box-shadow: t.$shadow-raised; font-size: t.$font-size-page-title; cursor: pointer; &:disabled { color: t.$text-disabled; cursor: default; } } }
 .quantity-value { color: t.$text-main; font-size: t.$font-size-heading; font-weight: t.$font-weight-bold; white-space: nowrap; small { color: t.$text-sub; font-size: t.$font-size-body-sm; font-weight: t.$font-weight-regular; } }
@@ -386,8 +424,8 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .shared-card .personal-card-summary { grid-template-columns: 52px minmax(0, 1fr); }
 .shared-card .personal-card-summary { padding-right: 118px; }
 .claim-status { position: absolute; top: t.$space-24; right: 46px; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 10px; border-radius: t.$radius-md; background: t.$text-sub; color: t.$text-inverse; font: t.$font-weight-medium #{t.$font-size-caption} / 14px t.$font-family; &.claimed { background: t.$primary-green; } &.restocked { background: t.$success; } }
-.personal-cancel-claim { display: flex; align-items: center; justify-content: center; gap: t.$space-8; width: 100%; min-height: t.$button-height; margin-top: t.$space-16; font-size: t.$font-size-button; }
-.shared-card .claim-button { display: flex; align-items: center; justify-content: center; gap: t.$space-8; width: 100%; min-height: t.$button-height; margin-top: t.$space-16; font-size: t.$font-size-button; }
+.personal-cancel-claim { display: flex; align-items: center; justify-content: center; gap: t.$space-8; width: 100%; min-height: t.$button-height; margin-top: t.$space-20; font-size: t.$font-size-button; }
+.shared-card .claim-button { display: flex; align-items: center; justify-content: center; gap: t.$space-8; width: 100%; min-height: t.$button-height; margin-top: t.$space-20; font-size: t.$font-size-button; }
 .cancel-claim-button { background: t.$feedback-error-subtle; color: t.$danger; border: 0; box-shadow: t.$shadow-raised; }
 .takeover-button { background: t.$primary-soft; color: t.$primary-green; border: 1px solid t.$border-active; box-shadow: t.$shadow-raised; }
 .shopping-delete-dialog {
@@ -422,4 +460,37 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .shopping-delete-dialog .shopping-delete-actions button:focus { outline: none; }
 .shopping-delete-dialog .shopping-delete-actions button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
 .shopping-delete-dialog .shopping-delete-actions .btn-secondary:focus, .shopping-delete-dialog .shopping-delete-actions .btn-secondary:focus-visible { outline: none; }
+</style>
+
+<style scoped lang="scss">
+@use '../assets/scss/tokens' as t;
+.snooze-reminder-button { display: flex; align-items: center; justify-content: center; gap: t.$space-8; width: 100%; background: t.$primary-soft; color: t.$primary-green; border-radius: t.$radius-pill; font: t.$font-weight-medium #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; }
+.shopping-secondary-actions {
+  display: flex; align-items: stretch; gap: t.$space-12; margin-top: t.$space-16;
+  > button { flex: 1 1 0; min-width: 0; width: auto; min-height: t.$button-height; margin: 0; }
+  .remove-shopping-item { border-radius: t.$radius-pill; }
+}
+:is(.snooze-reminder-button, .takeover-button) {
+  --bs-btn-color: #{t.$primary-green};
+  --bs-btn-hover-color: #{t.$primary-green};
+  --bs-btn-active-color: #{t.$primary-green};
+  --bs-btn-hover-bg: #{t.$primary-soft};
+  --bs-btn-active-bg: #{t.$primary-soft};
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-active-shadow: none;
+}
+.takeover-button { --bs-btn-hover-border-color: #{t.$border-active}; --bs-btn-active-border-color: #{t.$border-active}; }
+.cancel-claim-button {
+  --bs-btn-color: #{t.$danger};
+  --bs-btn-hover-color: #{t.$danger};
+  --bs-btn-active-color: #{t.$danger};
+  --bs-btn-hover-bg: #{t.$feedback-error-subtle};
+  --bs-btn-active-bg: #{t.$feedback-error-subtle};
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-active-shadow: none;
+}
+.snooze-reminder-sheet { display: flex; flex-direction: column; gap: 16px; h2 { margin: 0; font: 700 17px / 24px t.$font-family; } p { margin: 0; color: t.$text-sub; } }
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) { .snooze-reminder-button:not(:disabled):hover { background: #d5e2d0; color: t.$primary-green; } }
 </style>

@@ -3,6 +3,7 @@ import { computed, ref, watch, onScopeDispose } from 'vue'
 import { defineStore, getActivePinia } from 'pinia'
 import { loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 import { generateId } from '../utils/id.js'
+import { toDateString } from '../models/item.js'
 import { notificationCutoff } from '../utils/notificationRetention.js'
 import { previewNotificationHistory } from '../utils/notificationPreview.js'
 import { memberNotificationMessage, restockNotificationMessage } from '../utils/notificationCopy.js'
@@ -92,15 +93,34 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
     const next = clone(records.value)
     const processed = [...processedEventIds.value]
     for (const { space, items, recipientIds } of source.reminderGroups()) {
-      const fresh = items.filter(item => !processed.includes(`due:${space.id}:${item.id}:${item.unitPeriodId}:${item.nextRestockDate}`))
-      if (!space.shared || !fresh.length || !recipientIds.length) continue
-      const itemNames = fresh.map(item => item.name)
-      const eventIds = fresh.map(item => `due:${space.id}:${item.id}:${item.unitPeriodId}:${item.nextRestockDate}`)
-      next.push({ id: generateId(), type: 'restock-due', source: 'event', spaceId: space.id, spaceName: space.name,
-        recipientIds, itemIds: fresh.map(item => item.id), itemNames, eventIds, createdAt: Date.now(),
-        recipientState: Object.fromEntries(recipientIds.map(id => [id, { seen: false, read: false }])),
-        message: restockNotificationMessage(space.name, itemNames), targets: fresh.map(item => ({ itemId: item.id, completionRecordIds: [] })) })
-      processed.push(...eventIds)
+      const today = toDateString()
+      const groups = new Map()
+      for (const recipientId of recipientIds) {
+        const fresh = items.filter(item => {
+          const snooze = item.reminderSnoozes?.[recipientId]
+          if (snooze && today < snooze) return false
+          const base = `due:${space.id}:${item.id}:${item.unitPeriodId}:${item.nextRestockDate}`
+          const event = snooze ? `${base}:snooze:${recipientId}:${snooze}` : base
+          return !processed.includes(`${event}:recipient:${recipientId}`) && (snooze || !processed.includes(base))
+        })
+        if (!space.shared || !fresh.length) continue
+        const signature = JSON.stringify(fresh.map(item => item.id))
+        if (!groups.has(signature)) groups.set(signature, { fresh, recipients: [] })
+        groups.get(signature).recipients.push(recipientId)
+      }
+      for (const { fresh, recipients } of groups.values()) {
+        const itemNames = fresh.map(item => item.name)
+        const eventIds = fresh.flatMap(item => recipients.map(recipientId => {
+          const base = `due:${space.id}:${item.id}:${item.unitPeriodId}:${item.nextRestockDate}`
+          const snooze = item.reminderSnoozes?.[recipientId]
+          return `${snooze ? `${base}:snooze:${recipientId}:${snooze}` : base}:recipient:${recipientId}`
+        }))
+        next.push({ id: generateId(), type: 'restock-due', source: 'event', spaceId: space.id, spaceName: space.name,
+          recipientIds: recipients, itemIds: fresh.map(item => item.id), itemNames, eventIds, createdAt: Date.now(),
+          recipientState: Object.fromEntries(recipients.map(id => [id, { seen: false, read: false }])),
+          message: restockNotificationMessage(space.name, itemNames), targets: fresh.map(item => ({ itemId: item.id, completionRecordIds: [] })) })
+        processed.push(...eventIds)
+      }
     }
     if (next.length === records.value.length) return { ok: true }
     return commit(next, clone(pendingBatches.value), processed)

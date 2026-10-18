@@ -8,6 +8,9 @@ import { addDays } from '../../models/item'
 const props = defineProps({
   modelValue: { type: String, required: true },
   today: { type: String, required: true },
+  allowFuture: Boolean,
+  expandUpward: Boolean,
+  minDate: { type: String, default: null },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -24,11 +27,11 @@ const label = computed(() => {
   return props.modelValue === props.today ? `今天・${text}` : text
 })
 
-const canGoNext = computed(() => props.modelValue < props.today)
+const canGoNext = computed(() => props.allowFuture || props.modelValue < props.today)
 
 function shift(days) {
   const next = addDays(props.modelValue, days)
-  if (next > props.today) return
+  if ((!props.allowFuture && next > props.today) || (props.minDate && next < props.minDate)) return
   emit('update:modelValue', next)
 }
 
@@ -56,9 +59,9 @@ function onFocusout(event) {
 </script>
 
 <template>
-  <div class="date-field" @focusout="onFocusout">
+  <div class="date-field" :class="{ 'date-field--expand-upward': expandUpward }" @focusout="onFocusout">
     <div class="date-bar">
-      <button type="button" class="date-arrow" aria-label="前一天" @click="shift(-1)">
+      <button type="button" class="date-arrow" :disabled="!!minDate && modelValue <= minDate" aria-label="前一天" @click="shift(-1)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 4v16L5 12z" /></svg>
       </button>
       <button ref="dayButton" type="button" class="date-day" aria-haspopup="dialog" :aria-expanded="calendarOpen" @click="toggleCalendar">
@@ -72,8 +75,8 @@ function onFocusout(event) {
 
     <div v-if="calendarOpen" class="calendar-backdrop" @click="closeCalendar()" />
     <Transition name="calendar-pop">
-      <div v-if="calendarOpen" ref="popover" class="calendar-popover" role="dialog" aria-label="選擇補貨日期" @keydown.esc.stop="closeCalendar({ restoreFocus: true })">
-        <CalendarPicker ref="calendar" :model-value="modelValue" :max-date="today" @update:model-value="pick" />
+      <div v-if="calendarOpen" ref="popover" class="calendar-popover" role="dialog" :aria-label="allowFuture ? '選擇提醒日期' : '選擇補貨日期'" @keydown.esc.stop="closeCalendar({ restoreFocus: true })">
+        <CalendarPicker ref="calendar" :model-value="modelValue" :min-date="minDate" :max-date="allowFuture ? null : today" @update:model-value="pick" />
       </div>
     </Transition>
   </div>
@@ -83,6 +86,14 @@ function onFocusout(event) {
 @use '../../assets/scss/tokens' as t;
 
 .date-field { position: relative; }
+.date-field--expand-upward {
+  display: flex; flex-direction: column;
+  .date-bar { flex-shrink: 0; }
+  .calendar-popover {
+    position: relative; bottom: auto; left: auto; right: auto;
+    order: -1; margin-bottom: 8px;
+  }
+}
 
 .date-bar {
   display: flex;

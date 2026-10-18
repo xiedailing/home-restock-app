@@ -288,6 +288,16 @@ export const useItemsStore = defineStore('items', () => {
     updateItem(id, { snoozedUntil: addDays(toDateString(), SNOOZE_DAYS) })
   }
 
+  function snoozeShoppingReminder(id, date) {
+    const item = getItem(id)
+    if (!item?.inShoppingList || item.shoppingCompletedAt != null) return { ok: false, error: { message: '用品已不在待買清單。' } }
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+      || !Number.isFinite(new Date(`${date}T00:00:00`).getTime()) || addDays(date, 0) !== date || date <= toDateString()) {
+      return { ok: false, error: { message: '請選擇明天或之後的提醒日期。' } }
+    }
+    return persistItemsOperation(() => updateItem(id, { reminderSnoozes: { ...item.reminderSnoozes, self: date } }))
+  }
+
   // specs/009 FR-913：重新開啟不再填寫，直接用補貨紀錄重算；推算日已過就直接是「該補貨了」。
   function enableReminder(id) {
     updateItem(id, { reminderEnabled: true, snoozedUntil: null })
@@ -806,7 +816,7 @@ export const useItemsStore = defineStore('items', () => {
     reminderGroups: () => spaces.value.filter(space => space.shared).map(space => ({ space,
       recipientIds: [...new Set(getSpaceMembers(space.id).map(member => member.id))],
       items: itemsWithStatus.value.filter(item => item.spaceId === space.id && ['overdue', 'dueSoon'].includes(item.reminderStatus)
-        && !isSnoozed(item, today.value)),
+        && !(item.snoozedUntil && today.value < item.snoozedUntil)),
     })) })
   onScopeDispose(unregisterNotifications)
   // Observe only record identity, including removals by single/batch Undo; never mutate restock data here.
@@ -854,6 +864,7 @@ export const useItemsStore = defineStore('items', () => {
     removeFromShoppingList,
     disableReminder,
     snoozeReminder,
+    snoozeShoppingReminder,
     enableReminder,
     completeRestock,
     recordRestockBatch,
