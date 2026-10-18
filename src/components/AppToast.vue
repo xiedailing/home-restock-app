@@ -49,9 +49,9 @@ watch([() => props.toast, toastElement, toastTarget], async ([toast, element]) =
     <Transition name="app-toast">
       <div v-if="toast" ref="toastElement" :popover="supportsPopover ? 'manual' : undefined" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav && placement !== 'top', 'app-toast--top': placement === 'top', 'app-toast--error': toast.variant === 'error' }" role="status" aria-live="polite"
         @pointerenter="event => { if (event.pointerType === 'mouse') toast.pause?.('hover') }"
-        @pointerleave="toast.resume?.('hover'); toast.resume?.('touch')"
-        @pointerdown="toast.pause?.('touch')" @pointerup="toast.resume?.('touch')" @pointercancel="toast.resume?.('touch')"
-        @focusin="toast.pause?.('focus')" @focusout="event => { if (!event.currentTarget.contains(event.relatedTarget)) toast.resume?.('focus') }">
+        @pointerleave="toast?.resume?.('hover'); toast?.resume?.('touch')"
+        @pointerdown="toast.pause?.('touch')" @pointerup="toast?.resume?.('touch')" @pointercancel="toast?.resume?.('touch')"
+        @focusin="toast.pause?.('focus')" @focusout="event => { if (!event.currentTarget.contains(event.relatedTarget)) toast?.resume?.('focus') }">
         <slot name="icon"><i v-if="toast.variant === 'error'" class="fa-solid fa-circle-exclamation app-toast-error-icon" aria-hidden="true"></i><img v-else :src="toastCheck" alt="" /></slot>
         <span class="app-toast-message">{{ toast.message }}</span>
         <button v-if="toast.undo" type="button" class="app-toast-undo" @click="emit('undo')">{{ toast.actionLabel ?? '復原' }}</button>

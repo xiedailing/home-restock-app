@@ -7,7 +7,10 @@ import AddSpaceSheet from '../components/add-item/AddSpaceSheet.vue'
 import SpacePill from '../components/SpacePill.vue'
 import CategoryPills from '../components/CategoryPills.vue'
 import AppToast from '../components/AppToast.vue'
+import SelectionActionBar from '../components/items/SelectionActionBar.vue'
 import { useToast } from '../composables/useToast'
+import { bottomNavHiddenByPage } from '../composables/useBottomNav'
+import { addSelectedToShoppingList as addSelectedBatch, pruneSelection, toggleSelection } from '../utils/inventorySelection'
 import { useItemsStore } from '../stores/items'
 import { DEFAULT_SPACE_ID, STATUS, getStatusMarks } from '../models/item'
 import { getItemCategory } from '../models/itemCategories'
@@ -202,6 +205,47 @@ watch(
   (stillVisible) => { if (!stillVisible) revealedItemId.value = null },
 )
 
+// ---------- 長按多選、批次加入購買清單（specs/013）----------
+const selecting = ref(false)
+const selectedIds = ref([])
+// 桌機有側邊導覽，選取模式不隱藏它；手機的底部導覽由底部按鈕列取代（FR-1302）。
+const desktopQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(min-width: 1024px)') : null
+
+function startSelecting(item) {
+  revealedItemId.value = null
+  selectedIds.value = [item.id]
+  selecting.value = true
+}
+function stopSelecting() {
+  selecting.value = false
+  selectedIds.value = []
+}
+function toggleSelected(item) {
+  selectedIds.value = toggleSelection(selectedIds.value, item.id)
+}
+// 搜尋或類別改變時，不在結果內的已選項目取消選取，讓「已選 N 項」等於畫面上勾著的數量（FR-1302）。
+watch(visibleItems, (list) => {
+  if (selecting.value) selectedIds.value = pruneSelection(selectedIds.value, list)
+})
+watch(selecting, (value) => { bottomNavHiddenByPage.value = value && !desktopQuery?.matches })
+function onSelectingKeydown(event) {
+  if (event.key === 'Escape' && selecting.value) stopSelecting()
+}
+onMounted(() => document.addEventListener('keydown', onSelectingKeydown))
+onUnmounted(() => {
+  document.removeEventListener('keydown', onSelectingKeydown)
+  bottomNavHiddenByPage.value = false
+})
+
+// FR-1304、FR-1305：已在清單的略過；Toast 的「復原」只還原這一批新加入的用品。
+function addSelectedToShoppingList() {
+  if (!selectedIds.value.length) return
+  const { addedCount, restore } = addSelectedBatch(itemsStore, selectedIds.value, visibleItems.value)
+  stopSelecting()
+  if (addedCount === 0) showToast('所選用品都已在購買清單')
+  else showToast(`已加入 ${addedCount} 項到購買清單`, restore)
+}
+
 // 搜尋、類別屬於 filter；目前空間是 browsing context，不算 active filter。
 const trimmedQuery = computed(() => searchQuery.value.trim())
 const hasActiveFilter = computed(
@@ -225,9 +269,13 @@ function clearFilters() {
 </script>
 
 <template>
-  <section class="inventory-page" aria-labelledby="inventory-title">
+  <section class="inventory-page" :class="{ 'inventory-page--selecting': selecting }" aria-labelledby="inventory-title">
     <div class="inventory-sticky-header">
-      <header class="inventory-header">
+      <!-- 選取模式：頁首只留「已選 N 項」（FR-1302）。 -->
+      <header v-if="selecting" class="inventory-header inventory-header--selecting">
+        <p class="selected-count" aria-live="polite">已選 {{ selectedIds.length }} 項</p>
+      </header>
+      <header v-else class="inventory-header">
         <div class="inventory-brand">
           <BrandLogo />
           <div class="inventory-heading">
@@ -294,6 +342,10 @@ function clearFilters() {
         :key="item.id"
         :item="item"
         :revealed="revealedItemId === item.id"
+        :selecting="selecting"
+        :selected="selectedIds.includes(item.id)"
+        @longpress="startSelecting"
+        @toggle="toggleSelected"
         @reveal="revealedItemId = item.id"
         @close="revealedItemId = null"
         @delete="openDeleteDialog"
@@ -333,6 +385,8 @@ function clearFilters() {
         </div>
       </template>
     </dialog>
+
+    <SelectionActionBar v-if="selecting" :disabled="!selectedIds.length" @cancel="stopSelecting" @add="addSelectedToShoppingList" />
 
     <AddSpaceSheet :open="addSpaceOpen" @close="addSpaceOpen = false" @created="onSpaceCreated" />
     <AppToast :toast="toast" @undo="runUndo" />
@@ -399,6 +453,10 @@ function clearFilters() {
 }
 
 .inventory-brand { @include ph.page-brand; }
+.inventory-header--selecting { align-items: center; }
+.selected-count { margin: 0; padding-left: 4px; color: t.$text-main; font: t.$font-weight-bold 24px / 32px t.$font-family; }
+// 選取模式沒有導覽列，底部按鈕列（68px）上方仍要留出內容空間。
+.inventory-page--selecting { padding-bottom: 92px; }
 .inventory-heading { min-width: 0; }
 .desktop-breadcrumb { display: none; }
 
