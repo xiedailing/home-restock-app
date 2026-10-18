@@ -91,7 +91,7 @@ const lockedClaims = computed(() => {
 })
 function onBlockedTile(id) {
   const item = catalog.getById(id)
-  if (item && lockedClaims.value[id]) showToast(`${lockedClaims.value[id]}已認領「${item.name}」，請先到購買清單接手認領`)
+  if (item && lockedClaims.value[id]) showToast(`${lockedClaims.value[id]}已認領「${item.name}」，請先到購買清單接手認領`, null, '復原', 'error')
 }
 
 // ---------- 已選清單 ----------
@@ -231,7 +231,7 @@ function record() {
   if (!batch.ok) {
     // 整批已復原，留在頁面讓使用者調整。
     recording = false
-    showToast(batch.error.message)
+    showToast(batch.error.message, null, '復原', 'error')
     return
   }
   const { results, undo } = batch

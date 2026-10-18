@@ -1,0 +1,231 @@
+@use './tokens' as t;
+
+@media (min-width: 1024px) {
+  html:root { background-color: t.$bg-main; overflow-x: clip; scrollbar-color: t.$border-color t.$bg-main; }
+}
+
+// Shared responsive layout. Mobile component styles remain the baseline.
+// #app scopes page overrides; body also covers teleported sheets and navigation.
+:root body {
+  #app { width: 1126px; }
+
+  @media (min-width: 768px) {
+    #app {
+      .app-container { padding-inline: 32px; }
+      .inventory-page, .shopping-page, .management-page, .category-page,
+      .restock-page { max-width: 950px; }
+      .notifications-page { max-width: 760px; }
+      .settings-page { max-width: 800px; }
+      .add-item-page, .add-space-page, .edit-space-page,
+      .spaces-page, .edit-profile-page { width: 100%; max-width: 640px; }
+      .item-detail-page, .item-records-page { max-width: 760px; }
+      .auth-layout { max-width: 420px; }
+
+      .inventory-page .item-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        gap: 20px;
+        overflow: visible;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+      }
+      .inventory-page .item-list > li {
+        min-width: 0; overflow: hidden; border: 1px solid t.$border-color;
+        border-radius: t.$radius-input; background: t.$card-bg; box-shadow: t.$shadow-card;
+      }
+      .shopping-page .group-drawer-content {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        gap: 20px;
+      }
+      .shopping-page .shopping-card { min-width: 0; margin-bottom: 0; }
+      .restock-page .item-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
+      .category-page .category-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .category-page .swipe-item { min-width: 0; }
+      .category-page .item-row > span { min-width: 0; overflow-wrap: anywhere; }
+
+      .add-item-page .name-field, .add-space-page .name-field,
+      .edit-space-page .name-input-wrapper { width: 320px; }
+      .add-item-page .field-hint--row, .edit-space-page .name-hint-content .name-count { width: 320px; }
+      .add-item-page .bottom-cta, .add-space-page .add-space-button,
+      .category-page .create-item, .category-page .delete-selected { max-width: 400px; }
+      .app-content.items-page-transition { margin-inline: -32px; }
+      .items-page-transition > .page-view { padding-inline: 32px; }
+    }
+
+    .bottom-nav-wrapper { max-width: 560px; }
+    .bottom-sheet { max-width: 560px; overflow-y: auto; overscroll-behavior: contain; }
+  }
+
+  @media (min-width: 1024px) {
+    #app {
+      width: 100%;
+      .app-container { width: 100%; max-width: 714px; margin-inline: auto; overflow-x: visible; }
+      .app-content { position: relative; padding-bottom: 24px; }
+      .app-content.items-page-transition { margin-inline: 0; }
+      .items-page-transition > .page-view { padding-inline: 0; }
+    }
+
+    // One centered desktop shell: 220px navigation + 70px gap + 650px content.
+    --desktop-shell-width: min(940px, calc(100% - 40px));
+    --desktop-shell-left: max(20px, calc((100% - 940px) / 2));
+    &:has(.bottom-nav-wrapper) {
+      #app { position: relative; z-index: 1; width: calc(var(--desktop-shell-width) - 290px); margin-left: calc(var(--desktop-shell-left) + 290px); margin-right: var(--desktop-shell-left); }
+      #app .app-container { max-width: 650px; padding-inline: 0; }
+      #app .claim-all-bar { left: calc(50% + 145px); }
+      #app .claim-all-bar { bottom: 32px; }
+    }
+    .app-toast, #app .delete-toast, .invite-sheet .copy-notice {
+      --desktop-toast-width: clamp(280px, 24vw, 360px);
+      --desktop-toast-right: max(28px, calc((100% - 940px) / 2 - var(--desktop-toast-width) * .72));
+      top: 28px; right: var(--desktop-toast-right); bottom: auto; left: auto;
+      transform: translateX(0); box-sizing: border-box;
+      width: var(--desktop-toast-width); min-width: 280px; max-width: 360px;
+      min-height: 48px; max-height: 60px; padding: 10px 16px;
+      border-radius: 16px; font-size: 14px; line-height: 20px;
+    }
+    .invite-sheet .copy-notice > span, #app .delete-toast .toast-message {
+      min-width: 0; display: -webkit-box; -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere;
+    }
+    .app-toast-enter-active, .app-toast-leave-active,
+    .desktop-toast-enter-active, .desktop-toast-leave-active,
+    .copy-toast-enter-active, .copy-toast-leave-active {
+      transition: transform .35s ease, opacity .35s ease;
+    }
+    .app-toast.app-toast-enter-from, .app-toast.app-toast-leave-to,
+    #app .delete-toast.desktop-toast-enter-from, #app .delete-toast.desktop-toast-leave-to,
+    .invite-sheet .copy-notice.copy-toast-enter-from, .invite-sheet .copy-notice.copy-toast-leave-to {
+      transform: translateX(calc(100% + var(--desktop-toast-right) + 32px)); opacity: 0;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .app-toast-enter-active, .app-toast-leave-active,
+      .desktop-toast-enter-active, .desktop-toast-leave-active,
+      .copy-toast-enter-active, .copy-toast-leave-active { transition: none; }
+    }
+    .desktop-page-drawer {
+      position: fixed; inset: 0 0 0 auto; width: min(420px, calc(100vw - 280px));
+      max-width: none; height: 100dvh; max-height: 100dvh; margin: 0;
+      padding: 20px; border: 0; border-radius: 28px 0 0 28px;
+      background: t.$bg-main; color: t.$text-main; overflow-y: auto; overflow-x: hidden; scrollbar-color: t.$border-color t.$bg-main;
+      box-shadow: t.$shadow-floating;
+      &::backdrop { background: rgba(29, 29, 31, .3); }
+      &[open] { animation: desktop-drawer-enter .35s ease both; }
+      > section { width: 100%; max-width: 640px; margin-inline: auto; }
+    }
+    .desktop-page-drawer .restock-page { height: calc(100dvh - 40px); margin-bottom: 0; }
+    .desktop-page-drawer .restock-sheet { margin-inline: 0; border-radius: 24px; }
+    .bottom-sheet, .invite-sheet {
+      inset: 0 0 0 auto; box-sizing: border-box;
+      width: min(420px, calc(100vw - 280px)); max-width: none;
+      height: 100dvh; max-height: 100dvh; margin: 0; padding: 20px;
+      border-radius: 28px 0 0 28px; transform: none;
+      overflow-y: auto; overflow-x: hidden; scrollbar-color: t.$border-color t.$bg-main; box-shadow: t.$shadow-floating;
+      &[open] { animation: desktop-sheet-enter .5s ease both; }
+      &.closing { animation: desktop-sheet-exit var(--close-duration, 500ms) ease forwards; }
+      .sheet-grab-area { display: none; }
+    }
+    .invite-sheet .sheet-close { display: none; }
+    .bottom-sheet .item-editor { max-height: none; overflow-y: visible; }
+    @keyframes desktop-sheet-enter { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    @keyframes desktop-sheet-exit { from { transform: translateX(0); } to { transform: translateX(100%); } }
+    @media (prefers-reduced-motion: reduce) { .bottom-sheet[open], .bottom-sheet.closing, .invite-sheet[open], .invite-sheet.closing { animation: none; } }
+    @keyframes desktop-drawer-enter { from { transform: translateX(100%); opacity: .5; } to { transform: translateX(0); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .desktop-page-drawer[open] { animation: none; } }
+    .bottom-nav-fade { display: none; }
+    .bottom-nav-wrapper {
+      inset: 20px auto 20px var(--desktop-shell-left);
+      width: 220px; max-width: none; height: calc(100dvh - 40px);
+      margin: 0; padding: 20px; display: flex; flex-direction: column; gap: 24px;
+      background: t.$card-bg; border-radius: 28px; box-shadow: t.$shadow-card;
+      overflow-y: auto;
+    }
+    .desktop-brand { display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 0; }
+    .desktop-brand-title { display: flex; align-items: center; gap: 8px; }
+    .desktop-brand strong { color: t.$primary-green; font-size: 25px; }
+    .desktop-brand span { color: t.$text-sub; font-size: 12px; }
+    .bottom-nav { flex: 1; flex-direction: column; align-items: stretch; height: auto; gap: 24px; justify-content: space-between; }
+    .nav-pill { flex: none; flex-direction: column; align-items: stretch; height: auto; gap: 12px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+    .nav-group { display: block; flex: none; }
+    .nav-btn { flex: none; flex-direction: row; justify-content: flex-start; gap: 14px; width: 100%; height: 48px; padding: 0 18px; font-size: 14px; border-radius: 16px; }
+    .nav-btn.active { gap: 14px; border-radius: 16px; }
+    .nav-icon { display: inline-flex; flex: 0 0 20px; }
+    .desktop-nav-dot { display: none; }
+    .desktop-shopping-nav { display: flex; flex-direction: column; gap: 4px; padding-left: 26px; margin-top: 8px; }
+    .shopping-subnav-enter-active, .shopping-subnav-leave-active { transition: max-height .2s ease, opacity .2s ease, margin-top .2s ease; overflow: hidden; max-height: 60vh; }
+    .shopping-subnav-leave-active { transition-duration: .4s; }
+    .shopping-subnav-enter-from, .shopping-subnav-leave-to { max-height: 0; opacity: 0; margin-top: 0; }
+    @media (prefers-reduced-motion: reduce) { .shopping-subnav-enter-active, .shopping-subnav-leave-active { transition: none; } }
+    .desktop-management-subnav { display: flex; flex-direction: column; gap: 4px; padding-left: 12px; }
+    .desktop-shopping-nav a, .desktop-shopping-nav button {
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+      width: 100%; min-height: 44px; padding: 0 10px; border: 0; border-radius: 14px;
+      background: transparent; color: t.$text-main; text-decoration: none;
+      font: t.$font-weight-regular 15px / normal t.$font-family; text-align: left; cursor: pointer;
+      &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
+    }
+    .desktop-shopping-nav a.active, .desktop-shopping-nav button.active {
+      background: t.$active-green;
+      box-shadow: inset -1px -1px 4px rgba(255, 255, 255, .85), inset 1px 2px 5px rgba(138, 158, 136, .1);
+      color: t.$primary-green; font-weight: t.$font-weight-bold;
+    }
+    .desktop-space-dot { width: 12px; height: 12px; flex: 0 0 12px; border-radius: 50%; }
+    .desktop-subnav-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .desktop-subnav-check { display: none; }
+    .desktop-subnav-arrow { display: inline-block; margin-left: auto; font-size: 12px; transition: transform .2s ease; }
+    .desktop-subnav-arrow.expanded { transform: rotate(180deg); }
+    .plus-slot { align-self: center; }
+    .plus-menu { position: fixed; left: calc(var(--desktop-shell-left) + 240px); right: auto; bottom: 40px; width: 220px; max-height: calc(100dvh - 80px); overflow-y: auto; }
+
+    #app {
+      .shopping-page, .settings-page, .management-page, .category-page,
+      .notifications-page, .add-item-page, .add-space-page, .edit-space-page,
+      .spaces-page, .edit-profile-page, .item-detail-page, .item-records-page,
+      .restock-page { padding-top: 40px; }
+      .inventory-sticky-header { padding-top: 40px; }
+      .inventory-header, .settings-header { min-height: 45px; align-items: center; }
+      .inventory-heading .space-pill { display: none; }
+      .inventory-heading h1.visually-hidden { position: static !important; width: auto !important; height: auto !important; padding: 0 !important; margin: 0 !important; overflow: visible !important; clip: auto !important; white-space: normal !important; }
+      .inventory-header h1, .settings-header h1, .shopping-page .page-brand h1 { margin: 0; color: t.$text-main; font: t.$font-weight-bold 28px / 36px t.$font-family; letter-spacing: t.$letter-spacing-heading; }
+
+      .shopping-page .page-brand > .brand-logo,
+      .settings-header .page-brand > .brand-logo,
+      .inventory-header .inventory-brand > .brand-logo { display: none; }
+      .shopping-page .shopping-tabs { display: none; }
+      .inventory-heading h1, .shopping-page .page-brand h1 { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+      .desktop-breadcrumb { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+      .desktop-breadcrumb > i { font-size: 14px; color: t.$text-disabled; }
+      .breadcrumb-current { color: inherit; font: inherit; letter-spacing: inherit; overflow-wrap: anywhere; }
+      .shopping-page .group-drawer-content { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+      // Keep enough room for the name and trailing status marks on one row.
+      .inventory-page .item-list { grid-template-columns: minmax(0, 1fr); }
+      .inventory-page .item-row::after { display: none; }
+      .restock-page .item-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+      .management-page { display: flex; flex-direction: column; align-items: stretch; min-height: calc(100dvh + 96px); box-sizing: border-box; }
+      .management-page .management-header, .category-page > header { display: flex; align-items: center; gap: 16px; min-height: 45px; }
+      .management-page .management-header > .back-button, .category-page > header > .back-button { display: none; }
+      .management-page .management-header h1, .category-page > header h1 {
+        flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+        margin: 0; text-align: left; color: t.$text-main;
+        font: t.$font-weight-bold 28px / 36px t.$font-family; letter-spacing: t.$letter-spacing-heading;
+      }
+      .desktop-management-prefix { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+      .desktop-management-prefix i { font-size: 14px; color: t.$text-disabled; }
+    }
+  }
+
+  // Short viewports (including landscape): keep actions reachable through scrolling.
+  @media (max-height: 600px) {
+    #app .auth-layout { padding-top: 72px; }
+    #app .auth-preparing { padding-block: 24px; }
+    #app .auth-preparing .preparing-logo-stage { width: 120px; height: 120px; }
+    .bottom-sheet { overflow-y: auto; overscroll-behavior: contain; }
+    @media (min-width: 1024px) { .nav-btn { height: 48px; } .bottom-nav { gap: 12px; } }
+  }
+}

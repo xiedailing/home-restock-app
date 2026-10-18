@@ -2,6 +2,7 @@
 import { computed, ref, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCatalogStore } from '../stores/catalog'
+import { SYSTEM_CATEGORIES } from '../models/itemCategories'
 import GlobalItemEditor from '../components/settings/GlobalItemEditor.vue'
 import backIcon from '../assets/settings/category-back.svg'
 import checkIcon from '../assets/add-item/pill-check.svg'
@@ -17,6 +18,9 @@ function goBack(event) {
   router.back()
 }
 const category = computed(() => String(route.params.category))
+const categorySection = computed(() => SYSTEM_CATEGORIES.includes(category.value)
+  ? { label: '系統分類', hash: '#system-categories-title' }
+  : { label: '自訂分類', hash: '#custom-categories-title' })
 const items = computed(() => {
   const categoryItems = catalog.allItems.filter(item => item.category === category.value)
   return [
@@ -108,7 +112,7 @@ async function confirmDeletion() {
   selectedIds.value = []
   appToast.showToast(`已刪除 ${result.removedIds.length} 項用品`, () => {
     const restored = result.undo()
-    if (!restored.ok) appToast.showToast(restored.error.message)
+    if (!restored.ok) appToast.showToast(restored.error.message, null, '復原', 'error')
   })
 
 }
@@ -121,7 +125,7 @@ function edit(item = null) {
 </script>
 <template>
   <section class="category-page" :class="{ 'category-page--empty': !items.length }">
-    <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink><h1>{{ category }}</h1><button v-if="items.length" type="button" class="delete-category" :aria-label="selecting ? '取消選取' : '選取用品刪除'" @click="toggleSelection"><span v-if="selecting" class="cancel-selection">取消</span><i v-else class="fa-solid fa-trash-can" aria-hidden="true"></i></button><span v-else /></header>
+    <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink><h1><span class="desktop-management-prefix"><RouterLink class="category-overview-link" :to="{ name: 'item-management', hash: categorySection.hash }">{{ categorySection.label }}</RouterLink><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>{{ category }}</h1><button v-if="items.length" type="button" class="delete-category" :aria-label="selecting ? '取消選取' : '選取用品刪除'" @click="toggleSelection"><span v-if="selecting" class="cancel-selection">取消</span><i v-else class="fa-solid fa-trash-can" aria-hidden="true"></i></button><span v-else /></header>
     <section v-for="group in itemGroups" :key="group.key" class="item-group" :aria-labelledby="`group-${group.key}`">
       <h2 :id="`group-${group.key}`" class="group-title">{{ group.title }}</h2>
     <div class="category-card">
@@ -138,6 +142,7 @@ function edit(item = null) {
     <footer class="category-actions">
     <button v-if="selecting" class="btn btn-danger delete-selected" type="button" :disabled="!selectedIds.length" @click="requestDeletion">刪除已選取 {{ selectedIds.length }} 項用品</button>
     <RouterLink v-else class="btn btn-primary create-item" :to="{ name: 'add-item', query: { from: 'item-management', category } }">＋ 新增用品</RouterLink>
+    <p v-if="selecting" class="delete-hint">預設用品不可刪除</p>
     </footer>
     <Teleport to="body"><dialog ref="deleteDialog" class="category-delete-dialog" aria-labelledby="category-delete-title" aria-describedby="category-delete-description" @cancel="closeSwipe">
       <form @submit.prevent="confirmDeletion">
@@ -155,6 +160,9 @@ function edit(item = null) {
 @use '../assets/scss/tokens' as t;
 @use '../assets/scss/space-layout' as layout;
 .category-page { box-sizing: border-box; min-height: calc(100svh - 167px); padding-bottom: 0; display: flex; flex-direction: column; width: 100%; max-width: 358px; margin-inline: auto; padding-top: t.$space-16; color: t.$text-main; font-family: t.$font-family; text-align: left; }
+.desktop-management-prefix { display: none; }
+.category-overview-link { color: inherit; font: inherit; text-decoration: none; }
+.category-overview-link:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 4px; border-radius: 4px; }
 header { min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; margin-bottom: t.$space-16; h1 { margin: 0; font-size: 17px; text-align: center; letter-spacing: .5px; overflow-wrap: anywhere; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: t.$radius-pill; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; } }
 .preview-mode { margin: 0 0 t.$space-16; color: t.$text-sub; font-size: t.$font-size-caption; line-height: t.$line-height-body; }
@@ -172,7 +180,8 @@ header { min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; 
 .selection-circle { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; border: 1px solid t.$border-color; border-radius: 50%; text-align: center; &.checked { background: t.$primary-green; color: white; } img { width: 14px; height: 14px; filter: brightness(0) invert(1); } }
 .item-row { gap: 12px; &:disabled { color: t.$text-disabled; cursor: default; } }
 .category-card, header, .category-actions { flex-shrink: 0; }
-.category-actions { margin-top: auto; padding-top: t.$space-24; }
+.category-actions { position: relative; margin-top: auto; padding-top: t.$space-24; }
+.delete-hint { position: absolute; top: 100%; left: 0; right: 0; margin: 8px 0 0; text-align: center; color: t.$text-sub; font-size: 12px; line-height: 20px; }
 .category-actions .add-item { margin-top: 0; }
 .add-item:disabled { color: t.$text-disabled; cursor: default; }
 .category-page--empty { min-height: calc(100svh - 167px); }

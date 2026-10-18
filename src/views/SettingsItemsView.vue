@@ -82,7 +82,7 @@ function confirmCategoryDeletion() {
   swipeOffset.value = 0
   appToast.showToast(`已刪除「${name}」分類及 ${result.removedIds.length} 項用品`, () => {
     const restored = result.undo()
-    if (!restored.ok) appToast.showToast(restored.error.message)
+    if (!restored.ok) appToast.showToast(restored.error.message, null, '復原', 'error')
   })
 }
 function cancelCategoryDeletion() {
@@ -168,9 +168,9 @@ function addCategory() {
   <section class="management-page">
     <header class="management-header">
       <RouterLink :to="{ name: 'settings' }" class="back-button" :aria-label="backSource ? `返回${backSource}` : '返回設定'" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink>
-      <h1>用品管理</h1><span />
+      <h1><span class="desktop-management-prefix">設定<i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>用品管理</h1><span />
     </header>
-    <h2>系統分類</h2>
+    <h2 id="system-categories-title">系統分類</h2>
     <div v-if="visibleSystemCategories.length" class="category-card system-category-card">
       <RouterLink v-for="category in visibleSystemCategories" :key="category.name" class="category-row" :to="{ name: 'item-category', params: { category: category.name } }">
         <span>{{ category.name }}</span><strong>{{ category.count }} 項</strong><img :src="chevron" alt="" />
@@ -178,7 +178,7 @@ function addCategory() {
     </div>
     <div class="custom-heading">
       <div class="custom-title">
-        <h2>自訂分類</h2>
+        <h2 id="custom-categories-title">自訂分類</h2>
 
       </div>
       <p class="management-hint">可自行新增分類</p>
@@ -203,7 +203,7 @@ function addCategory() {
       <p v-if="nameError" id="category-error" class="category-error" role="alert">{{ nameError }}</p>
     </div>
     <Teleport to="body">
-      <dialog ref="deleteDialog" class="category-delete-dialog" aria-labelledby="category-delete-title" aria-describedby="category-delete-message" @cancel="cancelCategoryDeletion" @click="event => { if (event.target === deleteDialog) cancelCategoryDeletion() }">
+      <dialog ref="deleteDialog" class="category-delete-dialog" aria-labelledby="category-delete-title" aria-describedby="category-delete-message" @cancel="cancelCategoryDeletion">
         <form @submit.prevent="confirmCategoryDeletion">
           <h2 id="category-delete-title">{{ deleteTitle }}</h2>
           <p id="category-delete-message">{{ deleteMessage }}<template v-if="deleteCount"><br />已加入空間的用品與補貨紀錄不受影響。</template></p>
@@ -221,6 +221,7 @@ function addCategory() {
 @use '../assets/scss/tokens' as t;
 @use '../assets/scss/space-layout' as layout;
 .management-page { width: 100%; max-width: 358px; margin-inline: auto; padding-top: 16px; display: flex; flex-direction: column; gap: t.$space-16; color: t.$text-main; font-family: t.$font-family; text-align: left; }
+.desktop-management-prefix { display: none; }
 .management-header { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; h1 { margin: 0; text-align: center; font: 700 17px / 24px t.$font-family; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; } }
 h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
@@ -286,5 +287,5 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 }
 .category-form:has(+ .category-error) { padding-bottom: 0; }
 .category-delete-dialog .category-delete-dialog-actions .btn-secondary:focus, .category-delete-dialog .category-delete-dialog-actions .btn-secondary:focus-visible { outline: none; }
-header h1 { letter-spacing: .5px; }
+header h1 { letter-spacing: t.$letter-spacing-heading; }
 </style>

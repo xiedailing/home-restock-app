@@ -76,7 +76,7 @@ function finish(pushEnabled) {
   completeDemoLogin({ email: email.value, name: name.value, avatar: avatar.value })
   notificationSettings.setPushEnabled(pushEnabled)
   go('preparing')
-  finishTimer = setTimeout(() => router.replace({ name: 'inventory' }), 600)
+  finishTimer = setTimeout(() => router.replace({ name: 'inventory' }), 3000)
 }
 function skipProfile() {
   name.value = profile.name
@@ -111,7 +111,7 @@ onBeforeUnmount(() => { active = false; clearInterval(timer); clearTimeout(finis
 </script>
 
 <template>
-  <section v-if="step === 'preparing'" class="auth-preparing" role="status" aria-live="polite"><span class="preparing-spinner" aria-hidden="true"></span><h1>正在為您準備</h1><p>即將進入補補</p></section>
+  <section v-if="step === 'preparing'" class="auth-preparing" role="status" aria-live="polite"><div class="preparing-logo-stage"><img class="preparing-logo" :src="logo" alt="補補" /></div><h1>正在為您準備</h1><p>即將進入補補</p></section>
   <AuthLayout v-else :show-back="step !== 'welcome' && step !== 'profile'" :show-illustration-options="step === 'profile'" :center-hero="step === 'notifications'" @back="back">
     <template #illustration>
       <template v-if="['welcome', 'email', 'code'].includes(step)">
@@ -216,7 +216,15 @@ button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 3px;
 form > :deep(.auth-primary) { margin-top: t.$space-24; }
 strong { color: t.$text-main; font-weight: t.$font-weight-medium; }
 .auth-preparing { min-height: calc(100dvh - 34px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: t.$space-16; font-family: t.$font-family; text-align: center; h1 { @include header.page-title; line-height: 32px; } p { color: t.$text-sub; font-size: t.$font-size-body; line-height: 22px; } }
-.preparing-spinner { width: 56px; height: 56px; box-sizing: border-box; border: 4px solid t.$primary-soft; border-right-color: t.$primary-green; border-top-color: t.$primary-green; border-radius: t.$radius-pill; animation: auth-spin 1s linear infinite; }
-@keyframes auth-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .preparing-spinner { animation: none; } }
+.preparing-logo-stage { display: grid; place-items: center; width: 160px; height: 160px; margin-bottom: t.$space-8; }
+.preparing-logo { position: relative; width: 107.5px; height: 80px; transform-origin: center bottom; animation: auth-logo-bounce 1.2s ease-in-out infinite; }
+@keyframes auth-logo-bounce {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  15% { transform: translateY(3px) scale(1.12, .86); }
+  38% { transform: translateY(-26px) scale(.94, 1.08); }
+  55% { transform: translateY(-28px) scale(1, 1); }
+  75% { transform: translateY(0) scale(1.13, .85); }
+  88% { transform: translateY(-5px) scale(.98, 1.03); }
+}
+@media (prefers-reduced-motion: reduce) { .preparing-logo { animation: none; } }
 </style>

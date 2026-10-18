@@ -272,7 +272,7 @@ function confirmDelete() {
   display: grid;
   grid-template-columns: 44px 1fr 44px;
   align-items: center;
-  h1 { margin: 0; text-align: center; font: t.$font-weight-bold #{t.$font-size-app-bar}/#{t.$line-height-app-bar} t.$font-family; }
+  h1 { margin: 0; text-align: center; letter-spacing: t.$letter-spacing-heading; font: t.$font-weight-bold #{t.$font-size-app-bar}/#{t.$line-height-app-bar} t.$font-family; }
 }
 .icon-button {
   width: 44px;
