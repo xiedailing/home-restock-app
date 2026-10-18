@@ -80,6 +80,9 @@
       #app .app-container { max-width: 650px; padding-inline: 0; }
       #app .claim-all-bar { left: calc(50% + 145px); }
       #app .claim-all-bar { bottom: 32px; }
+      // 我的用品選取模式（specs/013）：桌機保留側邊導覽，按鈕列移到內容欄中央。
+      #app .selection-action-bar { inset-inline: auto; left: calc(50% + 145px); bottom: 32px; width: 358px; transform: translateX(-50%); }
+      #app .selection-bar-fade { display: none; }
     }
     .app-toast, #app .delete-toast, .invite-sheet .copy-notice {
       --desktop-toast-width: clamp(280px, 24vw, 360px);

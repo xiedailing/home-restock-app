@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { getStatusMarks } from '../../models/item'
 import { getItemIconSrc } from '../../assets/household-icons-by-state/index.js'
 import chevronIcon from '../../assets/settings/chevron.svg'
@@ -9,28 +9,53 @@ const props = defineProps({
   item: { type: Object, required: true },
   // 是否處於左滑展開狀態；由頁面統一管理，確保同時只有一列展開。
   revealed: { type: Boolean, default: false },
+  // 選取模式（specs/013）：點列切換選取、不進詳情，左滑與長按停用。
+  selecting: { type: Boolean, default: false },
+  selected: { type: Boolean, default: false },
 })
 
 // reveal / close 只通知頁面更新狀態；delete 僅表示「點了刪除 action」，不刪資料；open 表示點列進入詳情。
-const emit = defineEmits(['reveal', 'close', 'delete', 'open'])
+// longpress 表示長按進入選取模式（FR-1301）；toggle 表示選取模式下點列切換選取。
+const emit = defineEmits(['reveal', 'close', 'delete', 'open', 'longpress', 'toggle'])
 
 // Figma Swipe Revealed：列向左位移 88px 露出刪除 action。
 const ACTION_WIDTH = 88
 const AXIS_LOCK_DISTANCE = 8 // 位移超過此距離才判斷水平／垂直
+const LONG_PRESS_MS = 500 // 長按多久進入選取模式
+const LONG_PRESS_SLOP = 8 // 長按期間位移超過此距離視為取消
 const REVEAL_THRESHOLD = 24 // 從收合狀態左滑超過此距離即展開
 const CLOSE_THRESHOLD = ACTION_WIDTH - REVEAL_THRESHOLD // 展開狀態右滑超過此距離即收回
 
 const dragOffset = ref(null) // null = 非拖曳中，使用 revealed 決定位置
 let gesture = null // { pointerId, startX, startY, base, axis: null | 'x' | 'y' }
 let justDragged = false
+let justLongPressed = false
+let longPressTimer = null
 
 // 狀態標記與圖示都由提醒狀態決定，不看購買清單；已在清單由標記表達（specs/010 FR-1001、FR-1005）。
 const marks = computed(() => getStatusMarks(props.item.reminderStatus, props.item.inShoppingList))
 
 const offset = computed(() => dragOffset.value ?? (props.revealed ? -ACTION_WIDTH : 0))
 
+function cancelLongPress() {
+  clearTimeout(longPressTimer)
+  longPressTimer = null
+}
+
 function onPointerDown(event) {
   if (event.pointerType === 'mouse' && event.button !== 0) return
+  if (props.selecting) return
+  justLongPressed = false
+  cancelLongPress()
+  // 展開狀態下不進入選取，先讓使用者收回刪除鈕。
+  if (!props.revealed) {
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null
+      gesture = null
+      justLongPressed = true
+      emit('longpress', props.item)
+    }, LONG_PRESS_MS)
+  }
   gesture = {
     pointerId: event.pointerId,
     startX: event.clientX,
@@ -44,6 +69,7 @@ function onPointerMove(event) {
   if (!gesture || event.pointerId !== gesture.pointerId) return
   const dx = event.clientX - gesture.startX
   const dy = event.clientY - gesture.startY
+  if (Math.abs(dx) > LONG_PRESS_SLOP || Math.abs(dy) > LONG_PRESS_SLOP) cancelLongPress()
   if (gesture.axis === null) {
     if (Math.abs(dx) < AXIS_LOCK_DISTANCE && Math.abs(dy) < AXIS_LOCK_DISTANCE) return
     // 垂直意圖交還給瀏覽器捲動（CSS touch-action: pan-y），此列不處理。
@@ -57,6 +83,7 @@ function onPointerMove(event) {
 
 function endGesture(event, cancelled) {
   if (!gesture || event.pointerId !== gesture.pointerId) return
+  cancelLongPress()
   const wasHorizontal = gesture.axis === 'x'
   gesture = null
   if (!wasHorizontal) return
@@ -73,6 +100,14 @@ function endGesture(event, cancelled) {
 
 // 拖曳結束後瀏覽器仍可能補發 click，忽略一次；展開時點列其他位置只收回，收合時進入詳情。
 function onContentClick() {
+  if (justLongPressed) {
+    justLongPressed = false
+    return
+  }
+  if (props.selecting) {
+    emit('toggle', props.item)
+    return
+  }
   if (justDragged) {
     justDragged = false
     return
@@ -80,6 +115,8 @@ function onContentClick() {
   if (props.revealed) emit('close')
   else emit('open', props.item)
 }
+
+onBeforeUnmount(cancelLongPress)
 </script>
 
 <template>
@@ -93,14 +130,23 @@ function onContentClick() {
     >刪除</button>
     <div
       class="item-row-content"
-      :class="{ 'item-row-content--dragging': dragOffset !== null }"
+      :class="{ 'item-row-content--dragging': dragOffset !== null, 'item-row-content--selecting': selecting, 'item-row-content--selected': selecting && selected }"
       :style="{ transform: `translateX(${offset}px)` }"
+      :role="selecting ? 'checkbox' : undefined"
+      :aria-checked="selecting ? selected : undefined"
+      :tabindex="selecting ? 0 : undefined"
+      @keydown.enter.prevent="selecting && emit('toggle', item)"
+      @keydown.space.prevent="selecting && emit('toggle', item)"
+      @contextmenu.prevent
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="endGesture($event, false)"
       @pointercancel="endGesture($event, true)"
       @click="onContentClick"
     >
+      <span v-if="selecting" class="select-circle" :class="{ 'select-circle--on': selected }" aria-hidden="true">
+        <i v-if="selected" class="fa-solid fa-check"></i>
+      </span>
       <span class="item-icon-circle" aria-hidden="true">
         <img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" draggable="false" />
       </span>
@@ -112,7 +158,7 @@ function onContentClick() {
       </div>
       <div class="item-trailing">
         <StatusMarks :marks="marks" />
-        <img class="item-chevron" :src="chevronIcon" alt="" draggable="false" />
+        <img v-if="!selecting" class="item-chevron" :src="chevronIcon" alt="" draggable="false" />
       </div>
     </div>
   </li>
@@ -140,7 +186,12 @@ function onContentClick() {
   // 垂直滑動交給瀏覽器捲動；水平手勢由 pointer events 處理。
   touch-action: pan-y;
   transition: transform .2s ease-out;
+  // 長按不要選到文字或跳出系統選單（iOS Safari）。
+  -webkit-touch-callout: none;
+  user-select: none;
   &--dragging { transition: none; }
+  &--selecting { gap: 12px; padding-left: 16px; cursor: pointer; &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; } }
+  &--selected { background: #eff6ee; }
   @media (prefers-reduced-motion: reduce) { transition: none; }
 }
 
@@ -166,6 +217,22 @@ function onContentClick() {
   border-radius: t.$radius-pill;
   background: var(--icon-bg);
   box-shadow: inset -2.308px -2.308px 4.615px rgba(255, 255, 255, .9), inset 2.308px 2.308px 4.615px rgba(184, 131, 90, .22);
+}
+
+// 選取圓圈（specs/013 FR-1302）：24px，未選為灰色邊框空圈，已選為綠色實心圈加白色勾勾。
+.select-circle {
+  flex: 0 0 24px;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid #b8b8b2;
+  border-radius: 50%;
+  background: t.$card-bg;
+  color: t.$text-inverse;
+  font-size: 12px;
+  &--on { border-color: t.$primary-green; background: t.$primary-green; }
 }
 
 .item-icon { display: block; width: 48px; height: 48px; object-fit: contain; }

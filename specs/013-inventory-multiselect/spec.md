@@ -35,6 +35,7 @@
 - **點卡片**：選取／取消選取，**不進詳情**；左滑刪除暫停（不展開刪除鈕）。
 - **底部**：底部導覽（含「＋」鈕）整個隱藏，換成兩顆按鈕：左邊【取消】（白底、灰邊）、右邊【加入購買清單】（綠底、白字、前面有 `fa-clipboard-list` 圖示，填滿剩餘寬度）。兩顆按鈕高 56px，區塊高度與導覽列相同（68px），底部留白不變（`$bottom-nav-offset`），其上方的漸層與 Toast 位置不變。
 - 空間：選取模式中不能切換空間（膠囊已隱藏）。
+- 桌機（≥1024px）：側邊導覽保留不隱藏，按鈕列固定在內容欄下方中央（沒有底部漸層），會蓋住最底下的卡片；設計稿沒畫桌機版。
 
 ### FR-1303｜選取與取消
 - 已選 0 項時【加入購買清單】停用（灰色，`disabled`）；【取消】仍可按。
@@ -80,7 +81,9 @@
 | `src/components/items/ItemListRow.vue` | 長按偵測；選取模式 props（`selecting`、`selected`）、圓圈、點擊改為切換、停用左滑 |
 | `src/components/items/SelectionActionBar.vue`（新） | 【取消】【加入購買清單】兩顆按鈕與停用狀態 |
 | `src/composables/useBottomNav.js` | 沿用 `bottomNavHiddenByPage`，離開頁面時重設 |
-| `src/stores/items.js` | `addManyToShoppingList` 改為回傳實際新加入的 id（供 Toast 計數與復原快照）；或在頁面層先過濾，不改 store |
+| `src/utils/inventorySelection.js`（新） | 純函式：`toggleSelection`、`pruneSelection`、`addSelectedToShoppingList`（略過已在清單、存快照、回傳復原函式）；不改 `stores/items.js` |
+| `src/components/AppToast.vue` | `toast` 為 null 時的事件處理加 `?.`（點「復原」後 Toast 消失會丟主控台錯誤；既有問題，批次復原流程會碰到） |
+| `src/assets/scss/_responsive.scss` | 桌機：按鈕列移到內容欄中央，不顯示底部漸層 |
 | `tests/inventory-multiselect.test.mjs`（新） | 略過已在清單、計數、復原、篩選剔除已選 |
 | `docs/DECISION_LOG.md` | UT-43；UT-32 狀態欄補一句 |
 
