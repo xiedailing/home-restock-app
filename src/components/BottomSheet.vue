@@ -2,6 +2,7 @@
 // 共用 Bottom Sheet：拖曳把手、往下滑或點背景關閉；互動沿用 InviteMemberSheet。
 // 父層以 open 控制顯示；關閉動畫結束後 emit('close')，由父層把 open 設回 false。
 import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import backIcon from '../assets/settings/category-back.svg'
 
 const props = defineProps({ open: Boolean, labelledby: String })
 const emit = defineEmits(['close'])
@@ -62,6 +63,9 @@ defineExpose({ close })
       <div class="sheet-grab-area" @pointerdown="startDrag" @pointermove="moveDrag" @pointerup="endDrag" @pointercancel="endDrag">
         <span class="sheet-handle" />
       </div>
+      <div class="desktop-sheet-navigation">
+        <button type="button" class="back-button" aria-label="返回上一層" @click="close"><img :src="backIcon" alt="" /></button>
+      </div>
       <slot :close="close" />
     </dialog>
   </Teleport>
@@ -94,6 +98,16 @@ defineExpose({ close })
 }
 .sheet-grab-area { height: 27px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; }
 .sheet-handle { width: 40px; height: 5px; border-radius: 3px; background: t.$border-active; }
+.desktop-sheet-navigation { display: none; }
+@media (min-width: 1024px) {
+  .desktop-sheet-navigation { display: flex; padding-top: 16px; margin-bottom: 16px; }
+  .desktop-sheet-navigation .back-button {
+    display: grid; place-items: center; width: 44px; height: 44px;
+    padding: 0; border: 0; border-radius: t.$radius-pill;
+    background: t.$input-bg; box-shadow: t.$shadow-raised; cursor: pointer;
+    img { width: 24px; height: 24px; }
+  }
+}
 @keyframes sheet-enter { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sheet-exit { from { transform: translateY(var(--drag-offset)); } to { transform: translateY(100%); } }
 @media (prefers-reduced-motion: reduce) { .bottom-sheet[open], .bottom-sheet.closing { animation: none; } }

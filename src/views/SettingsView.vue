@@ -172,7 +172,7 @@ function openCreatedInvite() {
 function showNotice(message, warning = false, action = '') {
   noticeAction.value = action
   noticeIsWarning.value = warning
-  showToast(message, action === 'invite' ? openCreatedInvite : null, '邀請成員')
+  showToast(message, action === 'invite' ? openCreatedInvite : null, '邀請成員', warning ? 'error' : 'success')
 }
 onBeforeUnmount(() => clearTimeout(createdToastTimer))
 const dialogTitle = computed(() => editing.value === 'logout' ? '確認登出' : '已有相同名稱的空間')
@@ -281,16 +281,16 @@ function saveChanges() {
     </section>
 
     <button type="button" class="btn btn-danger-subtle logout-button" @click="openEditor('logout')">登出</button>
-    <AppToast :toast="toast" @undo="runUndo"><template v-if="noticeIsWarning || noticeAction === 'exit'" #icon><i :class="noticeIsWarning ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-arrow-right-from-bracket'" class="notice-icon" aria-hidden="true"></i></template></AppToast>
+    <AppToast :toast="toast" @undo="runUndo"><template v-if="!noticeIsWarning && noticeAction === 'exit'" #icon><i :class="noticeIsWarning ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-arrow-right-from-bracket'" class="notice-icon" aria-hidden="true"></i></template></AppToast>
 
     <dialog ref="dialog" class="settings-dialog" :class="{ 'duplicate-space-dialog': editing === 'duplicate-space' }" aria-labelledby="settings-dialog-title">
       <form @submit.prevent="saveChanges">
         <h2 id="settings-dialog-title">{{ dialogTitle }}</h2>
-        <p v-if="editing === 'logout'">確定要登出嗎？</p>
+        <p v-if="editing === 'logout'">登出後可重新登入，原有資料將保留。</p>
         <p v-else>已有「{{ duplicateJoinName }}」空間。<br />請先修改其中一個空間名稱後再加入。</p>
         <div v-if="editing === 'logout'" class="dialog-actions">
           <button type="button" class="btn btn-secondary" @click="dialog.close()">取消</button>
-          <button type="submit" class="btn btn-primary">確認登出</button>
+          <button type="submit" class="btn btn-danger">確認登出</button>
         </div>
         <div v-else class="dialog-actions"><button type="button" class="btn btn-secondary duplicate-space-return" @click="dialog.close()">返回</button></div>
       </form>

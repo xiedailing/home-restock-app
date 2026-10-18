@@ -25,10 +25,10 @@ function back() {
 async function follow(entry) {
   if (!reportFailure(store.markRead(entry.id))) return
   const destination = notificationDestination(entry, items)
-  if (!destination.route) { appToast.showToast(destination.message); return }
+  if (!destination.route) { appToast.showToast(destination.message, null, '復原', 'error'); return }
   if (destination.inventorySpaceId) items.inventorySpaceId = destination.inventorySpaceId
   await router.push(destination.route)
-  if (destination.message) appToast.showToast(destination.message)
+  if (destination.message) appToast.showToast(destination.message, null, '復原', 'error')
 }
 function notificationMessage(entry) { return entry.type === 'restock-due' ? entry.message.replace('：', '：\n') : entry.message }
 function formatTime(time) {

@@ -240,7 +240,7 @@ function remove() {
       </form>
     </div>
     </BottomSheet>
-    <dialog ref="unitConfirmationDialog" class="global-editor unit-confirmation-dialog" aria-labelledby="unit-confirmation-title" aria-describedby="unit-confirmation-description" @cancel.prevent="cancelUnitChange" @close="cancelUnitChange" @click="event => { if (event.target === unitConfirmationDialog) cancelUnitChange() }">
+    <dialog ref="unitConfirmationDialog" class="global-editor unit-confirmation-dialog" aria-labelledby="unit-confirmation-title" aria-describedby="unit-confirmation-description" @cancel.prevent="cancelUnitChange" @close="cancelUnitChange">
       <div class="unit-confirmation">
         <h2 id="unit-confirmation-title">確認修改單位？</h2>
         <p id="unit-confirmation-description">舊紀錄保留「{{ confirmedChanges?.oldUnit }}」，改用「{{ confirmedChanges?.newUnit }}」後重新計算補貨時間。</p>

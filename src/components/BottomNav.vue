@@ -1,11 +1,30 @@
 <script setup>
 // Figma：Soft Bottom Navigation V2（2702:21272）。膠囊內 3 項，右側外置綠色「＋」；「＋」展開新增選單。
 // UT-37：膠囊縮矮（82→68px）、「＋」鈕拿掉白圈（綠圓 56px）、選單加遮罩與圖示、改名「記錄補貨」。
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import plusIcon from '../assets/nav/plus.svg'
+import BrandLogo from './BrandLogo.vue'
+import { useItemsStore } from '../stores/items'
+import { DEFAULT_SPACE_ID } from '../models/item'
+import { getSpaceColor } from '../models/space'
+import { SYSTEM_CATEGORIES } from '../models/itemCategories'
+import desktopDotActive from '../assets/nav/desktop/dot-active.svg'
 
-const route = useRoute()
+const props = defineProps({ navigationRoute: { type: Object, default: null } })
+const currentRoute = useRoute()
+const route = computed(() => props.navigationRoute ?? currentRoute)
+const itemsStore = useItemsStore()
+const managementSection = computed(() => {
+  if (route.value.name === 'item-category') {
+    return SYSTEM_CATEGORIES.includes(String(route.value.params.category)) ? 'system' : 'custom'
+  }
+  if (route.value.name !== 'item-management') return null
+  if (route.value.hash === '#system-categories-title') return 'system'
+  if (route.value.hash === '#custom-categories-title') return 'custom'
+  return null
+})
+const isCurrent = name => name === 'settings' ? route.value.path.startsWith('/settings') : route.value.name === name
 
 const emit = defineEmits(['add-record', 'add-space'])
 
@@ -58,19 +77,41 @@ onBeforeUnmount(() => {
   <!-- 遮罩：把背景壓暗，選單才不會跟同色的卡片融在一起；導覽列（z-index 1000）留在遮罩上方。點遮罩由 dismiss 關閉。 -->
   <div v-if="menuOpen" class="plus-scrim" aria-hidden="true" />
   <nav class="bottom-nav-wrapper" aria-label="主要導覽">
+    <div class="desktop-brand"><div class="desktop-brand-title"><BrandLogo /><strong>補補</strong></div><span>日常用品，補得剛剛好</span></div>
     <div class="bottom-nav">
       <div class="nav-pill">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.name"
-          class="nav-btn"
-          :class="{ active: item.name === 'settings' && route.path.startsWith('/settings/') }"
-          :to="{ name: item.name }"
-          exact-active-class="active"
-        >
-          <i :class="item.icon" class="nav-icon" aria-hidden="true"></i>
-          <span class="nav-text">{{ item.label }}</span>
-        </RouterLink>
+        <div v-for="item in navItems" :key="item.name" class="nav-group">
+          <RouterLink class="nav-btn" :class="{ active: isCurrent(item.name) }" :to="item.name === 'shopping' ? { name: 'shopping', query: { tab: 'personal' } } : { name: item.name }" exact-active-class="active">
+            <i :class="item.icon" class="nav-icon" aria-hidden="true"></i>
+            <img class="desktop-nav-dot" :src="desktopDotActive" alt="" />
+            <span class="nav-text">{{ item.label }}</span>
+            <i v-if="item.name === 'inventory' || item.name === 'shopping' || item.name === 'settings'" class="fa-solid fa-chevron-down desktop-subnav-arrow" :class="{ expanded: isCurrent(item.name) }" aria-hidden="true"></i>
+          </RouterLink>
+          <Transition name="shopping-subnav">
+            <div v-if="item.name === 'inventory' && route.name === 'inventory'" class="desktop-shopping-nav" aria-label="用品空間">
+              <button v-for="space in itemsStore.spaces" :key="space.id" type="button" :class="{ active: (itemsStore.inventorySpaceId ?? DEFAULT_SPACE_ID) === space.id }" :aria-pressed="(itemsStore.inventorySpaceId ?? DEFAULT_SPACE_ID) === space.id" @click="itemsStore.inventorySpaceId = space.id"><span class="desktop-space-dot" :style="{ backgroundColor: getSpaceColor(space.color).dark }" aria-hidden="true" /><span class="desktop-subnav-label">{{ space.name }}</span><svg class="desktop-subnav-check" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
+            </div>
+          </Transition>
+          <Transition name="shopping-subnav">
+          <div v-if="item.name === 'shopping' && route.name === 'shopping'" class="desktop-shopping-nav" aria-label="購買清單分類">
+            <RouterLink :to="{ name: 'shopping', query: { tab: 'personal' } }" :class="{ active: route.name === 'shopping' && route.query.tab !== 'shared' }" :aria-current="route.name === 'shopping' && route.query.tab !== 'shared' ? 'page' : undefined"><span class="desktop-subnav-label">我的清單</span><svg class="desktop-subnav-check" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></RouterLink>
+            <RouterLink :to="{ name: 'shopping', query: { tab: 'shared' } }" :class="{ active: route.name === 'shopping' && route.query.tab === 'shared' }" :aria-current="route.name === 'shopping' && route.query.tab === 'shared' ? 'page' : undefined"><span class="desktop-subnav-label">共享清單</span><svg class="desktop-subnav-check" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg></RouterLink>
+          </div>
+          </Transition>
+          <Transition name="shopping-subnav">
+            <div v-if="item.name === 'settings' && isCurrent('settings')" class="desktop-shopping-nav" aria-label="設定子頁">
+              <RouterLink :to="{ name: 'settings', hash: '#reminder-title' }" :class="{ active: route.name === 'settings' && route.hash === '#reminder-title' }" :aria-current="route.name === 'settings' && route.hash === '#reminder-title' ? 'location' : undefined"><span class="desktop-subnav-label">提醒設定</span></RouterLink>
+              <RouterLink :to="{ name: 'settings', hash: '#spaces-title' }" :class="{ active: route.name === 'settings' && route.hash === '#spaces-title' }" :aria-current="route.name === 'settings' && route.hash === '#spaces-title' ? 'location' : undefined"><span class="desktop-subnav-label">空間管理</span></RouterLink>
+              <RouterLink :to="{ name: 'item-management' }" :class="{ active: currentRoute.path === '/settings/items' || currentRoute.path.startsWith('/settings/items/') }" :aria-current="currentRoute.path === '/settings/items' || currentRoute.path.startsWith('/settings/items/') ? 'page' : undefined"><span class="desktop-subnav-label">用品管理</span></RouterLink>
+              <Transition name="shopping-subnav">
+                <div v-if="route.name === 'item-management' || route.name === 'item-category'" class="desktop-management-subnav" aria-label="用品管理分類">
+                  <RouterLink :to="{ name: 'item-management', hash: '#system-categories-title' }" :class="{ active: managementSection === 'system' }"><span class="desktop-subnav-label">系統分類</span></RouterLink>
+                  <RouterLink :to="{ name: 'item-management', hash: '#custom-categories-title' }" :class="{ active: managementSection === 'custom' }"><span class="desktop-subnav-label">自訂分類</span></RouterLink>
+                </div>
+              </Transition>
+            </div>
+          </Transition>
+        </div>
       </div>
 
       <div ref="root" class="plus-slot">
@@ -143,6 +184,9 @@ onBeforeUnmount(() => {
   gap: t.$space-12;
   height: t.$bottom-nav-height;
 }
+
+.desktop-brand, .desktop-nav-dot, .desktop-shopping-nav, .desktop-subnav-arrow { display: none; }
+.nav-group { display: flex; flex: 1; min-width: 0; }
 
 .nav-pill {
   display: flex;

@@ -30,6 +30,7 @@ const selectedSpaceId = computed({
 
 // 搜尋字串僅留在頁面層，不進 store、不持久化。
 const searchQuery = ref('')
+watch(selectedSpaceId, () => { searchQuery.value = '' })
 
 // 新增空間：同新增用品頁的 Sheet；建立後切到新空間並顯示 Toast。
 const addSpaceOpen = ref(false)
@@ -230,7 +231,7 @@ function clearFilters() {
         <div class="inventory-brand">
           <BrandLogo />
           <div class="inventory-heading">
-            <h1 id="inventory-title" class="visually-hidden">我的用品</h1>
+            <h1 id="inventory-title" class="visually-hidden">我的用品<span v-if="selectedSpace" class="desktop-breadcrumb"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span class="breadcrumb-current">{{ selectedSpace.name }}</span></span></h1>
             <SpacePill
               :model-value="selectedSpace?.id ?? null"
               :spaces="spaces"
@@ -336,7 +337,8 @@ function clearFilters() {
     <AddSpaceSheet :open="addSpaceOpen" @close="addSpaceOpen = false" @created="onSpaceCreated" />
     <AppToast :toast="toast" @undo="runUndo" />
 
-    <!-- 刪除成功 Toast：Bottom Nav 上方水平置中。 -->
+    <!-- Mobile stays above navigation; desktop slides from the upper right. -->
+    <Transition name="desktop-toast">
     <div v-if="recentlyRemoved" class="delete-toast" role="status" aria-live="polite" @pointerenter="pauseDeleteToast" @pointerleave="resumeDeleteToast" @focusin="pauseDeleteToast" @focusout="resumeDeleteToast">
       <svg class="toast-icon" viewBox="0 0 20 20" aria-hidden="true">
         <circle cx="10" cy="10" r="10" fill="currentColor" />
@@ -345,6 +347,7 @@ function clearFilters() {
       <span class="toast-message">已從「{{ recentlyRemoved.spaceName }}」移除 {{ recentlyRemoved.item.name }}</span>
       <button type="button" class="toast-undo" @click="undoDelete">復原</button>
     </div>
+    </Transition>
 
   </section>
 </template>
@@ -397,6 +400,7 @@ function clearFilters() {
 
 .inventory-brand { @include ph.page-brand; }
 .inventory-heading { min-width: 0; }
+.desktop-breadcrumb { display: none; }
 
 .inventory-toolbar {
   display: flex;

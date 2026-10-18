@@ -1,0 +1,151 @@
+@use 'sass:color';
+@use './tokens' as t;
+
+// Pointer-only desktop feedback. Touch layouts and drag transforms stay intact.
+@media (min-width: 1024px) and (hover: hover) and (pointer: fine) {
+  :root body {
+    // Keep hover fills rounded even on controls whose base is transparent.
+    :is(.delete-category, .edit-name) { border-radius: t.$radius-pill; }
+    .name-edit-button {
+      border-radius: t.$radius-pill;
+      cursor: pointer;
+      transition: background-color .18s ease, box-shadow .18s ease;
+    }
+    .name-edit-button:not(:disabled):hover {
+      background-color: t.$primary-soft;
+      box-shadow: t.$shadow-raised;
+      .name-edit-icon { color: t.$primary-green; }
+    }
+    header :is(.leave-button, .delete-category:not(:has(.cancel-selection))) {
+      border-radius: t.$radius-pill;
+      transition: background-color .18s ease, color .18s ease, box-shadow .18s ease;
+    }
+    header :is(.leave-button, .delete-category:not(:has(.cancel-selection))):not(:disabled):not([aria-disabled='true']):hover {
+      background-color: rgba(t.$danger, .1);
+      color: t.$danger;
+      box-shadow: t.$shadow-raised;
+    }
+    .delete-category:has(.cancel-selection) {
+      width: auto;
+      min-width: 64px;
+      height: 36px;
+      padding-inline: 14px;
+      justify-self: end;
+    }
+    .selector-row { border-radius: t.$radius-input; }
+    .shopping-checkbox {
+      transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+    .shopping-checkbox:not(:disabled):hover {
+      border-color: t.$primary-green;
+      box-shadow: t.$shadow-raised, 0 0 0 3px rgba(t.$primary-green, .12);
+    }
+    .shopping-checkbox:checked:not(:disabled):hover {
+      background-color: t.$dark-green;
+      border-color: t.$dark-green;
+    }
+    .edit-profile-link { border-radius: 12px; transition: background-color .18s ease; }
+    .edit-profile-link:hover { font-weight: t.$font-weight-bold; }
+    :is(.nav-btn, .desktop-shopping-nav a, .desktop-shopping-nav button,
+      .btn, .plus-btn, .category-pill, .pill, .tile, .selector-row,
+      .category-row, .item-row-content, .item-row, .shopping-card,
+      .settings-row, .record-row, .notification-entry,
+      .icon-button:not([aria-label^="返回"]), .item-expand, .bell-trigger,
+      .delete-category, .edit-name, .restore-defaults, .unit-edit-button,
+      .copy-button, .claim-all-heading-button, .add-item, .create-item,
+      .delete-selected, .delete-dialog-cancel, .delete-dialog-confirm,
+      .discard-cancel, .discard-confirm, .join-button, .date-arrow,
+      .date-day, .stepper-button, .plus-menu-option, .option-row,
+      .remove-shopping-item, .toast-undo, .app-toast-undo) {
+      transition: background-color .18s ease, color .18s ease, box-shadow .18s ease, transform .2s ease-out;
+    }
+
+    :is(.nav-btn, .desktop-shopping-nav a, .desktop-shopping-nav button):not(.active):hover {
+      color: t.$primary-green;
+    }
+
+    .plus-menu-option:not(:disabled):not([aria-disabled='true']):hover {
+      background-color: t.$primary-soft;
+    }
+    .inventory-page .item-list > .item-row::before {
+      content: ''; position: absolute; inset: 0; z-index: 3;
+      border: 1.5px solid transparent; border-radius: inherit; pointer-events: none;
+      transition: border-color .18s ease;
+    }
+    .inventory-page .item-list > .item-row:hover::before { border-color: t.$primary-green; }
+    .shopping-card:is(:hover, .expanded) {
+      box-shadow: t.$shadow-card, inset 0 0 0 1.5px t.$primary-green;
+    }
+
+    :is(.btn-primary, .plus-btn, .join-button, .settings-join-controls > button, .category-form > button):not(:disabled):not([aria-disabled='true']):hover {
+      background-color: t.$dark-green; color: t.$text-inverse; box-shadow: t.$shadow-primary;
+    }
+    :is(.settings-join-controls > button, .category-form > button) {
+      transition: background-color .18s ease, box-shadow .18s ease;
+    }
+    :is(.btn-secondary, .delete-dialog-cancel, .discard-cancel):not(:disabled):hover {
+      background-color: t.$active-green; color: t.$primary-green; box-shadow: t.$shadow-raised;
+    }
+    :is(.btn-danger, .delete-selected, .delete-dialog-confirm, .discard-confirm):not(:disabled):hover {
+      background-color: color.scale(t.$danger, $lightness: -12%);
+      color: t.$text-inverse; box-shadow: t.$shadow-raised;
+    }
+    :is(.remove-shopping-item, .delete-record, .more-option--danger) { border-radius: t.$radius-input; }
+    :is(.delete-record, .more-option--danger) {
+      cursor: pointer;
+      transition: background-color .18s ease, color .18s ease;
+    }
+    :is(.btn-danger-subtle, .remove-shopping-item, .delete-record, .more-option--danger):not(:disabled):not([aria-disabled='true']):hover {
+      background-color: rgba(t.$danger, .1); color: t.$danger;
+    }
+
+    :is(.category-pill, .pill, .claim-all-heading-button,
+      .add-item, .create-item, .delete-category:has(.cancel-selection), .edit-name, .restore-defaults,
+      .unit-edit-button, .date-arrow, .date-day):not(.category-pill--selected):not(.active):not([aria-pressed='true']):not([aria-selected='true']):not(.btn-primary):not(.btn-danger):not(:disabled):not([aria-disabled='true']):hover {
+      background-color: t.$primary-soft; color: t.$primary-green;
+      box-shadow: t.$shadow-raised;
+    }
+    .copy-button:not(:active):not(.copied):hover {
+      background-color: t.$primary-soft;
+      box-shadow: t.$shadow-raised;
+    }
+    :is(.status-actions .action-secondary, .add-space-link, .btn-brand-light, .btn-added, .claim-all-heading-button,
+      .takeover-button, .inline-claim-all .btn, .add-item):not(.btn-primary):not(:disabled):not([aria-disabled='true']):hover {
+      background-color: color.mix(t.$primary-green, t.$primary-soft, 14%);
+      color: t.$primary-green;
+    }
+    :is(.status-actions .action-secondary, .add-space-link, .btn-brand-light, .btn-added, .takeover-button) {
+      transition: background-color .18s ease;
+    }
+    :is(.item-row-content--dragging, .item-row.dragging, .sort-dragging .category-row) { transition: none; }
+    :is(.quantity-stepper > button, .back-button, .back-link, .icon-button, .item-expand) { transition: box-shadow .18s ease; }
+    :is(.bell-trigger, .stepper-button, .quantity-stepper > button, .back-button, .back-link, .icon-button, .item-expand):not(:disabled):not([aria-disabled='true']):hover {
+      box-shadow: -2px -2px 4px rgba(249, 249, 249, .45),
+        2px 3px 6px rgba(143, 134, 114, .56);
+    }
+    :is(.app-toast-undo, .toast-undo):hover { text-decoration: underline; text-underline-offset: 3px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      :is(.quantity-stepper > button, .back-button, .back-link, .icon-button, .item-expand) { transition: none; }
+      :is(.delete-record, .more-option--danger) { transition: none; }
+      :is(.settings-join-controls > button, .category-form > button) { transition: none; }
+      .name-edit-button { transition: none; }
+      header :is(.leave-button, .delete-category, .icon-button) { transition: none; }
+      :is(.status-actions .action-secondary, .add-space-link, .btn-brand-light, .btn-added, .takeover-button) { transition: none; }
+      .shopping-checkbox { transition: none; }
+      .edit-profile-link { transition: none; }
+      .inventory-page .item-list > .item-row::before { transition: none; }
+      :is(.nav-btn, .desktop-shopping-nav a, .desktop-shopping-nav button,
+        .btn, .plus-btn, .category-pill, .pill, .tile, .selector-row,
+        .category-row, .item-row-content, .item-row, .shopping-card,
+        .settings-row, .record-row, .notification-entry,
+        .icon-button:not([aria-label^="返回"]), .item-expand, .bell-trigger,
+        .delete-category, .edit-name, .restore-defaults, .unit-edit-button,
+        .copy-button, .claim-all-heading-button, .add-item, .create-item,
+        .delete-selected, .delete-dialog-cancel, .delete-dialog-confirm,
+        .discard-cancel, .discard-confirm, .join-button, .date-arrow,
+        .date-day, .stepper-button, .plus-menu-option, .option-row,
+        .remove-shopping-item, .toast-undo, .app-toast-undo) { transition: none; }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 <script setup>
 import AppToast from '../components/AppToast.vue'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import SharedNotificationsMenu from '../components/SharedNotificationsMenu.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import { SHOPPING_COMPLETED_KEEP_MS, useItemsStore } from '../stores/items'
@@ -73,14 +73,19 @@ function removeShoppingItem(item) {
 }
 // 用品詳情【查看清單】帶 ?tab=shared&space=<id>：直接開共享清單並預選該空間。
 const route = useRoute()
+const router = useRouter()
 const fromSharedItem = route.query.tab === 'shared'
 const selectedSpace = ref(fromSharedItem && store.getSpace(route.query.space)?.shared ? route.query.space : '')
 const activeTab = ref(fromSharedItem ? 'shared' : 'personal')
 watch(() => [route.query.tab, route.query.space], ([tab, space]) => {
-  if (tab !== 'shared') return
-  activeTab.value = 'shared'
+  activeTab.value = tab === 'shared' ? 'shared' : 'personal'
   selectedSpace.value = store.getSpace(space)?.shared ? space : ''
 })
+function selectShoppingTab(tab) {
+  const query = { ...route.query, tab }
+  if (tab === 'personal') delete query.space
+  router.replace({ name: 'shopping', query })
+}
 const personalItems = computed(() => store.shoppingList.filter(item => !store.getSpace(item.spaceId)?.shared))
 const allSharedItems = computed(() => store.items.filter(item => (item.inShoppingList || item.shoppingCompletedAt != null) && store.getSpace(item.spaceId)?.shared))
 const sharedItems = computed(() => allSharedItems.value.filter(item => !selectedSpace.value || selectedSpace.value === item.spaceId))
@@ -224,10 +229,11 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 </script>
 <template>
   <section class="shopping-page" aria-labelledby="shopping-title">
-    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title">購買清單</h1></div><SharedNotificationsMenu /></header>
+    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title">購買清單<span class="desktop-breadcrumb"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span class="breadcrumb-current">{{ activeTab === 'shared' ? (store.getSpace(selectedSpace)?.name || '共享清單') : '我的清單' }}</span></span></h1></div><SharedNotificationsMenu /></header>
+    <div class="shopping-main">
     <div class="shopping-tabs" role="tablist" aria-label="購買清單類型">
-      <button id="personal-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'personal'" aria-controls="personal-shopping-panel" @click="activeTab = 'personal'">我的清單</button>
-      <button id="shared-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'shared'" aria-controls="shared-shopping-panel" @click="activeTab = 'shared'">共享清單</button>
+      <button id="personal-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'personal'" aria-controls="personal-shopping-panel" @click="selectShoppingTab('personal')">我的清單</button>
+      <button id="shared-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'shared'" aria-controls="shared-shopping-panel" @click="selectShoppingTab('shared')">共享清單</button>
     </div>
     <div v-if="activeTab === 'personal'" id="personal-shopping-panel" role="tabpanel" aria-labelledby="personal-shopping-tab">
       <template v-if="hasMyItems">
@@ -296,11 +302,12 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
       </section>
       <div v-if="!sharedItems.length" class="shopping-empty" role="status"><div class="empty-disc"><img :src="shoppingListEmpty" alt="" width="48" height="55" /></div><h2>尚未有共享購買清單</h2><p>共享空間的用品加入清單後，會顯示在這裡。</p></div>
     </div>
+    </div>
   </section>
   <Teleport to="body">
-    <dialog ref="restockAllDialog" class="shopping-delete-dialog" aria-labelledby="restock-all-title" @click="event => { if (event.target === restockAllDialog) restockAllDialog.close() }" @close="restockAllIds = []"><form @submit.prevent="confirmRestockAll"><h2 id="restock-all-title">全部補貨？</h2><p>將 {{ restockAllIds.length }} 項用品標記為已補貨。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="restockAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">已購買</button></div></form></dialog>
-    <dialog ref="claimAllDialog" class="shopping-delete-dialog" aria-labelledby="claim-all-title" @click="event => { if (event.target === claimAllDialog) claimAllDialog.close() }" @close="claimAllRequest = null"><form @submit.prevent="confirmClaimAll"><h2 id="claim-all-title">全部認領 {{ claimAllRequest?.ids.length }} 項？</h2><p>將認領「{{ claimAllRequest?.name }}」中的{{ claimAllRequest?.ids.length }}項用品。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">認領</button></div></form></dialog>
-    <dialog ref="claimDialog" class="shopping-delete-dialog" aria-labelledby="claim-change-title" @click="event => { if (event.target === claimDialog) claimDialog.close() }" @close="pendingClaim = null">
+    <dialog ref="restockAllDialog" class="shopping-delete-dialog" aria-labelledby="restock-all-title" @close="restockAllIds = []"><form @submit.prevent="confirmRestockAll"><h2 id="restock-all-title">全部補貨？</h2><p>將 {{ restockAllIds.length }} 項用品標記為已補貨。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="restockAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">已購買</button></div></form></dialog>
+    <dialog ref="claimAllDialog" class="shopping-delete-dialog" aria-labelledby="claim-all-title" @close="claimAllRequest = null"><form @submit.prevent="confirmClaimAll"><h2 id="claim-all-title">全部認領 {{ claimAllRequest?.ids.length }} 項？</h2><p>將認領「{{ claimAllRequest?.name }}」中的{{ claimAllRequest?.ids.length }}項用品。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">認領</button></div></form></dialog>
+    <dialog ref="claimDialog" class="shopping-delete-dialog" aria-labelledby="claim-change-title" @close="pendingClaim = null">
       <form @submit.prevent="confirmClaimChange">
         <h2 id="claim-change-title">{{ pendingClaim?.action === 'cancel' ? '取消認領？' : pendingClaim?.action === 'takeover' ? '接手認領？' : '認領用品？' }}</h2>
         <p v-if="pendingClaim?.action === 'takeover'">確定要接手「{{ store.getSpace(pendingClaimItem?.spaceId)?.name || '未指定空間' }}」的{{ pendingClaimItem?.name }}嗎？</p>
@@ -309,7 +316,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
         <div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimDialog.close()">取消</button><button type="submit" class="btn" :class="pendingClaim?.action === 'cancel' ? 'btn-danger' : 'btn-primary'">{{ pendingClaim?.action === 'cancel' ? '取消認領' : pendingClaim?.action === 'takeover' ? '接手認領' : '認領' }}</button></div>
       </form>
     </dialog>
-    <dialog ref="deleteDialog" class="shopping-delete-dialog" aria-labelledby="shopping-delete-title" aria-describedby="shopping-delete-message" @click="event => { if (event.target === deleteDialog) deleteDialog.close() }" @close="pendingRemovalId = null">
+    <dialog ref="deleteDialog" class="shopping-delete-dialog" aria-labelledby="shopping-delete-title" aria-describedby="shopping-delete-message" @close="pendingRemovalId = null">
       <form @submit.prevent="confirmRemoval">
         <h2 id="shopping-delete-title">移除清單？</h2>
         <p id="shopping-delete-message">{{ removalMessage }}</p>
@@ -322,6 +329,8 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
 @use '../assets/scss/page-header' as ph;
+.shopping-main { min-width: 0; }
+.desktop-breadcrumb { display: none; }
 .shopping-page { width: 100%; max-width: 358px; margin-inline: auto; padding-top: t.$space-16; text-align: left; font-family: t.$font-family; color: t.$text-main; }
 .shopping-page.with-claim-all { padding-bottom: calc(t.$button-height + t.$space-32); }
 .claim-all-bar { position: fixed; bottom: t.$toast-bottom; left: 50%; transform: translateX(-50%); z-index: 1000; width: min(273.6px, calc((100% - 48px) * .8)); .btn { width: 100%; min-height: t.$button-height; } }

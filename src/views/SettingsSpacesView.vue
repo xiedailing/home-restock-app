@@ -118,7 +118,7 @@ function joinSpace() {
   const result = store.joinSpaceByCode(inviteCode.value)
   joinSucceeded.value = result.ok
   noticeKind.value = result.ok ? 'success' : 'error'
-  showToast(result.message)
+  showToast(result.message, null, '復原', result.ok ? 'success' : 'error')
   if (result.ok) inviteCode.value = ''
 }
 </script>
@@ -162,7 +162,7 @@ function joinSpace() {
         <input id="invite-code" v-model="inviteCode" placeholder="輸入空間邀請碼" autocomplete="off" />
         <button type="submit" class="join-button" :disabled="!validInviteCode">加入</button>
       </form>
-      <AppToast :toast="toast" @undo="runUndo"><template v-if="noticeKind !== 'success'" #icon><i :class="noticeKind === 'exit' ? 'fa-solid fa-arrow-right-from-bracket' : 'fa-solid fa-circle-exclamation'" class="notice-icon" aria-hidden="true"></i></template></AppToast>
+      <AppToast :toast="toast" @undo="runUndo"><template v-if="noticeKind === 'exit'" #icon><i :class="noticeKind === 'exit' ? 'fa-solid fa-arrow-right-from-bracket' : 'fa-solid fa-circle-exclamation'" class="notice-icon" aria-hidden="true"></i></template></AppToast>
     </section>
 
   </section>

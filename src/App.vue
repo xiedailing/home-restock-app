@@ -1,7 +1,8 @@
 <script setup>
-import { useRoute, useRouter } from 'vue-router'
-import { provide, ref, watch } from 'vue'
+import { loadRouteLocation, useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue'
 import BottomNav from './components/BottomNav.vue'
+import DesktopWallpaper from './components/DesktopWallpaper.vue'
 import AddSpaceSheet from './components/add-item/AddSpaceSheet.vue'
 import AppToast from './components/AppToast.vue'
 import { useToast } from './composables/useToast'
@@ -23,12 +24,61 @@ const { toast, showToast, runUndo } = useToast()
 // 補貨頁記錄成功後會回到上一頁，Toast（含復原）要跟得過去，所以提供 App 層的 Toast。
 provide('appToast', { showToast })
 const hideBottomNav = useBottomNavHidden()
+// Desktop subpages keep the originating main page behind a native modal drawer.
+const desktopMedia = window.matchMedia('(min-width: 1024px)')
+const isDesktop = ref(desktopMedia.matches)
+const desktopRoots = ['inventory', 'shopping', 'settings', 'item-management', 'item-category']
+const isDrawerRoute = page => page.name && !desktopRoots.includes(page.name) && page.name !== 'login'
+const rootFor = page => page.path.startsWith('/settings') ? '/settings'
+  : page.name === 'notifications' ? '/shopping' : '/inventory'
+const desktopBackground = shallowRef(desktopRoots.includes(route.name) ? { ...route } : router.resolve(rootFor(route)))
+const drawerOpen = computed(() => isDesktop.value && isDrawerRoute(route))
+const drawer = ref(null)
+const mainViewRoute = computed(() => drawerOpen.value ? desktopBackground.value : route)
+watch(() => drawerOpen.value && desktopBackground.value.fullPath, async path => {
+  if (!path) return
+  const resolved = await loadRouteLocation(router.resolve(path))
+  if (desktopBackground.value.fullPath === path) desktopBackground.value = { ...resolved }
+}, { immediate: true })
+let drawerEnteredFromMain = false
+watch(() => route.fullPath, (_to, from) => {
+  if (desktopRoots.includes(route.name)) desktopBackground.value = { ...route }
+  if (isDesktop.value && isDrawerRoute(route) && from && desktopRoots.includes(router.resolve(from).name)) {
+    desktopBackground.value = router.resolve(from)
+    drawerEnteredFromMain = true
+  }
+}, { flush: 'sync' })
+watch(drawerOpen, async () => {
+  await nextTick()
+  // Read the latest route state after rendering; a queued open must not reopen
+  // an empty dialog after navigation has already returned to a main page.
+  if (drawerOpen.value && drawer.value?.isConnected && !drawer.value.open) drawer.value.showModal()
+  else if (!drawerOpen.value && drawer.value?.open) drawer.value.close()
+}, { immediate: true })
+function onDrawerBackdropClick(event) {
+  if (event.target !== drawer.value || !drawerOpen.value) return
+  const bounds = drawer.value.getBoundingClientRect()
+  if (event.clientX < bounds.left || event.clientX > bounds.right
+    || event.clientY < bounds.top || event.clientY > bounds.bottom) closeDesktopDrawer()
+}
+function closeDesktopDrawer() {
+  if (drawerEnteredFromMain) router.back()
+  else router.push(desktopBackground.value.fullPath)
+}
+function updateDesktopMedia() { isDesktop.value = desktopMedia.matches }
+onMounted(() => desktopMedia.addEventListener('change', updateDesktopMedia))
+onBeforeUnmount(() => desktopMedia.removeEventListener('change', updateDesktopMedia))
+
 const pageTransition = ref('page-forward')
 const animateSettingsPages = ref(false)
 const animateItemsPages = ref(route.path === '/settings/items' || route.path.startsWith('/settings/items/'))
 watch(() => route.path, (to, from) => {
   const navPaths = ['/inventory', '/shopping', '/settings']
-  const switchingMainPages = navPaths.includes(to) && navPaths.includes(from)
+  const mainPageFor = path => path === '/settings' || path.startsWith('/settings/') ? '/settings'
+    : path === '/shopping' ? '/shopping'
+    : path === '/inventory' || path.startsWith('/items/') || path.startsWith('/restock/') ? '/inventory' : null
+  const switchingMainPages = (navPaths.includes(to) && navPaths.includes(from))
+    || (isDesktop.value && navPaths.includes(to) && mainPageFor(from) && mainPageFor(to) !== mainPageFor(from))
   const detailId = from.match(/^\/items\/([^/]+)$/)?.[1]
   const returningAfterDeletion = to === '/inventory' && detailId && !itemsStore.getItem(decodeURIComponent(detailId))
   const detailToShopping = !!detailId && from !== '/items/new' && to === '/shopping'
@@ -48,14 +98,32 @@ watch(() => route.path, (to, from) => {
 }, { flush: 'sync' })
 
 function freezeLeavingPage(element) {
-  if (!animateSettingsPages.value) return
-  element.style.position = 'fixed'
+  if (!animateSettingsPages.value || drawerOpen.value) return
+  const bounds = element.getBoundingClientRect()
+  element.style.position = isDesktop.value ? 'absolute' : 'fixed'
   element.style.top = `${-leavingPageScroll}px`
-  element.style.left = '0'
-  element.style.width = '100%'
+  element.style.left = isDesktop.value ? '0px' : `${bounds.left}px`
+  element.style.width = isDesktop.value ? '100%' : `${bounds.width}px`
   element.style.boxSizing = 'border-box'
   element.style.minHeight = `${window.innerHeight + leavingPageScroll}px`
   element.style.zIndex = '2'
+}
+
+// Align the incoming settings section before it becomes visible. After the
+// horizontal transition, router scrolling takes over at the same visual position.
+function alignEnteringSection(element) {
+  if (!isDesktop.value || route.name !== 'settings'
+    || !['#reminder-title', '#spaces-title'].includes(route.hash)) return
+  const heading = element.querySelector(route.hash)
+  if (!heading) return
+  const target = heading.getBoundingClientRect().top + window.scrollY - 24
+  const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+  element.style.position = 'relative'
+  element.style.top = `${window.scrollY - Math.min(Math.max(0, target), maxScroll)}px`
+}
+function clearEnteringSection(element) {
+  element.style.top = ''
+  element.style.position = ''
 }
 
 function clearLeavingPage(element) {
@@ -79,10 +147,11 @@ function onSpaceCreated(space) {
 
 <template>
   <div class="app-container">
+    <DesktopWallpaper v-if="!hideBottomNav || drawerOpen" />
     <!-- 主內容呈現區 -->
-    <main class="app-content" :class="{ 'without-nav': hideBottomNav, 'items-page-transition': animateSettingsPages && animateItemsPages }">
-      <RouterView v-slot="{ Component, route: pageRoute }">
-        <Transition :name="pageTransition" :css="animateSettingsPages" @before-leave="freezeLeavingPage" @after-leave="clearLeavingPage" @leave-cancelled="clearLeavingPage">
+    <main class="app-content" :class="{ 'without-nav': hideBottomNav, 'items-page-transition': animateSettingsPages && animateItemsPages && !drawerOpen }">
+      <RouterView :route="mainViewRoute" v-slot="{ Component, route: pageRoute }">
+        <Transition :name="pageTransition" :css="animateSettingsPages && !drawerOpen" @enter="alignEnteringSection" @after-enter="clearEnteringSection" @enter-cancelled="clearEnteringSection" @before-leave="freezeLeavingPage" @after-leave="clearLeavingPage" @leave-cancelled="clearLeavingPage">
           <div :key="pageRoute.path" class="page-view">
             <component :is="Component" />
           </div>
@@ -90,9 +159,20 @@ function onSpaceCreated(space) {
       </RouterView>
     </main>
 
+    <Teleport to="body">
+      <dialog ref="drawer" class="desktop-page-drawer" aria-label="詳細內容" @cancel.prevent="closeDesktopDrawer" @click="onDrawerBackdropClick">
+        <template v-if="drawerOpen">
+          <RouterView v-slot="{ Component, route: drawerRoute }">
+            <component :is="Component" :key="drawerRoute.path" />
+          </RouterView>
+        </template>
+      </dialog>
+    </Teleport>
+
     <!-- 共用底部導覽列 -->
     <BottomNav
-      v-if="!hideBottomNav"
+      :navigation-route="mainViewRoute"
+      v-if="!hideBottomNav || drawerOpen"
       @add-record="handleAddRecord"
       @add-space="addSpaceOpen = true"
     />

@@ -26,7 +26,7 @@ export function useUnitManagement(onRemoved = () => {}) {
       onRemoved(value)
       showToast(`已刪除「${value}」單位`, () => {
         const restored = result.undo()
-        if (!restored.ok) showToast(restored.message)
+        if (!restored.ok) showToast(restored.message, null, '復原', 'error')
       })
     }
     return result

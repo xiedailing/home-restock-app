@@ -9,9 +9,11 @@ const closing = ref(false)
 const closeDuration = ref(500)
 let closeTimer
 const copyNotice = ref('')
+const copyFailed = ref(false)
 const copiedField = ref('')
 let copyTimer
-function copied(message) {
+function copied(message, failed = false) {
+  copyFailed.value = failed
   copyNotice.value = message
   clearTimeout(copyTimer)
   copyTimer = setTimeout(() => { copyNotice.value = ''; copiedField.value = '' }, 3000)
@@ -63,7 +65,7 @@ async function copy(value, label) {
     const success = document.execCommand('copy')
     input.remove()
     if (success) copiedField.value = label
-    copied(success ? `${label}已複製` : '無法複製，請手動複製邀請資訊')
+    copied(success ? `${label}已複製` : '無法複製，請手動複製邀請資訊', !success)
   }
 }
 onBeforeUnmount(() => { clearTimeout(copyTimer); clearTimeout(closeTimer); dialog.value?.close() })
@@ -77,7 +79,7 @@ onBeforeUnmount(() => { clearTimeout(copyTimer); clearTimeout(closeTimer); dialo
       <div class="invite-field"><div><span>邀請碼</span><p>{{ code }}</p></div><button type="button" :class="{ copied: copiedField === '邀請碼' }" class="copy-button" @click="copy(code, '邀請碼')">複製</button></div>
       <div class="invite-field"><div><span>邀請網址</span><p :title="link">{{ link }}</p></div><button type="button" :class="{ copied: copiedField === '邀請網址' }" class="copy-button" @click="copy(link, '邀請網址')">複製</button></div>
       <p class="invite-helper">只有取得邀請資訊的人能申請加入此空間。</p>
-      <Transition name="copy-toast"><p v-if="copyNotice" class="copy-notice" role="status"><i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>{{ copyNotice }}</span></p></Transition>
+      <Transition name="copy-toast"><p v-if="copyNotice" class="copy-notice" :class="{ 'copy-notice--error': copyFailed }" role="status"><i :class="copyFailed ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-circle-check'" aria-hidden="true"></i><span>{{ copyNotice }}</span></p></Transition>
       <button type="button" class="btn btn-primary sheet-done" @click="close(500)">完成</button>
     </dialog>
   </Teleport>
@@ -123,6 +125,7 @@ onBeforeUnmount(() => { clearTimeout(copyTimer); clearTimeout(closeTimer); dialo
   pointer-events: none;
   i { color: t.$toast-success-accent; flex-shrink: 0; }
 }
+.copy-notice--error, .copy-notice--error i { color: t.$toast-error-accent; }
 .copy-toast-leave-active { transition: opacity .5s ease; }
 .copy-toast-leave-to { opacity: 0; }
 .sheet-done { width: 100%; min-height: 48px; border-radius: 16px; font-size: 15px; }

@@ -81,7 +81,35 @@ export const routes = [
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
-  scrollBehavior(to, from, savedPosition) {
+  async scrollBehavior(to, from, savedPosition) {
+    if (window.matchMedia('(min-width: 1024px)').matches && to.name === 'settings'
+      && ['#reminder-title', '#spaces-title'].includes(to.hash)) {
+      if (['item-management', 'item-category'].includes(from.name)) {
+        // Wait for the actual page transition rather than measuring a moving heading.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const page = document.getElementById(to.hash.slice(1))?.closest('.page-view')
+        const transitions = page?.getAnimations().filter(animation => animation.effect?.target === page) ?? []
+        await Promise.allSettled(transitions.map(animation => animation.finished))
+        // A newer navigation cancels this pending section scroll.
+        if (router.currentRoute.value.fullPath !== to.fullPath) return false
+      }
+      return { el: to.hash, top: 24, behavior: from.path !== to.path || window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }
+    }
+    if (window.matchMedia('(min-width: 1024px)').matches && to.name === 'item-management'
+      && ['#system-categories-title', '#custom-categories-title'].includes(to.hash)) {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      const page = document.getElementById(to.hash.slice(1))?.closest('.page-view')
+      await Promise.allSettled((page?.getAnimations() ?? []).map(animation => animation.finished))
+      if (router.currentRoute.value.fullPath !== to.fullPath) return false
+      const behavior = from.path === to.path && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant'
+      return to.hash === '#system-categories-title' ? { top: 0, behavior } : { el: to.hash, top: 24, behavior }
+    }
+    // Desktop subpages scroll inside their drawer; keep the background viewport.
+    const mainPages = ['inventory', 'shopping', 'settings', 'item-management', 'item-category']
+    if (window.matchMedia('(min-width: 1024px)').matches
+      && to.name && from.name && to.name !== 'login' && from.name !== 'login'
+      && (!mainPages.includes(to.name) || !mainPages.includes(from.name))) return false
+
     if (supportsScrollRestoration(to.path) && supportsScrollRestoration(from.path)) {
       const target = savedPosition || { top: pageScrollPositions.get(to.path) || 0 }
       // Vue Router 已在 nextTick 後呼叫 scrollBehavior，直接恢復以免多繪製一幀錯誤位置。

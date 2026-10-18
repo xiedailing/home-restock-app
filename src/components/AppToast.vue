@@ -1,11 +1,12 @@
 <script setup>
 // 深色底 Toast（同我的用品刪除 Toast）：淺綠勾勾，可附「復原」。
 // 樣式同我的用品「已新增用品」Toast；搭配 composables/useToast 使用。
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useBottomNavHidden } from '../composables/useBottomNav'
 import toastCheck from '../assets/settings/toast-check-on-dark.svg'
 
 // placement：預設在畫面下方；補貨頁的頁內提示放上方，才不會蓋住底部的「記錄」面板。
-defineProps({
+const props = defineProps({
   toast: { type: Object, default: null },
   placement: { type: String, default: 'bottom' },
   teleportDisabled: { type: Boolean, default: false },
@@ -13,12 +14,40 @@ defineProps({
 const emit = defineEmits(['undo'])
 // 有 Bottom Nav 時改放在 Nav 上方（specs/004 HOME-07）。
 const hideBottomNav = useBottomNavHidden()
+// A manual popover uses the browser's top layer, above modal drawers and Sheets.
+// It does not move focus or dismiss on outside clicks; useToast still owns timing.
+const toastElement = ref(null)
+const toastTarget = ref('body')
+let modalObserver
+function updateToastTarget() {
+  const focusedModal = document.activeElement?.closest('dialog[open]')
+  const modals = [...document.querySelectorAll('dialog:modal')]
+  const target = focusedModal ?? modals.at(-1) ?? 'body'
+  if (toastTarget.value !== target) toastTarget.value = target
+}
+watch(() => props.toast, toast => {
+  modalObserver?.disconnect()
+  if (!toast || props.teleportDisabled) return
+  updateToastTarget()
+  // Follow modal closure, including delayed Sheet closing after a successful save.
+  modalObserver = new MutationObserver(updateToastTarget)
+  modalObserver.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] })
+}, { flush: 'post', immediate: true })
+onBeforeUnmount(() => modalObserver?.disconnect())
+const supportsPopover = typeof HTMLElement !== 'undefined' && typeof HTMLElement.prototype.showPopover === 'function'
+watch([() => props.toast, toastElement, toastTarget], async ([toast, element]) => {
+  if (!toast || !element || !supportsPopover) return
+  await nextTick()
+  if (props.toast !== toast || toastElement.value !== element || !element.isConnected) return
+  if (!element.matches(':popover-open')) element.showPopover()
+}, { flush: 'post' })
+
 </script>
 
 <template>
-  <Teleport to="body" :disabled="teleportDisabled">
+  <Teleport :to="toastTarget" :disabled="teleportDisabled">
     <Transition name="app-toast">
-      <div v-if="toast" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav && placement !== 'top', 'app-toast--top': placement === 'top', 'app-toast--error': toast.variant === 'error' }" role="status" aria-live="polite"
+      <div v-if="toast" ref="toastElement" :popover="supportsPopover ? 'manual' : undefined" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav && placement !== 'top', 'app-toast--top': placement === 'top', 'app-toast--error': toast.variant === 'error' }" role="status" aria-live="polite"
         @pointerenter="event => { if (event.pointerType === 'mouse') toast.pause?.('hover') }"
         @pointerleave="toast.resume?.('hover'); toast.resume?.('touch')"
         @pointerdown="toast.pause?.('touch')" @pointerup="toast.resume?.('touch')" @pointercancel="toast.resume?.('touch')"
@@ -37,6 +66,10 @@ const hideBottomNav = useBottomNavHidden()
 // 沒有 Bottom Nav 的頁面：底部手勢區 34px 上方再留 12px（Figma Draft C）。
 .app-toast {
   position: fixed;
+  margin: 0;
+  border: 0;
+  top: auto;
+  right: auto;
   bottom: 46px;
   left: 50%;
   transform: translateX(-50%);
@@ -62,6 +95,7 @@ const hideBottomNav = useBottomNavHidden()
 }
 // 最多兩行：較長的提示（例如認領規則的說明）不要把後半句截掉；一行放得下時外觀不變。
 .app-toast-error-icon { flex-shrink: 0; width: 22px; font-size: 22px; color: t.$toast-error-accent; }
+.app-toast--error .app-toast-message { color: t.$toast-error-accent; }
 .app-toast--error .app-toast-undo { color: t.$toast-error-accent; }
 .app-toast-message {
   flex: 1;
