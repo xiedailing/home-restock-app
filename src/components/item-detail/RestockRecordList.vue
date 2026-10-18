@@ -51,7 +51,7 @@ function remove() {
         <button type="button" class="record-row" @click="openRecord(entry)">
           <span class="record-dot" aria-hidden="true" />
           <span class="record-date">{{ entry.date.replaceAll('-', '/') }}</span>
-          <span class="record-quantity">+{{ entry.quantity }} {{ item.unit }}</span>
+          <span class="record-quantity">+{{ entry.quantity }} {{ entry.unit ?? item.unit }}</span>
           <i class="fa-solid fa-chevron-right record-chevron" aria-hidden="true"></i>
         </button>
       </li>
@@ -60,7 +60,7 @@ function remove() {
 
     <RestockSheet
       :open="sheetOpen"
-      :unit="item.unit"
+      :unit="editingRecord?.unit ?? item.unit"
       :reminder-enabled="item.reminderEnabled"
       :record="editingRecord"
       @confirm="save"

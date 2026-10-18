@@ -2,9 +2,10 @@ import { supportsScrollRestoration, pageScrollPositions, rememberPageScroll } fr
 import { createRouter, createWebHistory } from 'vue-router'
 
 export const routes = [
+  { path: '/notifications', name: 'notifications', component: () => import('../views/NotificationsView.vue'), meta: { title: '通知', hideBottomNav: true } },
   { path: '/', redirect: '/login' },
   { path: '/login', name: 'login', component: () => import('../views/LoginView.vue'), meta: { title: '登入', hideBottomNav: true } },
-  // 首頁已併入我的用品（可用性測試 2026-10-15）；舊連結導向我的用品。
+  // 首頁已併入我的用品；保留 main 的新版導覽。
   { path: '/home', redirect: '/inventory' },
   {
     path: '/inventory',
@@ -22,7 +23,7 @@ export const routes = [
     path: '/items/new',
     name: 'add-item',
     component: () => import('../views/AddItemView.vue'),
-    meta: { title: '新增用品', hideBottomNav: true },
+    meta: { title: '新增用品' },
   },
   {
     path: '/items/:id',

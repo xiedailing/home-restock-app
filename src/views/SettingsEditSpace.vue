@@ -1,4 +1,6 @@
 <script setup>
+import AppToast from '../components/AppToast.vue'
+import { useToast } from '../composables/useToast'
 import { computed, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { formatNameCount, limitSpaceName } from '../models/space'
@@ -55,8 +57,7 @@ onMounted(async () => {
   const { invite, ...query } = route.query
   await router.replace({ path: route.path, query, hash: route.hash })
 })
-const colorToast = ref('')
-let colorToastTimer
+const { toast: colorToast, showToast: showColorNotice } = useToast({ duration: 8000, pauseOnInteraction: true })
 const nameLimitExceeded = computed(() => limitSpaceName(draftName.value.trim()) !== draftName.value.trim())
 const nameCountHint = computed(() => formatNameCount(draftName.value))
 function updateNameInput(event) {
@@ -72,11 +73,9 @@ function updateNameInput(event) {
 }
 
 function showColorToast(message = '空間代表色已更新') {
-  clearTimeout(colorToastTimer)
-  colorToast.value = message
-  colorToastTimer = setTimeout(() => { colorToast.value = '' }, 5000)
+  showColorNotice(message)
 }
-onBeforeUnmount(() => { clearTimeout(colorToastTimer); clearTimeout(inviteEntryTimer) })
+onBeforeUnmount(() => { clearTimeout(inviteEntryTimer) })
 async function editName() {
   if (!canEditSpace.value) return
   draftName.value = space.value.name
@@ -203,14 +202,7 @@ function confirmLeave() {
     </template>
     <p v-else>找不到此空間，請返回空間管理。</p>
     <InviteMemberSheet hide-close-button :open="inviteSheetOpen" :space="space" @close="inviteSheetOpen = false" @copied="showColorToast" />
-    <Teleport to="body">
-      <Transition name="color-toast">
-      <p v-if="colorToast" class="color-toast" role="status">
-        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-        <span>{{ colorToast }}</span>
-      </p>
-      </Transition>
-    </Teleport>
+    <AppToast :toast="colorToast" />
     <dialog ref="leaveDialog" tabindex="-1" class="leave-dialog" aria-labelledby="leave-dialog-title" aria-describedby="leave-dialog-message">
       <form v-if="space" @submit.prevent="confirmLeave">
         <h2 id="leave-dialog-title">退出空間？</h2>
@@ -237,6 +229,7 @@ function confirmLeave() {
 .space-header { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; h1 { margin: 0; text-align: center; font: 700 17px / 24px t.$font-family; } }
 .back-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: t.$input-bg; box-shadow: t.$shadow-raised; img { width: 24px; height: 24px; } }
 h2 { margin: 0; color: #292624; font: 700 16px / 22px t.$font-family; }
+.space-card + h2 { margin-top: 15px; }
 .space-card { padding: t.$space-16; border: 1px solid rgba(237,234,227,.4); border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; overflow: hidden; }
 .info-row { display: flex; align-items: center; gap: t.$space-8; width: 100%; @include layout.row(60px, t.$space-16); color: t.$text-body; font: 400 14px / 20px t.$font-family; > span { flex: 1; } strong { font-weight: 500; color: t.$text-main; } img { width: 20px; height: 20px; } }
 .name-row { flex-wrap: wrap; column-gap: t.$space-8; row-gap: 0; background: transparent; border: 0; @include layout.divider; text-align: left; }

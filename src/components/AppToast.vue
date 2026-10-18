@@ -8,6 +8,7 @@ import toastCheck from '../assets/settings/toast-check-on-dark.svg'
 defineProps({
   toast: { type: Object, default: null },
   placement: { type: String, default: 'bottom' },
+  teleportDisabled: { type: Boolean, default: false },
 })
 const emit = defineEmits(['undo'])
 // 有 Bottom Nav 時改放在 Nav 上方（specs/004 HOME-07）。
@@ -15,10 +16,14 @@ const hideBottomNav = useBottomNavHidden()
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="teleportDisabled">
     <Transition name="app-toast">
-      <div v-if="toast" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav && placement !== 'top', 'app-toast--top': placement === 'top' }" role="status" aria-live="polite" @pointerenter="toast?.pause?.()" @pointerleave="toast?.resume?.()" @focusin="toast?.pause?.()" @focusout="toast?.resume?.()">
-        <slot name="icon"><img :src="toastCheck" alt="" /></slot>
+      <div v-if="toast" :key="toast.message" class="app-toast" :class="{ 'app-toast--above-nav': !hideBottomNav && placement !== 'top', 'app-toast--top': placement === 'top', 'app-toast--error': toast.variant === 'error' }" role="status" aria-live="polite"
+        @pointerenter="event => { if (event.pointerType === 'mouse') toast.pause?.('hover') }"
+        @pointerleave="toast.resume?.('hover'); toast.resume?.('touch')"
+        @pointerdown="toast.pause?.('touch')" @pointerup="toast.resume?.('touch')" @pointercancel="toast.resume?.('touch')"
+        @focusin="toast.pause?.('focus')" @focusout="event => { if (!event.currentTarget.contains(event.relatedTarget)) toast.resume?.('focus') }">
+        <slot name="icon"><i v-if="toast.variant === 'error'" class="fa-solid fa-circle-exclamation app-toast-error-icon" aria-hidden="true"></i><img v-else :src="toastCheck" alt="" /></slot>
         <span class="app-toast-message">{{ toast.message }}</span>
         <button v-if="toast.undo" type="button" class="app-toast-undo" @click="emit('undo')">{{ toast.actionLabel ?? '復原' }}</button>
       </div>
@@ -56,6 +61,8 @@ const hideBottomNav = useBottomNavHidden()
   &--top { top: 80px; bottom: auto; }
 }
 // 最多兩行：較長的提示（例如認領規則的說明）不要把後半句截掉；一行放得下時外觀不變。
+.app-toast-error-icon { flex-shrink: 0; width: 22px; font-size: 22px; color: t.$toast-error-accent; }
+.app-toast--error .app-toast-undo { color: t.$toast-error-accent; }
 .app-toast-message {
   flex: 1;
   min-width: 0;
@@ -66,6 +73,8 @@ const hideBottomNav = useBottomNavHidden()
   overflow: hidden;
   overflow-wrap: anywhere;
 }
+.app-toast-error-icon { flex-shrink: 0; width: 22px; font-size: 22px; color: t.$toast-error-accent; }
+.app-toast--error .app-toast-undo { color: t.$toast-error-accent; }
 .app-toast-undo {
   flex-shrink: 0;
   padding: 0;

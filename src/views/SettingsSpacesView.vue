@@ -15,7 +15,7 @@ const router = useRouter()
 const spaceList = ref(null)
 const inviteCode = ref(typeof route.query.invite === 'string' ? route.query.invite : '')
 const validInviteCode = computed(() => isValidInviteCode(inviteCode.value))
-const { toast, showToast, hideToast, runUndo } = useToast()
+const { toast, showToast, hideToast, runUndo } = useToast({ duration: 8000, pauseOnInteraction: true })
 const noticeKind = ref('success')
 const joinSucceeded = ref(false)
 const createdSpace = computed(() => store.getSpace(route.query.createdSpaceId))
@@ -267,7 +267,7 @@ h2:has(+ .section-description) { margin-bottom: t.$space-8; }
     background: t.$input-bg;
     box-shadow: t.$shadow-inset;
     color: t.$text-main;
-    font: 400 14px / 20px t.$font-family;
+    font: 400 16px / 22px t.$font-family;
     &::placeholder { color: t.$text-disabled; }
   }
 }

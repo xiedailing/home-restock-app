@@ -1,3 +1,4 @@
+import { migrateUnitPeriods, currentUnitRecords } from '../utils/unitPeriods.js'
 // 用品資料模型：欄位定義、固定選項、狀態計算。
 // 日期一律使用 'YYYY-MM-DD' 字串（本地時間）。
 
@@ -154,8 +155,9 @@ export function daysUntil(dateString, today = toDateString()) {
 
 export function createItem(input = {}) {
   const now = new Date().toISOString()
-  return {
+  return migrateUnitPeriods({
     id: input.id ?? generateId(),
+    unitPeriodId: input.unitPeriodId,
     catalogId: typeof input.catalogId === 'string' && input.catalogId ? input.catalogId : null,
     catalogIconInherited: input.catalogIconInherited === true,
     name: input.name ?? '',
@@ -173,6 +175,8 @@ export function createItem(input = {}) {
     lastRestockDate: input.lastRestockDate ?? null,
     inShoppingList: input.inShoppingList ?? false,
     shoppingClaimantId: input.shoppingClaimantId ?? null,
+    // Notification claim identity; legacy claims remain unverified until a new operation.
+    shoppingClaimOperationId: typeof input.shoppingClaimOperationId === 'string' ? input.shoppingClaimOperationId : null,
     shoppingCompletedAt: input.shoppingCompletedAt ?? null,
     shoppingCompletedQuantity: input.shoppingCompletedQuantity ?? null,
     shoppingCompletedBy: input.shoppingCompletedBy ?? null,
@@ -185,7 +189,7 @@ export function createItem(input = {}) {
     restockRecords: input.restockRecords ?? [],
     createdAt: input.createdAt ?? now,
     updatedAt: input.updatedAt ?? now,
-  }
+  })
 }
 
 export function createRestockRecord(input = {}) {
@@ -193,6 +197,8 @@ export function createRestockRecord(input = {}) {
     id: input.id ?? generateId(),
     date: input.date ?? toDateString(),
     quantity: input.quantity ?? 1,
+    ...(input.unit ? { unit: input.unit } : {}),
+    ...(input.unitPeriodId ? { unitPeriodId: input.unitPeriodId } : {}),
   }
 }
 
@@ -237,7 +243,7 @@ export function calcNextRestockDateFromRecords(records = [], remindWithinDays = 
 
 // 用品的下次預計補貨日：只看補貨紀錄，不看提醒開關（開關由 getReminderStatus 判斷）。
 export function getNextRestockDate(item, remindWithinDays = REMIND_WITHIN_DAYS) {
-  return calcNextRestockDateFromRecords(item.restockRecords, remindWithinDays)
+  return calcNextRestockDateFromRecords(currentUnitRecords(item), remindWithinDays)
 }
 
 // 最新一筆：日期最晚者；同一天時取較晚新增者（specs/003 DET-04）。
