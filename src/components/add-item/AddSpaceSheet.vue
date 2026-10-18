@@ -155,6 +155,7 @@ h2 { margin: 0; font: 700 17px / normal t.$font-family; }
   border-radius: t.$switch-radius;
   background: transparent;
 }
+.color-field :deep(.color-hint) { display: none; }
 .color-field {
   min-width: 0;
   width: calc(100% + t.$space-16);

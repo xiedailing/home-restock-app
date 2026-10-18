@@ -279,11 +279,11 @@ function clearFilters() {
         <img :src="emptyItemIcon" alt="" />
       </div>
       <div class="empty-copy">
-        <h2>這個空間目前還沒有用品</h2>
+        <h2>這個空間目前沒有紀錄</h2>
       </div>
       <button type="button" class="btn btn-primary empty-add" @click="openAddItem">
         <span class="add-symbol" aria-hidden="true">＋</span>
-        新增用品
+        記錄補貨
       </button>
     </div>
 
