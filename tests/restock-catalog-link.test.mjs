@@ -104,12 +104,12 @@ test('recordRestockBatch resolves space items by catalogId', async t => {
       assert.equal(items.getItemByCatalogId('personal', 'preset:trash-bags'), null)
       assert.ok(items.getItem('p'))
     })
-    await t.test('minimal notifications never seed demos or publish unsupported operations', () => {
+    await t.test('notifications never seed demos or accept unsupported operations', () => {
       const { items } = fresh()
       const notifications = useSharedNotificationsStore()
       assert.equal(notifications.records.length, 0)
       assert.equal('initializeDemo' in notifications, false)
-      for (const type of ['claimed', 'takeover']) notifications.publishMemberEvent({ type,
+      for (const type of ['unknown']) notifications.publishMemberEvent({ type,
         space: items.getSpace('family'), actorId: 'self', actorName: '測試者', itemName: '衛生紙', memberIds: ['self', 'member-1'] })
       assert.equal(notifications.records.length, 0)
       notifications.publishMemberEvent({ type: 'restocked', space: items.getSpace('personal'),
@@ -124,6 +124,8 @@ test('recordRestockBatch resolves space items by catalogId', async t => {
       const notifications = useSharedNotificationsStore()
       const item = items.ensureCatalogItem('family', 'preset:tissues').item
       items.completeRestock(item.id, { date, quantity: 1 })
+      assert.equal(notifications.records.length, 1)
+      notifications.flushPending(Date.now() + 60000)
       const stored = JSON.parse(memory.get(key('shared-notifications'))).data
       assert.equal(stored.records.length, 2)
       assert.equal(stored.demoInitialized, true)
@@ -144,6 +146,8 @@ test('recordRestockBatch resolves space items by catalogId', async t => {
         targets: [{ itemId: linked.id, completionRecordIds: [] }] })
       items.completeRestock(linked.id, { date, quantity: 2 })
       assert.equal(linked.restockRecords.length, 1)
+      assert.equal(notifications.records.filter(entry => entry.type === 'restocked').length, 0)
+      notifications.flushPending(Date.now() + 60000)
       const events = notifications.records.filter(entry => entry.type === 'restocked')
       assert.equal(events.length, 1)
       assert.ok(!events[0].recipientIds.includes('self'))
@@ -173,11 +177,102 @@ test('recordRestockBatch resolves space items by catalogId', async t => {
         { catalogId: 'preset:trash-bags', quantity: 1 },
       ], { spaceId: 'family', date })
       assert.equal(batch.ok, true)
-      assert.equal(notifications.records.filter(entry => entry.type === 'restocked').length, eventCount + 2)
+      assert.equal(notifications.records.filter(entry => entry.type === 'restocked').length, eventCount)
+      assert.equal(notifications.pendingBatches.length, 1)
       assert.equal(item.restockRecords.length, 2)
       batch.undo()
       assert.equal(JSON.stringify(item.restockRecords), before)
       assert.equal(items.getItemByCatalogId('family', 'preset:trash-bags'), null)
+    })
+    await t.test('59-second Undo cancels persistent pending events; restart never replays cancelled records', () => {
+      const { items, catalog } = fresh()
+      const item = items.ensureCatalogItem('family', 'preset:tissues').item
+      const notices = useSharedNotificationsStore()
+      const snapshot = items.snapshotItem(item.id)
+      items.completeRestock(item.id, { date, quantity: 1 })
+      const batch = notices.pendingBatches[0]
+      assert.equal(batch.deadlineAt - batch.firstEventAt, 60000)
+      notices.flushPending(batch.firstEventAt + 59000)
+      assert.equal(notices.records.length, 0)
+      const changed = catalog.updateCatalogItem('preset:tissues', { unit: '箱' }, { confirmUnitChange: true })
+      assert.equal(changed.ok, true)
+      const period = item.unitPeriodId
+      const originalNow = Date.now
+      Date.now = () => batch.firstEventAt + 59000
+      try { items.restoreItem(snapshot) } finally { Date.now = originalNow }
+      assert.equal(item.unit, '箱')
+      assert.equal(item.unitPeriodId, period)
+      assert.equal(notices.pendingBatches.length, 0)
+      notices.$dispose()
+      const reloaded = useSharedNotificationsStore()
+      reloaded.flushPending(batch.deadlineAt)
+      assert.equal(reloaded.records.length, 0)
+      assert.equal(item.restockRecords.length, 0)
+    })
+    await t.test('fixed window merges items, deduplicates replay and survives reload with its deadline', () => {
+      const { items } = fresh()
+      const item = items.ensureCatalogItem('family', 'preset:tissues').item
+      const second = items.ensureCatalogItem('family', 'preset:trash-bags').item
+      const notices = useSharedNotificationsStore()
+      items.completeRestock(item.id, { date, quantity: 1 })
+      const deadline = notices.pendingBatches[0].deadlineAt
+      items.completeRestock(second.id, { date, quantity: 1 })
+      assert.equal(notices.pendingBatches.length, 1)
+      assert.equal(notices.pendingBatches[0].deadlineAt, deadline)
+      notices.publishMemberEvent({ type: 'restocked', space: items.getSpace('family'), actorId: 'self', actorName: '測試',
+        itemId: item.id, recordId: item.restockRecords[0].id, itemName: item.name, memberIds: ['self', 'member-1'] })
+      assert.equal(notices.pendingBatches[0].events.length, 2)
+      notices.$dispose()
+      const reloaded = useSharedNotificationsStore()
+      assert.equal(reloaded.pendingBatches[0].deadlineAt, deadline)
+      reloaded.flushPending(deadline - 1)
+      assert.equal(reloaded.records.length, 0)
+      reloaded.flushPending(deadline)
+      assert.equal(reloaded.records.length, 1)
+      assert.equal(reloaded.records[0].itemIds.length, 2)
+      reloaded.flushPending(deadline + 1000)
+      assert.equal(reloaded.records.length, 1)
+    })
+    await t.test('partial Undo keeps only valid records; failed publication keeps pending and restock data', () => {
+      const { items } = fresh()
+      const item = items.ensureCatalogItem('family', 'preset:tissues').item
+      const second = items.ensureCatalogItem('family', 'preset:trash-bags').item
+      const notices = useSharedNotificationsStore()
+      const snapshot = items.snapshotItem(item.id)
+      items.completeRestock(item.id, { date, quantity: 1 })
+      items.completeRestock(second.id, { date, quantity: 1 })
+      const deadline = notices.pendingBatches[0].deadlineAt
+      items.restoreItem(snapshot)
+      const before = JSON.stringify(items.items)
+      install('localStorage', { ...storage, setItem() { throw new Error('quota') } })
+      assert.equal(notices.flushPending(deadline).ok, false)
+      assert.equal(notices.records.length, 0)
+      assert.equal(notices.pendingBatches.length, 1)
+      assert.equal(JSON.stringify(items.items), before)
+      install('localStorage', storage)
+      notices.flushPending(deadline)
+      assert.deepEqual(notices.records[0].itemIds, [second.id])
+    })
+    await t.test('full app reload publishes overdue pending exactly once using persisted restock records', () => {
+      const { items } = fresh()
+      const item = items.ensureCatalogItem('family', 'preset:tissues').item
+      items.completeRestock(item.id, { date, quantity: 1 })
+      const notices = useSharedNotificationsStore()
+      const deadline = notices.pendingBatches[0].deadlineAt
+      window.dispatchEvent(new Event('pagehide'))
+      for (const store of [...piniaInstances.at(-1)._s.values()]) store.$dispose()
+      const pinia = createPinia(); piniaInstances.push(pinia); setActivePinia(pinia)
+      const originalNow = Date.now
+      Date.now = () => deadline + 100
+      try {
+        const reloadedItems = useItemsStore()
+        const reloaded = useSharedNotificationsStore()
+        assert.equal(reloaded.records.length, 1)
+        assert.equal(reloaded.pendingBatches.length, 0)
+        assert.equal(reloadedItems.getItem(item.id).restockRecords.length, 1)
+        reloaded.$dispose()
+        assert.equal(useSharedNotificationsStore().records.length, 1)
+      } finally { Date.now = originalNow }
     })
     await t.test('restock data errors are not swallowed as notification failures', () => {
       const { items } = fresh()
@@ -225,6 +320,71 @@ test('recordRestockBatch resolves space items by catalogId', async t => {
         assert.notEqual(JSON.stringify(item.restockRecords), before)
         assert.equal(new Set(item.restockRecords.map(record => record.id)).size, 2)
       } finally { console.error = originalError }
+    })
+    await t.test('stale-link repair never persists partial records from a failed batch, including abrupt restart', () => {
+      const { items } = fresh()
+      const a = items.ensureCatalogItem('family', 'preset:tissues').item
+      const b = items.ensureCatalogItem('family', 'preset:trash-bags').item
+      items.updateItem(b.id, { name: '舊名稱', unit: '盒' })
+      window.dispatchEvent(new Event('pagehide'))
+      // The last persisted baseline is captured before any batch mutation.
+      const baseline = JSON.stringify(items.items)
+      const writes = []
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) writes.push(value); storage.setItem(name, value) } })
+      const result = items.recordRestockBatch([{ catalogId: 'preset:tissues', quantity: 1 },
+        { catalogId: 'preset:trash-bags', quantity: 1 }, { catalogId: 'missing', quantity: 1 }], { spaceId: 'family', date })
+      assert.equal(result.ok, false)
+      assert.equal(JSON.stringify(items.items), baseline)
+      assert.equal(writes.length, 0)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === a.id).restockRecords.length, 0)
+      const disk = new Map(memory)
+      for (const p of piniaInstances) for (const store of p._s.values()) store.$dispose()
+      memory.clear(); for (const [name, value] of disk) memory.set(name, value)
+      const p = createPinia(); piniaInstances.push(p); setActivePinia(p)
+      assert.equal(useItemsStore().getItem(a.id).restockRecords.length, 0)
+    })
+    await t.test('batch commit write failure restores existing and newly created items with no notifications', () => {
+      const { items } = fresh()
+      const before = JSON.stringify(items.items)
+      const disk = memory.get(key('items'))
+      const notices = useSharedNotificationsStore()
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) throw new Error('quota'); storage.setItem(name, value) } })
+      const result = items.recordRestockBatch([{ catalogId: 'preset:tissues', quantity: 1 },
+        { catalogId: 'preset:trash-bags', quantity: 2 }], { spaceId: 'family', date })
+      assert.equal(result.ok, false)
+      assert.equal(result.error.code, 'STORAGE_FAILED')
+      assert.equal(JSON.stringify(items.items), before)
+      assert.equal(memory.get(key('items')), disk)
+      assert.equal(notices.pendingBatches.length, 0)
+      install('localStorage', storage)
+    })
+    await t.test('successful batch writes only whole batches and is durable before notification delivery', () => {
+      const { items } = fresh()
+      const a = items.ensureCatalogItem('family', 'preset:tissues').item
+      const b = items.ensureCatalogItem('family', 'preset:trash-bags').item
+      items.updateItem(b.id, { name: '過時名稱' })
+      const counts = []
+      install('localStorage', { ...storage, setItem(name, value) {
+        if (name === key('items')) { const all = JSON.parse(value).data.items; counts.push([a.id, b.id].map(id => all.find(item => item.id === id).restockRecords.length)) }
+        storage.setItem(name, value)
+      } })
+      const result = items.recordRestockBatch([{ catalogId: 'preset:tissues', quantity: 1 },
+        { catalogId: 'preset:trash-bags', quantity: 2 }], { spaceId: 'family', date })
+      assert.equal(result.ok, true)
+      assert.ok(counts.length > 0)
+      assert.ok(counts.every(([first, second]) => first === 1 && second === 1))
+      const before = JSON.stringify(items.items)
+      const disk = memory.get(key('items'))
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) throw new Error('quota'); storage.setItem(name, value) } })
+      assert.equal(result.undo().ok, false)
+      assert.equal(JSON.stringify(items.items), before)
+      assert.equal(memory.get(key('items')), disk)
+      install('localStorage', storage)
+      assert.equal(result.undo().ok, true)
+      assert.equal(items.getItem(a.id).restockRecords.length, 0)
+      assert.equal(items.getItem(b.id).restockRecords.length, 0)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === a.id).restockRecords.length, 0)
+      assert.equal(result.undo().ok, false)
     })
 
   } finally {

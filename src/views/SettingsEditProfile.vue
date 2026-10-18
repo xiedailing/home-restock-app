@@ -41,7 +41,7 @@ const nameCount = computed(() => {
 })
 const nameInput = ref(null)
 let enterCount = 0
-const { toast, showToast: showNotice } = useToast()
+const { toast, showToast: showNotice } = useToast({ duration: 8000, pauseOnInteraction: true })
 async function editName() {
   name.value = profile.name
   error.value = ''

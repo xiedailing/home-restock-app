@@ -2,7 +2,7 @@
 import AppToast from '../components/AppToast.vue'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
+import SharedNotificationsMenu from '../components/SharedNotificationsMenu.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import { SHOPPING_COMPLETED_KEEP_MS, useItemsStore } from '../stores/items'
 import { getSpaceColor, formatSpaceLabel } from '../models/space'
@@ -12,7 +12,7 @@ import shoppingListEmpty from '../assets/household-icons-by-state/empty-states/s
 import { profile } from '../stores/profile'
 import { getItemIconSrc } from '../assets/household-icons-by-state'
 const store = useItemsStore()
-const { toast, showToast, hideToast, runUndo } = useToast()
+const { toast, showToast, hideToast, runUndo } = useToast({ duration: 8000, pauseOnInteraction: true })
 function completeItem(item) {
   if (item.shoppingCompletedAt != null) {
     store.reopenShoppingItem(item.id)
@@ -55,6 +55,10 @@ const expandedItems = computed({
     else sharedExpandedItems.value = value
   },
 })
+function toggleCard(event, id) {
+  if (event.target.closest('button, input, a, select, textarea, label, .item-controls')) return
+  toggleItem(id)
+}
 function toggleItem(id) {
   expandedItems.value = expandedItems.value.includes(id) ? expandedItems.value.filter(value => value !== id) : [...expandedItems.value, id]
 }
@@ -72,16 +76,18 @@ const route = useRoute()
 const fromSharedItem = route.query.tab === 'shared'
 const selectedSpace = ref(fromSharedItem && store.getSpace(route.query.space)?.shared ? route.query.space : '')
 const activeTab = ref(fromSharedItem ? 'shared' : 'personal')
+watch(() => [route.query.tab, route.query.space], ([tab, space]) => {
+  if (tab !== 'shared') return
+  activeTab.value = 'shared'
+  selectedSpace.value = store.getSpace(space)?.shared ? space : ''
+})
 const personalItems = computed(() => store.shoppingList.filter(item => !store.getSpace(item.spaceId)?.shared))
 const allSharedItems = computed(() => store.items.filter(item => (item.inShoppingList || item.shoppingCompletedAt != null) && store.getSpace(item.spaceId)?.shared))
 const sharedItems = computed(() => allSharedItems.value.filter(item => !selectedSpace.value || selectedSpace.value === item.spaceId))
 const pendingSharedSpaces = computed(() => store.sharedSpaces.filter(space => allSharedItems.value.some(item => item.spaceId === space.id && item.inShoppingList)))
 watch(pendingSharedSpaces, spaces => { if (selectedSpace.value && !spaces.some(space => space.id === selectedSpace.value)) selectedSpace.value = '' })
 function claimOperation(item, takeOver = false) {
-  const before = item.shoppingClaimantId
-  if (takeOver) store.takeOverShoppingClaim(item.id)
-  else store.claimShoppingItem(item.id)
-  return before !== 'self' && item.shoppingClaimantId === 'self' ? { id: item.id, before: { shoppingClaimantId: before }, after: { shoppingClaimantId: 'self' } } : null
+  return takeOver ? store.takeOverShoppingClaim(item.id) : store.claimShoppingItem(item.id)
 }
 const showClaimAll = computed(() => activeTab.value === 'shared' && unclaimedSpaceItems.value.length > 0)
 const unclaimedSpaceItems = computed(() => sharedItems.value.filter(item => item.inShoppingList && !item.shoppingClaimantId))
@@ -100,7 +106,7 @@ function confirmClaimAll() {
     return item && (!request.spaceId || item.spaceId === request.spaceId) && item.inShoppingList && !item.shoppingClaimantId ? claimOperation(item) : null
   }).filter(Boolean)
   sharedExpandedItems.value = sharedExpandedItems.value.filter(id => !request.ids.includes(id))
-  if (operations.length) showToast(`已認購「${request.name}」的 ${operations.length}項用品`)
+  if (operations.length) showToast(`已認領「${request.name}」的 ${operations.length}項用品`)
   claimAllDialog.value.close()
 }
 function sharedSpaceCount(id) { return allSharedItems.value.filter(item => item.spaceId === id).length }
@@ -109,12 +115,12 @@ const claimedItems = computed(() => allSharedItems.value.filter(item => item.inS
 const completedItems = computed(() => store.items.filter(item => item.shoppingCompletedAt != null && item.shoppingCompletedBy === 'self'))
 const personalGroups = computed(() => [
   { id: 'pending', title: hasSharedSpace.value ? '個人待買' : '待補貨', items: personalItems.value },
-  ...(hasSharedSpace.value ? [{ id: 'claimed', title: '共享認購', items: claimedItems.value }] : []),
+  ...(hasSharedSpace.value ? [{ id: 'claimed', title: '共享認領', items: claimedItems.value }] : []),
   { id: 'completed', title: '已購買', items: completedItems.value },
 ].filter(group => group.items.length))
 const sharedGroups = computed(() => [
-  { id: 'shared-pending', title: '待認購', items: sharedItems.value.filter(item => item.inShoppingList && !item.shoppingClaimantId) },
-  { id: 'shared-claimed', title: '已認購', items: sharedItems.value.filter(item => item.inShoppingList && item.shoppingClaimantId) },
+  { id: 'shared-pending', title: '待認領', items: sharedItems.value.filter(item => item.inShoppingList && !item.shoppingClaimantId) },
+  { id: 'shared-claimed', title: '已認領', items: sharedItems.value.filter(item => item.inShoppingList && item.shoppingClaimantId) },
   { id: 'shared-completed', title: '已購買', items: sharedItems.value.filter(item => item.shoppingCompletedAt != null) },
 ].filter(group => group.items.length))
 const hasMyItems = computed(() => personalGroups.value.some(group => group.items.length))
@@ -148,13 +154,13 @@ function claimItem(item, takeOver = false) {
   claimOperation(item, takeOver)
   if (previousClaimant !== 'self' && item.shoppingClaimantId === 'self') {
     if (!previousClaimant) sharedExpandedItems.value = sharedExpandedItems.value.filter(id => id !== item.id)
-    showToast(`已${takeOver ? '接手認購' : '認購'}「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`)
+    showToast(`已${takeOver ? '接手認領' : '認領'}「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`)
   }
 }
 function cancelClaim(item) {
   const operation = store.cancelShoppingClaim(item.id)
   if (operation) {
-    showToast(`已取消認購「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`, () => store.undoShoppingOperation(operation))
+    showToast(`已取消認領「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`, () => store.undoShoppingOperation(operation))
     collapsedGroups.value = collapsedGroups.value.filter(id => id !== 'shared-pending')
   }
 }
@@ -210,15 +216,15 @@ onMounted(() => { scheduleExpiry(); document.addEventListener('visibilitychange'
 onBeforeUnmount(() => { clearTimeout(expiryTimer); document.removeEventListener('visibilitychange', scheduleExpiry) })
 function claimStatus(item) {
   if (item.shoppingCompletedAt != null) return '已補貨'
-  if (!item.shoppingClaimantId) return '尚未認購'
+  if (!item.shoppingClaimantId) return '尚未認領'
   const name = item.shoppingClaimantId === 'self' ? profile.name : store.getSpaceMembers(item.spaceId).find(member => member.id === item.shoppingClaimantId)?.name || '成員'
-  return `${name}已認購`
+  return `${name}已認領`
 }
 const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '垃圾袋': 'trash-bags', '洗碗精': 'dish-soap', '狗狗糧食': 'dog-food' }
 </script>
 <template>
   <section class="shopping-page" aria-labelledby="shopping-title">
-    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title">購買清單</h1></div><ProfileAvatarMenu :to="{ name: 'edit-profile', query: { from: 'shopping' } }" /></header>
+    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title">購買清單</h1></div><SharedNotificationsMenu /></header>
     <div class="shopping-tabs" role="tablist" aria-label="購買清單類型">
       <button id="personal-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'personal'" aria-controls="personal-shopping-panel" @click="activeTab = 'personal'">我的清單</button>
       <button id="shared-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'shared'" aria-controls="shared-shopping-panel" @click="activeTab = 'shared'">共享清單</button>
@@ -231,7 +237,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <p v-if="group.id === 'completed'" class="completed-group-hint">24 小時後移出購買清單</p>
           <Transition name="group-slide" @enter="expandGroup" @leave="collapseGroup" @after-enter="finishGroupAnimation" @after-leave="finishGroupAnimation" @enter-cancelled="finishGroupAnimation" @leave-cancelled="finishGroupAnimation">
           <div v-show="group.id !== 'completed' || !collapsedGroups.includes(group.id)" :id="`shopping-group-${group.id}`" :inert="group.id === 'completed' && collapsedGroups.includes(group.id)"><div class="group-drawer-content">
-            <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card" :class="{ completed: group.id === 'completed', expanded: expandedItems.includes(item.id) }">
+            <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card" :class="{ completed: group.id === 'completed', expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
               <div class="personal-card-summary">
                 <input class="shopping-checkbox" type="checkbox" :checked="group.id === 'completed'"  :aria-label="`${item.name}已補貨`" @change="completeItem(item)" />
                 <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
@@ -242,7 +248,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
                 <div class="item-expand-inner" :id="`item-controls-${item.id}`">
                   <div class="item-controls">
                     <div class="quantity-field"><span>補貨數量</span><div class="quantity-stepper"><button type="button" :disabled="item.shoppingCompletedAt != null || (item.quantity ?? 1) <= 1" :aria-label="`減少${item.name}補貨數量`" @click="changeQuantity(item, -1)">−</button><span class="quantity-value">{{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} <small>{{ item.unit }}</small></span><button type="button" :disabled="item.shoppingCompletedAt != null" :aria-label="`增加${item.name}補貨數量`" @click="changeQuantity(item, 1)">+</button></div></div>
-                    <button v-if="group.id === 'claimed'" type="button" class="btn claim-button cancel-claim-button personal-cancel-claim" @click="requestClaimChange(item, 'cancel')"><i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>取消認購</button>
+                    <button v-if="group.id === 'claimed'" type="button" class="btn claim-button cancel-claim-button personal-cancel-claim" @click="requestClaimChange(item, 'cancel')"><i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>取消認領</button>
                     <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
                   </div>
                 </div>
@@ -260,13 +266,13 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
         <button v-for="space in pendingSharedSpaces" :key="space.id" type="button" :aria-pressed="selectedSpace === space.id" :style="{ '--space-color': getSpaceColor(space.color).dark }" :title="space.name" @click="selectedSpace = space.id">{{ formatSpaceLabel(space.name) }} {{ sharedSpaceCount(space.id) }}</button>
       </div>
       <section v-for="group in sharedGroups" :key="group.id" class="shopping-group">
-        <div v-if="group.id === 'shared-pending'" class="pending-group-heading"><h2>{{ group.title }} {{ group.items.length }}項</h2><button v-if="showClaimAll" type="button" class="claim-all-heading-button" @click="requestClaimAll">全部認購</button></div>
+        <div v-if="group.id === 'shared-pending'" class="pending-group-heading"><h2>{{ group.title }} {{ group.items.length }}項</h2><button v-if="showClaimAll" type="button" class="claim-all-heading-button" @click="requestClaimAll">全部認領</button></div>
         <button v-else-if="group.id === 'shared-completed'" type="button" class="group-heading" :aria-expanded="!collapsedGroups.includes(group.id)" :aria-controls="`shopping-group-${group.id}`" @click="toggleGroup(group.id)"><span>{{ group.title }} {{ group.items.length }}項</span><span aria-hidden="true">{{ collapsedGroups.includes(group.id) ? '+' : '−' }}</span></button>
         <div v-if="group.id === 'shared-claimed'" class="pending-group-heading"><h2>{{ group.title }} {{ group.items.length }}項</h2></div>
         <p v-if="group.id === 'shared-completed'" class="completed-group-hint">24 小時後移出購買清單</p>
         <Transition name="group-slide" @enter="expandGroup" @leave="collapseGroup" @after-enter="finishGroupAnimation" @after-leave="finishGroupAnimation" @enter-cancelled="finishGroupAnimation" @leave-cancelled="finishGroupAnimation">
           <div v-show="group.id !== 'shared-completed' || !collapsedGroups.includes(group.id)" :id="`shopping-group-${group.id}`" :inert="group.id === 'shared-completed' && collapsedGroups.includes(group.id)"><div class="group-drawer-content">
-          <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card shared-card" :class="{ completed: item.shoppingCompletedAt != null, expanded: expandedItems.includes(item.id) }">
+          <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card shared-card" :class="{ completed: item.shoppingCompletedAt != null, expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
             <div class="personal-card-summary">
               <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
               <div class="item-info"><h3>{{ item.name }}</h3><p>{{ store.getSpace(item.spaceId)?.name }}</p><p>補貨數量 {{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
@@ -277,9 +283,9 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
               <div class="item-expand-inner" :id="`shared-item-controls-${item.id}`">
                 <div class="item-controls">
                   <div class="quantity-field"><span>補貨數量</span><div class="quantity-stepper"><button type="button" :disabled="item.shoppingCompletedAt != null || (item.quantity ?? 1) <= 1" :aria-label="`減少${item.name}補貨數量`" @click="changeQuantity(item, -1)">−</button><span class="quantity-value">{{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} <small>{{ item.unit }}</small></span><button type="button" :disabled="item.shoppingCompletedAt != null" :aria-label="`增加${item.name}補貨數量`" @click="changeQuantity(item, 1)">+</button></div></div>
-                  <button v-if="item.inShoppingList && !item.shoppingClaimantId" type="button" class="btn btn-primary claim-button" @click="requestClaimChange(item, 'claim')"><i class="fa-regular fa-circle-check" aria-hidden="true"></i>我要認購</button>
-                  <button v-else-if="item.inShoppingList && item.shoppingClaimantId === 'self'" type="button" class="btn claim-button cancel-claim-button" @click="requestClaimChange(item, 'cancel')"><i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>取消認購</button>
-                  <button v-else-if="item.inShoppingList" type="button" class="btn claim-button takeover-button" @click="requestClaimChange(item, 'takeover')"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>接手認購</button>
+                  <button v-if="item.inShoppingList && !item.shoppingClaimantId" type="button" class="btn btn-primary claim-button" @click="requestClaimChange(item, 'claim')"><i class="fa-regular fa-hand" aria-hidden="true"></i>我要認領</button>
+                  <button v-else-if="item.inShoppingList && item.shoppingClaimantId === 'self'" type="button" class="btn claim-button cancel-claim-button" @click="requestClaimChange(item, 'cancel')"><i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>取消認領</button>
+                  <button v-else-if="item.inShoppingList" type="button" class="btn claim-button takeover-button" @click="requestClaimChange(item, 'takeover')"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>接手認領</button>
                   <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
                 </div>
               </div>
@@ -293,14 +299,14 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
   </section>
   <Teleport to="body">
     <dialog ref="restockAllDialog" class="shopping-delete-dialog" aria-labelledby="restock-all-title" @click="event => { if (event.target === restockAllDialog) restockAllDialog.close() }" @close="restockAllIds = []"><form @submit.prevent="confirmRestockAll"><h2 id="restock-all-title">全部補貨？</h2><p>將 {{ restockAllIds.length }} 項用品標記為已補貨。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="restockAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">已購買</button></div></form></dialog>
-    <dialog ref="claimAllDialog" class="shopping-delete-dialog" aria-labelledby="claim-all-title" @click="event => { if (event.target === claimAllDialog) claimAllDialog.close() }" @close="claimAllRequest = null"><form @submit.prevent="confirmClaimAll"><h2 id="claim-all-title">全部認購 {{ claimAllRequest?.ids.length }} 項？</h2><p>將認購「{{ claimAllRequest?.name }}」中的{{ claimAllRequest?.ids.length }}項用品。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">認購</button></div></form></dialog>
+    <dialog ref="claimAllDialog" class="shopping-delete-dialog" aria-labelledby="claim-all-title" @click="event => { if (event.target === claimAllDialog) claimAllDialog.close() }" @close="claimAllRequest = null"><form @submit.prevent="confirmClaimAll"><h2 id="claim-all-title">全部認領 {{ claimAllRequest?.ids.length }} 項？</h2><p>將認領「{{ claimAllRequest?.name }}」中的{{ claimAllRequest?.ids.length }}項用品。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">認領</button></div></form></dialog>
     <dialog ref="claimDialog" class="shopping-delete-dialog" aria-labelledby="claim-change-title" @click="event => { if (event.target === claimDialog) claimDialog.close() }" @close="pendingClaim = null">
       <form @submit.prevent="confirmClaimChange">
-        <h2 id="claim-change-title">{{ pendingClaim?.action === 'cancel' ? '取消認購？' : pendingClaim?.action === 'takeover' ? '接手認購？' : '認購用品？' }}</h2>
+        <h2 id="claim-change-title">{{ pendingClaim?.action === 'cancel' ? '取消認領？' : pendingClaim?.action === 'takeover' ? '接手認領？' : '認領用品？' }}</h2>
         <p v-if="pendingClaim?.action === 'takeover'">確定要接手「{{ store.getSpace(pendingClaimItem?.spaceId)?.name || '未指定空間' }}」的{{ pendingClaimItem?.name }}嗎？</p>
-        <p v-else-if="pendingClaim?.action === 'cancel'">確定要取消「{{ store.getSpace(pendingClaimItem?.spaceId)?.name || '未指定空間' }}」的{{ pendingClaimItem?.name }}認購嗎？</p>
-        <p v-else>確定要認購「{{ pendingClaimItem?.name }}」嗎？</p>
-        <div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimDialog.close()">取消</button><button type="submit" class="btn" :class="pendingClaim?.action === 'cancel' ? 'btn-danger' : 'btn-primary'">{{ pendingClaim?.action === 'cancel' ? '取消認購' : pendingClaim?.action === 'takeover' ? '接手認購' : '認購' }}</button></div>
+        <p v-else-if="pendingClaim?.action === 'cancel'">確定要取消「{{ store.getSpace(pendingClaimItem?.spaceId)?.name || '未指定空間' }}」的{{ pendingClaimItem?.name }}認領嗎？</p>
+        <p v-else>確定要認領「{{ pendingClaimItem?.name }}」嗎？</p>
+        <div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimDialog.close()">取消</button><button type="submit" class="btn" :class="pendingClaim?.action === 'cancel' ? 'btn-danger' : 'btn-primary'">{{ pendingClaim?.action === 'cancel' ? '取消認領' : pendingClaim?.action === 'takeover' ? '接手認領' : '認領' }}</button></div>
       </form>
     </dialog>
     <dialog ref="deleteDialog" class="shopping-delete-dialog" aria-labelledby="shopping-delete-title" aria-describedby="shopping-delete-message" @click="event => { if (event.target === deleteDialog) deleteDialog.close() }" @close="pendingRemovalId = null">

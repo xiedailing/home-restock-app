@@ -12,7 +12,7 @@ import { useItemsStore } from '../stores/items'
 import { DEFAULT_SPACE_ID, STATUS, getStatusMarks } from '../models/item'
 import { getItemCategory } from '../models/itemCategories'
 import BrandLogo from '../components/BrandLogo.vue'
-import ProfileAvatarMenu from '../components/ProfileAvatarMenu.vue'
+import SharedNotificationsMenu from '../components/SharedNotificationsMenu.vue'
 import { deleteItemTitle, deleteItemMessage } from '../utils/deleteCopy.js'
 import emptyItemIcon from '../assets/household-icons-by-state/common/generic-item-in-shopping-list-plain.svg'
 
@@ -239,7 +239,7 @@ function clearFilters() {
             />
           </div>
         </div>
-        <ProfileAvatarMenu :to="{ name: 'edit-profile' }" />
+        <SharedNotificationsMenu />
       </header>
 
       <template v-if="items.length">

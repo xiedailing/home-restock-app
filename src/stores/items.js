@@ -1,13 +1,15 @@
+import { migrateUnitPeriods, currentUnitRecords, undoItemChange } from '../utils/unitPeriods.js'
 import { computed, ref, shallowRef, toRaw, watch, onScopeDispose } from 'vue'
-import { defineStore } from 'pinia'
+import { defineStore, getActivePinia } from 'pinia'
 import { useCatalogStore } from './catalog'
-import { migrateCatalogLinks, assertCatalogLinkUnique, catalogLinkError, normalizeCatalogName } from '../utils/catalogLinks.js'
+import { migrateCatalogLinks, assertCatalogLinkUnique, catalogLinkError, normalizeCatalogName, planLinkedCatalogRefresh } from '../utils/catalogLinks.js'
 import { isValidInviteCode } from '../utils/inviteCode'
+import { validateCategoryName as checkCategoryName } from '../utils/categoryNames.js'
 import { generateId } from '../utils/id.js'
 import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 import { avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 import { profile } from './profile'
-import { useSharedNotificationsStore } from './sharedNotifications'
+import { useSharedNotificationsStore, registerRestockNotificationSource, reconcileRestockNotifications } from './sharedNotifications'
 import { useNotificationSettingsStore } from './notificationSettings'
 import { SYSTEM_CATEGORIES, PRESET_ITEMS, getItemCategory } from '../models/itemCategories'
 import { SPACE_COLORS, limitSpaceName } from '../models/space'
@@ -70,7 +72,10 @@ function loadSavedState() {
 export const useItemsStore = defineStore('items', () => {
   const saved = loadSavedState()
   const demo = saved ? null : createDemoState()
-  const items = ref(saved?.items ?? demo.items)
+  const originalItems = saved?.items ?? demo.items
+  const normalizedItems = originalItems.map(migrateUnitPeriods)
+  const needsUnitSave = JSON.stringify(originalItems) !== JSON.stringify(normalizedItems)
+  const items = ref(normalizedItems)
   const customCategories = ref(saved?.customCategories ?? [])
   const spaces = ref(saved?.spaces ?? demo.spaces)
   // 一次性新增共享清單展示用品；使用者之後刪除時不再自動補回。
@@ -92,14 +97,16 @@ export const useItemsStore = defineStore('items', () => {
   const systemCategoryCounts = computed(() => SYSTEM_CATEGORIES.map(name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length })))
   const customCategoryCounts = computed(() => {
     const names = new Set([...customCategories.value, ...items.value.map(getItemCategory).filter(name => name && !SYSTEM_CATEGORIES.includes(name))])
-    return Array.from(names, name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length }))
+    return Array.from(names).filter(name => customCategories.value.includes(name) || !catalog.deletedCategories.includes(name)).map(name => ({ name, count: items.value.filter(item => getItemCategory(item) === name).length }))
   })
-  const categoryOptions = computed(() => [...SYSTEM_CATEGORIES, ...customCategoryCounts.value.map(category => category.name)])
+  const categoryOptions = computed(() => [...new Set([...SYSTEM_CATEGORIES, ...customCategoryCounts.value.map(category => category.name), ...catalog.allItems.map(item => item.category)])])
+  function validateCategoryName(value) {
+    return checkCategoryName(value, categoryOptions.value)
+  }
   function addCategory(value) {
-    const name = value.trim()
-    if (!name || limitSpaceName(name) !== name) return { ok: false, message: '請輸入最多 8 個中文字或 16 個英文字母的分類名稱。' }
-    if ([...SYSTEM_CATEGORIES, ...customCategoryCounts.value.map(category => category.name)].includes(name)) return { ok: false, message: '已有重複分類名稱' }
-    customCategories.value.push(name)
+    const result = validateCategoryName(value)
+    if (!result.ok) return result
+    customCategories.value.push(result.name)
     return { ok: true }
   }
   function removeCategories(names) {
@@ -181,21 +188,49 @@ export const useItemsStore = defineStore('items', () => {
       assertCatalogLinkUnique(items.value, { ...item, ...changes }, id)
     }
     if (['iconKey', 'iconPhoto', 'iconManual'].some(key => Object.hasOwn(changes, key)) && !Object.hasOwn(changes, 'catalogIconInherited')) changes = { ...changes, catalogIconInherited: false }
+    // A claim identity survives reload, but not cancellation/reclaim or a change of owner.
+    if (Object.hasOwn(changes, 'shoppingClaimantId') && changes.shoppingClaimantId !== item.shoppingClaimantId
+      && !Object.hasOwn(changes, 'shoppingClaimOperationId')) {
+      changes = { ...changes, shoppingClaimOperationId: generateId() }
+    }
     Object.assign(item, changes, { updatedAt: new Date().toISOString() })
+    const snapshot = pendingSnapshots.get(id)
+    if (snapshot) undoSnapshots.set(snapshot, structuredClone(toRaw(item)))
   }
 
   // 與 store 脫鉤的完整複本；toRaw 讓巢狀陣列也不是 Proxy，structuredClone 才不會失敗。
+  const undoSnapshots = new WeakMap()
+  const usedSnapshots = new WeakSet()
+  const pendingSnapshots = new Map()
   function snapshotItem(id) {
     const item = getItem(id)
-    return item ? structuredClone(toRaw(item)) : null
+    if (!item) return null
+    const snapshot = structuredClone(toRaw(item))
+    pendingSnapshots.set(id, snapshot)
+    queueMicrotask(() => { if (pendingSnapshots.get(id) === snapshot) pendingSnapshots.delete(id) })
+    return snapshot
   }
 
-  // 以 snapshotItem 的結果還原整筆用品（各種「復原」共用）。
+  // 以操作前／後差異復原；後續週期或紀錄已改變時不能覆蓋整筆用品。
   function restoreItem(snapshot) {
+    const result = persistItemsOperation(() => restoreItemInMemory(snapshot, false))
+    if (result.ok) { usedSnapshots.add(snapshot); undoSnapshots.delete(snapshot); pendingSnapshots.delete(snapshot.id) }
+    return result
+  }
+  function restoreItemInMemory(snapshot, consume = true) {
+    if (usedSnapshots.has(snapshot)) return
     const item = getItem(snapshot.id)
     if (item) {
       if (snapshot.catalogId !== item.catalogId || snapshot.spaceId !== item.spaceId) assertCatalogLinkUnique(items.value, snapshot, snapshot.id)
-      Object.assign(item, structuredClone(snapshot))
+      const after = undoSnapshots.get(snapshot)
+      // 刪除用品等非紀錄操作仍沿用完整復原；過期週期快照不可覆寫目前單位。
+      if (!after && item.unitPeriodId !== snapshot.unitPeriodId) return
+      const unchangedSinceOperation = after && JSON.stringify(item) === JSON.stringify(after)
+      const restored = after && !unchangedSinceOperation ? undoItemChange(structuredClone(toRaw(item)), snapshot, after) : structuredClone(snapshot)
+      if (after && !unchangedSinceOperation) restored.lastRestockDate = getLatestRecord(restored.restockRecords)?.date ?? null
+      for (const key of Object.keys(item)) if (!Object.hasOwn(restored, key)) delete item[key]
+      Object.assign(item, restored)
+      if (consume) { usedSnapshots.add(snapshot); undoSnapshots.delete(snapshot); pendingSnapshots.delete(item.id) }
     }
   }
 
@@ -259,7 +294,7 @@ export const useItemsStore = defineStore('items', () => {
   }
 
   // 套用新的紀錄清單：上次補貨日一律等於最新一筆。下次預計補貨日由紀錄即時推算（specs/009 FR-912），
-  // 任何紀錄的新增、修改、刪除都用全部紀錄重算；預計補貨日因此改變時，舊的延後沒有意義（specs/005 SNZ-04）。
+  // 新增、修改、刪除依目前單位週期重算；預計日因此改變時清除舊的延後（specs/005 SNZ-04）。
   function applyRestockRecords(id, records, extraChanges = {}) {
     const item = getItem(id)
     if (!item) return
@@ -267,9 +302,14 @@ export const useItemsStore = defineStore('items', () => {
     const restockRecords = records.map((record) => ({ ...toRaw(record) }))
     const changes = { restockRecords, lastRestockDate: getLatestRecord(restockRecords)?.date ?? null, ...extraChanges }
     const before = getNextRestockDate(item, remindWithinDays.value)
-    const after = getNextRestockDate({ restockRecords }, remindWithinDays.value)
+    const after = getNextRestockDate({ ...item, restockRecords, ...extraChanges }, remindWithinDays.value)
     if (before !== after) changes.snoozedUntil = null
     updateItem(id, changes)
+    const snapshot = pendingSnapshots.get(id)
+    if (snapshot) {
+      undoSnapshots.set(snapshot, structuredClone(toRaw(item)))
+      pendingSnapshots.delete(id)
+    }
   }
 
   // 001 FR-003：新增紀錄、移出購買清單並清除待買數量。
@@ -277,7 +317,7 @@ export const useItemsStore = defineStore('items', () => {
     const item = getItem(id)
     if (!item) return
     clearShoppingCompletion(id)
-    applyRestockRecords(id, [...item.restockRecords, createRestockRecord({ date, quantity })], {
+    applyRestockRecords(id, [...item.restockRecords, createRestockRecord({ date, quantity, unit: item.unit, unitPeriodId: item.unitPeriodId })], {
       inShoppingList: false,
       quantity: null,
       addedToShoppingListDate: null,
@@ -287,7 +327,7 @@ export const useItemsStore = defineStore('items', () => {
     })
     const recordId = item.restockRecords.at(-1).id
     const deliver = () => {
-      runRestockNotification('publish', item, recordId, () => notifySharedOperation(item, 'restocked'))
+      runRestockNotification('publish', item, recordId, () => notifySharedOperation(item, 'restocked', recordId))
       runRestockNotification('track-completion', item, recordId, () => useSharedNotificationsStore().trackRestockCompletion(id, recordId))
     }
     if (notificationQueue) notificationQueue.push(deliver)
@@ -296,7 +336,7 @@ export const useItemsStore = defineStore('items', () => {
 
   // 僅隔離通知副作用；補貨資料與推算錯誤仍由原流程處理，不可吞掉。
   function runRestockNotification(operation, item, recordId, deliver) {
-    try { deliver() }
+    try { return deliver() }
     catch (error) {
       console.error('[restock-notification] Notification failed after restock', {
         operation, itemId: item.id, spaceId: item.spaceId, recordId, error,
@@ -304,11 +344,55 @@ export const useItemsStore = defineStore('items', () => {
     }
   }
 
-  function notifySharedOperation(item, type) {
+  function notifySharedOperation(item, type, recordId, operationId) {
     const space = getSpace(item.spaceId)
     if (!space?.shared) return
+    // Persist the source operation before its pending notification, so immediate reload can verify it.
+    if (!savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot())) throw new Error('無法保存通知來源操作，未建立待發送通知。')
     useSharedNotificationsStore().publishMemberEvent({ type, space, actorId: 'self', actorName: profile.name,
-      itemName: item.name, memberIds: getSpaceMembers(space.id).map(member => member.id) })
+      itemName: item.name, itemId: item.id, recordId, operationId, memberIds: getSpaceMembers(space.id).map(member => member.id) })
+  }
+
+  let itemsTransactionDepth = 0
+  function persistItemsOperation(change) {
+    const refs = [...items.value]
+    const before = refs.map(item => structuredClone(toRaw(item)))
+    const completions = new Map(shoppingCompletionOperations)
+    itemsTransactionDepth++
+    let result
+    try {
+      result = change()
+      if (result?.ok === false) throw Object.assign(new Error(result.error?.message || '用品操作失敗。'), result.error)
+      if (!savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot())) {
+        throw Object.assign(new Error('用品資料儲存失敗，操作未套用。'), { code: 'STORAGE_FAILED' })
+      }
+    } catch (error) {
+      refs.forEach((item, index) => {
+        for (const key of Object.keys(item)) if (!Object.hasOwn(before[index], key)) delete item[key]
+        Object.assign(item, before[index])
+      })
+      items.value = refs
+      shoppingCompletionOperations.clear()
+      for (const [id, operation] of completions) shoppingCompletionOperations.set(id, operation)
+      console.error('[items-operation] Rolled back before notification processing', error)
+      return { ok: false, error: { code: error.code || 'OPERATION_FAILED', message: error.message } }
+    } finally { itemsTransactionDepth-- }
+    reconcileRestockNotifications(notificationPinia)
+    return { ok: true, value: result }
+  }
+
+  function recordRestockBatch(entries, options) {
+    const transaction = persistItemsOperation(() => buildRestockBatch(entries, options))
+    if (!transaction.ok) return transaction
+    const batch = transaction.value
+    batch.deliver()
+    let undone = false
+    return { ok: true, results: batch.results, undo() {
+      if (undone) return { ok: false, error: { code: 'UNDO_UNAVAILABLE', message: '此操作已復原。' } }
+      const restored = persistItemsOperation(batch.undo)
+      if (restored.ok) undone = true
+      return restored.ok ? { ok: true } : restored
+    } }
   }
 
   // specs/009 FR-907：補貨頁一次記錄多個用品。每項以 (空間, catalogId) 呼叫 ensureCatalogItem
@@ -318,7 +402,7 @@ export const useItemsStore = defineStore('items', () => {
   // 任一項失敗時，先復原已處理的項目，回傳 { ok: false, error }，整批都不記錄。
 
   // entries：[{ catalogId, quantity }]
-  function recordRestockBatch(entries, { spaceId, date }) {
+  function buildRestockBatch(entries, { spaceId, date }) {
     // 共享清單的認領規則（UT-40、FR-915）：有任何一項已被他人認領就整批不記錄；先於任何寫入與通知。
     for (const entry of entries) {
       let existing = null
@@ -329,15 +413,23 @@ export const useItemsStore = defineStore('items', () => {
       }
     }
     const createdIds = []
+    const createdAfter = new Map()
     const snapshots = []
     const results = []
     const notificationQueue = []
     function undo() {
-      for (const snapshot of snapshots) restoreItem(snapshot)
-      if (createdIds.length) items.value = items.value.filter((item) => !createdIds.includes(item.id))
+      for (const snapshot of snapshots) restoreItemInMemory(snapshot, false)
+      for (const id of createdIds) {
+        const item = getItem(id)
+        const result = results.find(result => result.id === id)
+        if (!item || !result) continue
+        const records = item.restockRecords.filter(record => record.id !== result.recordId)
+        if (!records.length && JSON.stringify(item) === createdAfter.get(id)) items.value = items.value.filter(entry => entry.id !== id)
+        else applyRestockRecords(id, records)
+      }
     }
     for (const entry of entries) {
-      const ensured = ensureCatalogItem(spaceId, entry.catalogId)
+      const ensured = ensureCatalogItem(spaceId, entry.catalogId, { persist: false })
       if (!ensured.ok) {
         undo()
         return { ok: false, error: ensured.error }
@@ -345,11 +437,20 @@ export const useItemsStore = defineStore('items', () => {
       const { item, created } = ensured
       if (created) createdIds.push(item.id)
       else snapshots.push(snapshotItem(item.id))
-      const datesBefore = countRecordDates(item.restockRecords)
-      completeRestock(item.id, { date, quantity: entry.quantity }, notificationQueue)
-      const datesAfter = countRecordDates(getItem(item.id).restockRecords)
+      const datesBefore = countRecordDates(currentUnitRecords(item))
+      try { completeRestock(item.id, { date, quantity: entry.quantity }, notificationQueue) }
+      catch (error) {
+        // 尚未加入 results 的新用品也必須移除；既有用品透過 snapshot 復原。
+        if (created) items.value = items.value.filter(current => current.id !== item.id)
+        undo()
+        return { ok: false, error: { code: error.code || 'RESTOCK_FAILED', message: error.message } }
+      }
+      if (created) createdAfter.set(item.id, JSON.stringify(item))
+      const datesAfter = countRecordDates(currentUnitRecords(getItem(item.id)))
       results.push({
         id: item.id,
+        recordId: item.restockRecords.at(-1).id,
+        unitPeriodId: item.unitPeriodId,
         name: item.name,
         unit: item.unit,
         quantity: entry.quantity,
@@ -358,8 +459,7 @@ export const useItemsStore = defineStore('items', () => {
       })
     }
     // 整批成功後才投遞；驗證失敗復原時不留下半批通知。
-    for (const deliver of notificationQueue) deliver()
-    return { ok: true, results, undo }
+    return { ok: true, results, undo, deliver: () => { for (const deliver of notificationQueue) deliver() } }
   }
 
   // 購買清單完成後保留展示 24 小時；用品本身與補貨紀錄不刪除。
@@ -374,7 +474,7 @@ export const useItemsStore = defineStore('items', () => {
       shoppingCompletedBy: null,
     })
   }
-  const shoppingFields = ['inShoppingList', 'quantity', 'addedToShoppingListDate', 'shoppingCompletedAt', 'shoppingCompletedQuantity', 'shoppingCompletedBy', 'shoppingClaimantId']
+  const shoppingFields = ['shoppingClaimOperationId', 'inShoppingList', 'quantity', 'addedToShoppingListDate', 'shoppingCompletedAt', 'shoppingCompletedQuantity', 'shoppingCompletedBy', 'shoppingClaimantId']
   // 預計補貨日由紀錄推算、不儲存，復原時只需還原延後設定。
   const restockReminderFields = ['snoozedUntil']
   function pickShoppingFields(item, fields) {
@@ -386,20 +486,33 @@ export const useItemsStore = defineStore('items', () => {
     if (!item) return
     // 舊 Toast 的復原也必須失效，不能只刪除 Map 與存檔。
     if (operation.recordId && item.shoppingCompletionOperation?.recordId !== operation.recordId) return
+    if (!operation.recordId && (!Object.hasOwn(operation.after, 'shoppingClaimOperationId')
+      || item.shoppingClaimOperationId !== operation.after.shoppingClaimOperationId)) return { ok: false, error: { code: 'STALE_OPERATION', message: '此操作已失效，無法復原。' } }
     const changes = {}
     for (const key of Object.keys(operation.before)) {
       // 後續操作已改過的欄位保留，不以舊值覆蓋。
       if (Object.is(item[key], operation.after[key])) changes[key] = operation.before[key]
     }
-    if (operation.recordId) {
-      const records = item.restockRecords.filter(record => record.id !== operation.recordId)
-      applyRestockRecords(item.id, records, changes)
-      shoppingCompletionOperations.delete(item.id)
-      updateItem(item.id, { shoppingCompletionOperation: null })
-    } else {
-      updateItem(item.id, changes)
+    const result = persistItemsOperation(() => {
+      if (operation.recordId) {
+        const records = item.restockRecords.filter(record => record.id !== operation.recordId)
+        applyRestockRecords(item.id, records, changes)
+        shoppingCompletionOperations.delete(item.id)
+        updateItem(item.id, { shoppingCompletionOperation: null })
+      } else updateItem(item.id, changes)
+    })
+    if (!result.ok) return result
+    if (!operation.recordId) {
+      if (changes.shoppingClaimantId === 'self' && operation.notificationUndo) {
+        runRestockNotification('undo-cancel-claim', item, null, operation.notificationUndo)
+      }
+      if (Object.hasOwn(changes, 'shoppingClaimantId') && changes.shoppingClaimantId !== 'self') {
+        runRestockNotification('undo-claim', item, null, () => useSharedNotificationsStore().cancelMemberEvents({ itemId: item.id, actorId: 'self', spaceId: item.spaceId }))
+      }
     }
+    return { ok: true }
   }
+
   function completeShoppingItem(id, completedAt = Date.now()) {
     const item = getItem(id)
     if (!item?.inShoppingList) return
@@ -448,20 +561,31 @@ export const useItemsStore = defineStore('items', () => {
   function claimShoppingItem(id) {
     const item = getItem(id)
     if (!item?.inShoppingList || !getSpace(item.spaceId)?.shared || item.shoppingClaimantId) return
+    const before = pickShoppingFields(item, ['shoppingClaimantId', 'shoppingClaimOperationId'])
     updateItem(id, { shoppingClaimantId: 'self' })
+    const operation = { id, operationId: item.shoppingClaimOperationId, before, after: pickShoppingFields(item, ['shoppingClaimantId', 'shoppingClaimOperationId']) }
+    runRestockNotification('claim', item, null, () => notifySharedOperation(item, 'claimed', null, item.shoppingClaimOperationId))
+    return operation
   }
 
   function cancelShoppingClaim(id) {
     const item = getItem(id)
     if (!item?.inShoppingList || item.shoppingClaimantId !== 'self' || !getSpace(item.spaceId)?.shared) return
-    updateItem(id, { shoppingClaimantId: null })
-    return { id, before: { shoppingClaimantId: 'self' }, after: { shoppingClaimantId: null } }
+    const claimOperationId = item.shoppingClaimOperationId
+    const saved = persistItemsOperation(() => updateItem(id, { shoppingClaimantId: null }))
+    if (!saved.ok) return null
+    const cancellation = runRestockNotification('cancel-claim', item, null, () => useSharedNotificationsStore().cancelMemberEvents({ itemId: id, actorId: 'self', spaceId: item.spaceId }))
+    return { id, operationId: item.shoppingClaimOperationId, before: { shoppingClaimantId: 'self', shoppingClaimOperationId: claimOperationId }, after: { shoppingClaimantId: null, shoppingClaimOperationId: item.shoppingClaimOperationId }, notificationUndo: cancellation?.undo }
   }
 
   function takeOverShoppingClaim(id) {
     const item = getItem(id)
     if (!item?.inShoppingList || !item.shoppingClaimantId || item.shoppingClaimantId === 'self' || !getSpace(item.spaceId)?.shared) return
+    const before = pickShoppingFields(item, ['shoppingClaimantId', 'shoppingClaimOperationId'])
     updateItem(id, { shoppingClaimantId: 'self' })
+    const operation = { id, operationId: item.shoppingClaimOperationId, before, after: pickShoppingFields(item, ['shoppingClaimantId', 'shoppingClaimOperationId']) }
+    runRestockNotification('takeover', item, null, () => notifySharedOperation(item, 'takeover', null, item.shoppingClaimOperationId))
+    return operation
   }
 
   function clearExpiredShoppingItems(now = Date.now()) {
@@ -553,6 +677,21 @@ export const useItemsStore = defineStore('items', () => {
     return true
   }
 
+  function rejoinDepartedSpace(index, message) {
+    const entry = departedSpaces.value[index]
+    const plan = planLinkedCatalogRefresh([...items.value, ...entry.items], catalog.allItems, entry.items.map(item => item.id))
+    if (!plan.ok) return { ok: false, code: plan.error.code, message: plan.error.message }
+    const snapshot = catalogPersistenceSnapshot()
+    const next = { ...snapshot, spaces: [...snapshot.spaces, structuredClone(toRaw(entry.space))],
+      items: plan.items, departedSpaces: snapshot.departedSpaces.filter((_, i) => i !== index) }
+    if (!savePersisted(STORE_KEYS.items, next)) return { ok: false, code: 'STORAGE_FAILED', message: '無法儲存空間同步，資料未變更。' }
+    const restoredIds = new Set(entry.items.map(item => item.id))
+    spaces.value.push(entry.space)
+    items.value.push(...plan.items.filter(item => restoredIds.has(item.id)))
+    departedSpaces.value.splice(index, 1)
+    return { ok: true, space: entry.space, message }
+  }
+
   // 展示用邀請碼；正式版可將查詢替換為 API。
   function joinSpaceByCode(code) {
     const normalized = code.trim().toUpperCase()
@@ -569,10 +708,7 @@ export const useItemsStore = defineStore('items', () => {
       if (getSpace('company')) return { ok: false, message: '已經是成員' }
       const departedIndex = departedSpaces.value.findIndex(entry => entry.space.id === 'company')
       if (departedIndex >= 0) {
-        const [entry] = departedSpaces.value.splice(departedIndex, 1)
-        spaces.value.push(entry.space)
-        items.value.push(...entry.items)
-        return { ok: true, space: entry.space, message: '已加入公司空間' }
+        return rejoinDepartedSpace(departedIndex, '已加入公司空間')
       }
       const names = ['小明', '花花', '小美', '阿傑', '小安', '婷婷', '志豪', '雅雯', '柏宇']
       const space = {
@@ -586,10 +722,7 @@ export const useItemsStore = defineStore('items', () => {
     if (getSpace('family')) return { ok: false, message: '已經是成員' }
     const departedIndex = departedSpaces.value.findIndex(entry => entry.space.id === 'family')
     if (departedIndex >= 0) {
-      const [entry] = departedSpaces.value.splice(departedIndex, 1)
-      spaces.value.push(entry.space)
-      items.value.push(...entry.items)
-      return { ok: true, space: entry.space, message: '已加入家庭空間' }
+      return rejoinDepartedSpace(departedIndex, '已加入家庭空間')
     }
     const space = {
       id: 'family', name: '家庭', shared: true, color: 'blue', ownerId: 'member-xiaoming',
@@ -618,13 +751,16 @@ export const useItemsStore = defineStore('items', () => {
   }
   function applyCatalogLinkedItems(nextItems) {
     const byId = new Map(nextItems.map(item => [item.id, item]))
-    const fields = ['catalogId', 'name', 'category', 'iconKey', 'iconPhoto', 'iconManual', 'catalogIconInherited']
+    const fields = ['catalogId', 'name', 'category', 'iconKey', 'iconPhoto', 'iconManual', 'catalogIconInherited', 'unit', 'unitPeriodId', 'restockRecords', 'snoozedUntil']
     for (const item of items.value) {
       const next = byId.get(item.id)
-      if (next) for (const field of fields) if (Object.hasOwn(next, field)) item[field] = next[field]
+      if (next) for (const field of fields) if (Object.hasOwn(next, field)) {
+        if (field === 'restockRecords' && JSON.stringify(item[field]) === JSON.stringify(next[field])) continue
+        item[field] = next[field]
+      }
     }
   }
-  const unregisterBridge = catalog.registerItemsBridge({ snapshot: catalogPersistenceSnapshot, apply: applyCatalogLinkedItems })
+  const unregisterBridge = catalog.registerItemsBridge({ snapshot: catalogPersistenceSnapshot, apply: applyCatalogLinkedItems, applyCategories: names => { customCategories.value = [...names] } })
   onScopeDispose(unregisterBridge)
   function getItemByCatalogId(spaceId, catalogId) {
     if (typeof catalogId !== 'string' || !catalogId) throw catalogLinkError('INVALID_INPUT', '全域用品 ID 無效。')
@@ -632,13 +768,24 @@ export const useItemsStore = defineStore('items', () => {
     if (matches.length > 1) throw catalogLinkError('AMBIGUOUS_CATALOG_LINK', '此空間有多筆相同關聯，請先確認舊資料。')
     return matches[0] ?? null
   }
-  function ensureCatalogItem(spaceId, catalogId) {
+  function ensureCatalogItem(spaceId, catalogId, { persist = true } = {}) {
     if (!getSpace(spaceId)) return { ok: false, error: { code: 'NOT_FOUND', message: '找不到空間。' } }
     const globalItem = catalog.getById(catalogId)
     if (!globalItem) return { ok: false, error: { code: 'NOT_FOUND', message: '找不到全域用品。' } }
     try {
       const existing = getItemByCatalogId(spaceId, catalogId)
-      if (existing) return { ok: true, item: existing, created: false }
+      if (existing) {
+        const plan = planLinkedCatalogRefresh(items.value, catalog.allItems, [existing.id])
+        if (!plan.ok) return plan
+        const refreshed = plan.items.find(item => item.id === existing.id)
+        if (JSON.stringify(refreshed) !== JSON.stringify(existing)) {
+          if (persist && !savePersisted(STORE_KEYS.items, { ...catalogPersistenceSnapshot(), items: plan.items })) {
+            return { ok: false, error: { code: 'STORAGE_FAILED', message: '用品同步儲存失敗，資料未變更。' } }
+          }
+          applyCatalogLinkedItems(plan.items)
+        }
+        return { ok: true, item: existing, created: false }
+      }
       if (items.value.some(item => item.spaceId === spaceId && normalizeCatalogName(item.name) === normalizeCatalogName(globalItem.name))) {
         return { ok: false, error: { code: 'SPACE_NAME_TAKEN', message: '此空間已有同名但未能安全關聯的用品。' } }
       }
@@ -654,9 +801,24 @@ export const useItemsStore = defineStore('items', () => {
     applyCatalogLinkedItems(next)
     return { ok: true }
   }
+  const notificationPinia = getActivePinia()
+  const unregisterNotifications = registerRestockNotificationSource(notificationPinia, { getItem, getSpace, getSpaceMembers,
+    reminderGroups: () => spaces.value.filter(space => space.shared).map(space => ({ space,
+      recipientIds: [...new Set(getSpaceMembers(space.id).map(member => member.id))],
+      items: itemsWithStatus.value.filter(item => item.spaceId === space.id && ['overdue', 'dueSoon'].includes(item.reminderStatus)
+        && !isSnoozed(item, today.value)),
+    })) })
+  onScopeDispose(unregisterNotifications)
+  // Observe only record identity, including removals by single/batch Undo; never mutate restock data here.
+  watch(() => items.value.map(item => [item.id, item.spaceId, Array.isArray(item.restockRecords) ? item.restockRecords.map(record => record?.id) : null]),
+    () => { if (!itemsTransactionDepth) reconcileRestockNotifications(notificationPinia) }, { flush: 'sync' })
+  if (loadPersisted(STORE_KEYS.sharedNotifications)?.pendingBatches?.length) {
+    try { useSharedNotificationsStore().flushPending() }
+    catch (error) { console.error('[restock-notification] Pending recovery failed', error) }
+  }
   const scheduleSave = createDebouncedSaver(() => { persistFailed.value = !savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot()) })
   watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
-  if (needsFamilyAlcoholSeed || needsCatalogSave) scheduleSave()
+  if (needsFamilyAlcoholSeed || needsCatalogSave || needsUnitSave) scheduleSave()
 
   return {
     getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations, getClaimInfo,
@@ -666,6 +828,7 @@ export const useItemsStore = defineStore('items', () => {
     customCategoryCounts,
     categoryOptions,
     addCategory,
+    validateCategoryName,
     removeCategories,
     sharedSpaces,
     moveSpace,

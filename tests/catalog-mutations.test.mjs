@@ -46,7 +46,7 @@ test('Catalog stage 4A edits, overrides and deletions', async t => {
       const first = add(store)
       const second = add(store, '筆記本')
       const order = store.allItems.map(item => item.id)
-      const result = store.updateCatalogItem(first.id, { name: ' 鋼筆 ', category: ' 個人護理 ', unit: ' 盒 ', iconKey: 'tissues', iconPhoto: 'data:image/jpeg;base64,test', iconManual: true })
+      const result = store.updateCatalogItem(first.id, { name: ' 鋼筆 ', category: ' 個人護理 ', unit: ' 盒 ', iconKey: 'tissues', iconPhoto: 'data:image/jpeg;base64,test', iconManual: true }, { confirmUnitChange: true })
       assert.equal(result.ok, true)
       assert.equal(result.item.id, first.id)
       assert.equal(result.item.createdAt, first.createdAt)
@@ -65,7 +65,7 @@ test('Catalog stage 4A edits, overrides and deletions', async t => {
       const store = fresh()
       const order = store.allItems.map(item => item.id)
       const id = 'preset:tissues'
-      const result = store.updateCatalogItem(id, { name: '面紙', iconKey: 'trash-bags', category: '廚房', unit: '箱' })
+      const result = store.updateCatalogItem(id, { name: '面紙', iconKey: 'trash-bags', category: '廚房', unit: '箱' }, { confirmUnitChange: true })
       assert.equal(result.ok, true)
       assert.equal(result.item.id, id)
       assert.equal(store.getById(id).category, '廚房')
@@ -113,8 +113,9 @@ test('Catalog stage 4A edits, overrides and deletions', async t => {
     await t.test('reset restores defaults and rejects a conflicting restored name', () => {
       const store = fresh()
       const id = 'preset:tissues'
-      store.updateCatalogItem(id, { name: '面紙', iconPhoto: 'data:image/jpeg;base64,test', unit: '箱' })
-      assert.equal(store.resetPresetOverride(id).ok, true)
+      assert.equal(store.updateCatalogItem(id, { name: '面紙', iconPhoto: 'data:image/jpeg;base64,test', unit: '箱' }, { confirmUnitChange: true }).ok, true)
+      assert.equal(store.resetPresetOverride(id).error.code, 'UNIT_CHANGE_CONFIRMATION_REQUIRED')
+      assert.equal(store.resetPresetOverride(id, { confirmUnitChange: true }).ok, true)
       assert.equal(store.getById(id).name, '衛生紙')
       assert.equal(store.getById(id).unit, '包')
       assert.equal(store.getById(id).iconPhoto, null)

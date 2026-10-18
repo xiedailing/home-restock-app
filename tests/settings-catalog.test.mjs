@@ -15,12 +15,15 @@ test('settings global catalog integration', async t => {
   const longTimers = []
   globalThis.setTimeout = (...args) => { const timer = originalSetTimeout(...args); if (args[1] > 1000) { timer.unref(); longTimers.push(timer) } return timer }
   const storage = new Map()
-  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) } })
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) } })
   Object.defineProperty(globalThis, 'window', { configurable: true, value: { history: { state: { back: '/settings/items/清潔' } } } })
   const route = reactive({ params: { category: '清潔' }, query: { from: 'item-management', category: '清潔' } })
   const router = { backCalls: 0, back() { this.backCalls++ }, replace() {}, push() {} }
   const guards = []
   globalThis.__settingsCatalogRouter = { useRoute: () => route, useRouter: () => router, onBeforeRouteLeave: guard => guards.push(guard) }
+  const toastCalls = []
+  const app = createSSRApp({})
+  app.provide('appToast', { showToast: (...args) => toastCalls.push(args) })
   const scopes = []
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -43,7 +46,7 @@ test('settings global catalog integration', async t => {
     scopes.push(scope)
     const warn = console.warn
     console.warn = () => {}
-    try { return scope.run(() => component.setup(props, { expose() {}, emit() {} })) }
+    try { return app.runWithContext(() => scope.run(() => component.setup(props, { expose() {}, emit() {} }))) }
     finally { console.warn = warn }
   }
   try {
@@ -98,7 +101,6 @@ test('settings global catalog integration', async t => {
       const item = catalog.getById('preset:tissues')
       const props = reactive({ open: false, item })
       const editor = await setup('src/components/settings/GlobalItemEditor.vue', props)
-      editor.dialog.value = { open: false, showModal() { this.open = true }, close() { this.open = false } }
       const before = JSON.stringify(catalog.allItems)
       props.open = true
       await nextTick(); await nextTick()
@@ -116,7 +118,7 @@ test('settings global catalog integration', async t => {
       assert.equal(JSON.stringify(catalog.allItems), before)
       props.open = false
       await nextTick()
-      assert.equal(editor.dialog.value.open, false)
+      assert.equal(editor.confirmedChanges.value, null)
     })
     await t.test('unit history hint distinguishes unknown, no history and known history', async () => {
       const props = reactive({ oldUnit: '包', newUnit: '包', hasHistory: null })
@@ -133,12 +135,37 @@ test('settings global catalog integration', async t => {
       const require = createRequire(import.meta.url)
       const ssrRender = new Function('require', compiled.code)(require)
       const render = data => renderToString(createSSRApp({ setup: () => data, ssrRender }))
-      assert.match(await render({ changed: true, oldUnit: '包', newUnit: '箱', hasHistory: true }), /舊紀錄保留『包』，改用『箱』後重新推算補貨時間。/)
-      assert.match(await render({ changed: true, oldUnit: '包', newUnit: '箱', hasHistory: null }), /判斷尚未串接/)
-      assert.doesNotMatch(await render({ changed: true, oldUnit: '包', newUnit: '箱', hasHistory: false }), /舊紀錄|尚未串接/)
-      assert.doesNotMatch(await render({ changed: false, oldUnit: '包', newUnit: '包', hasHistory: true }), /舊紀錄/)
+      assert.match(await render({ changed: true, oldUnit: '包', newUnit: '箱', hasHistory: true }), /原始單位為「包」。/)
+      assert.match(await render({ changed: true, oldUnit: '包', newUnit: '箱', hasHistory: null }), /確認修改單位後，將建立新的補貨計算週期。/)
+      assert.doesNotMatch(await render({ changed: true, oldUnit: '包', newUnit: '箱', hasHistory: false }), /原始單位|舊紀錄|尚未串接/)
+      assert.doesNotMatch(await render({ changed: false, oldUnit: '包', newUnit: '包', hasHistory: true }), /原始單位|舊紀錄/)
     })
-    await t.test('category deletion stays disabled; editor writes are gated and no unsolicited space changes', () => {
+    await t.test('single item swipe deletes only its target and undo restores the same ID', async () => {
+      const first = catalog.addCatalogItem({ name: '測試用品甲', category: '清潔', unit: '瓶' })
+      const second = catalog.addCatalogItem({ name: '測試用品乙', category: '清潔', unit: '瓶' })
+      const page = await setup('src/views/SettingsItemCategory.vue')
+      let closed = 0
+      page.deleteDialog.value = { showModal() {}, close() { closed++ } }
+      page.revealSwipe(catalog.getById(first.id))
+      assert.equal(page.swipeOffset.value, -88)
+      page.requestSingleDeletion(catalog.getById(first.id))
+      assert.ok(catalog.getById(first.id), 'confirmation must not delete data')
+      page.cancelDeletion()
+      assert.equal(page.swipeOffset.value, 0)
+      page.requestSingleDeletion(catalog.getById(first.id))
+      await page.confirmDeletion()
+      assert.equal(catalog.getById(first.id), null)
+      assert.ok(catalog.getById(second.id))
+      assert.equal(JSON.stringify(items.items), beforeItems)
+      toastCalls.at(-1)[1]()
+      assert.equal(catalog.getById(first.id).name, '測試用品甲')
+      const preset = catalog.allItems.find(item => item.id.startsWith('preset:'))
+      page.closeSwipe()
+      page.revealSwipe(preset)
+      assert.equal(page.openSwipeId.value, null)
+      assert.ok(closed >= 2)
+    })
+    await t.test('category swipe deletion requires confirmation; no unsolicited space changes', () => {
       assert.equal(JSON.stringify(items.items), beforeItems)
       const editor = readFileSync('src/components/settings/GlobalItemEditor.vue', 'utf8')
       assert.match(editor, /type="submit"[^>]*disabled/)
@@ -146,10 +173,11 @@ test('settings global catalog integration', async t => {
       assert.match(editor, /:disabled="!canSave"/)
       const categories = readFileSync('src/views/SettingsItemsView.vue', 'utf8')
       assert.doesNotMatch(categories, /removeCategories\(|deleteCategories\(/)
-      assert.match(categories, /disabled>刪除（尚未開放）/)
+      assert.match(categories, /@submit.prevent="confirmCategoryDeletion"/)
       const page = readFileSync('src/views/SettingsItemCategory.vue', 'utf8')
       assert.match(page, /name: 'add-item'/)
-      assert.doesNotMatch(page, /SpaceTag|item-detail|removeItem|previewItems/)
+      assert.doesNotMatch(page, /SpaceTag|item-detail|removeItem|previewItems|單位變更尚未開放/)
+      assert.match(page, /<GlobalItemEditor/)
     })
   } finally {
     for (const scope of scopes) scope.stop()

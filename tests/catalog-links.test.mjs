@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'vite'
 import { createPinia, setActivePinia } from 'pinia'
-import { nextTick, effectScope, reactive } from 'vue'
+import { nextTick, effectScope, reactive, watch } from 'vue'
 import { parse, compileScript } from '@vue/compiler-sfc'
 import { readFileSync } from 'node:fs'
 import { setMaxListeners } from 'node:events'
@@ -27,7 +27,7 @@ test('Catalog ID association and recoverable synchronization', async t => {
     const { useCatalogStore } = await server.ssrLoadModule('/src/stores/catalog.js')
     const { useItemsStore } = await server.ssrLoadModule('/src/stores/items.js')
     const { createItem } = await server.ssrLoadModule('/src/models/item.js')
-    const { migrateCatalogLinks } = await server.ssrLoadModule('/src/utils/catalogLinks.js')
+    const { migrateCatalogLinks, planLinkedCatalogRefresh } = await server.ssrLoadModule('/src/utils/catalogLinks.js')
     const { loadPersisted, STORAGE_VERSION } = await server.ssrLoadModule('/src/utils/persist.js')
     const encode = data => JSON.stringify({ version: STORAGE_VERSION, data })
     const key = name => `home-restock:v1:${name}`
@@ -58,6 +58,90 @@ test('Catalog ID association and recoverable synchronization', async t => {
       assert.equal(migrateCatalogLinks([make('a')], [candidate], [{ name: '衛生紙' }])[0].catalogId, null)
       assert.equal(migrateCatalogLinks([make('a', 'personal', { catalogId: 'old-deleted' })], [candidate])[0].catalogId, 'old-deleted')
     })
+    await t.test('refresh never relinks by name and rejects duplicate links without changing inputs', () => {
+      const candidate = { id: 'preset:tissues', name: '衛生紙', category: '清潔', unit: '箱' }
+      const originals = [make('unlinked', 'family', { catalogId: null }), make('deleted', 'personal', { catalogId: 'deleted-id' })]
+      const before = JSON.stringify(originals)
+      const result = planLinkedCatalogRefresh(originals, [candidate], originals.map(item => item.id))
+      assert.equal(result.ok, true)
+      assert.equal(result.items[0].catalogId, null)
+      assert.equal(result.items[1].catalogId, 'deleted-id')
+      assert.ok(result.items.every(item => item.unit === '包'))
+      assert.equal(JSON.stringify(originals), before)
+      const duplicates = [make('a', 'family', { catalogId: candidate.id }), make('b', 'family', { catalogId: candidate.id })]
+      const duplicateBefore = JSON.stringify(duplicates)
+      assert.equal(planLinkedCatalogRefresh(duplicates, [candidate], ['a', 'b']).error.code, 'DUPLICATE_CATALOG_LINK')
+      assert.equal(JSON.stringify(duplicates), duplicateBefore)
+    })
+    await t.test('rejoining synchronizes explicit links, preserves history and starts independent periods once', () => {
+      const { items, catalog } = fresh()
+      items.addSpaceMember('family', { id: 'other', name: '小明' })
+      const old = JSON.parse(JSON.stringify(items.getItem('f')))
+      assert.equal(items.leaveSpace('family'), true)
+      assert.equal(catalog.updateCatalogItem('preset:tissues', { name: '抽取式衛生紙', category: '清潔', unit: '箱' }, { confirmUnitChange: true }).ok, true)
+      assert.equal(items.joinSpaceByCode('FAM-8888').ok, true)
+      const restored = items.getItem('f')
+      assert.equal(restored.catalogId, old.catalogId)
+      assert.equal(restored.name, '抽取式衛生紙')
+      assert.equal(restored.category, '清潔')
+      assert.equal(restored.unit, '箱')
+      assert.notEqual(restored.unitPeriodId, old.unitPeriodId)
+      assert.notEqual(restored.unitPeriodId, items.getItem('p').unitPeriodId)
+      assert.deepEqual(JSON.parse(JSON.stringify(restored.restockRecords)), old.restockRecords)
+      const period = restored.unitPeriodId
+      assert.equal(items.ensureCatalogItem('family', 'preset:tissues').item.id, 'f')
+      assert.equal(items.ensureCatalogItem('family', 'preset:tissues').item.unitPeriodId, period)
+      assert.equal(items.items.filter(item => item.id === 'f').length, 1)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.departedSpaces.length, 0)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'f').unit, '箱')
+    })
+    await t.test('failed rejoin persistence and final-name conflicts leave all active and archived state intact', () => {
+      const { items, catalog } = fresh([make('f', 'family'), make('collision', 'family', { name: '新名稱', catalogId: null, unit: '個' })])
+      items.addSpaceMember('family', { id: 'other', name: '小明' })
+      items.leaveSpace('family')
+      catalog.updateCatalogItem('preset:tissues', { name: '新名稱', unit: '箱' }, { confirmUnitChange: true })
+      const before = JSON.stringify({ items: items.items, spaces: items.spaces, departed: items.departedSpaces })
+      assert.equal(items.joinSpaceByCode('FAM-8888').code, 'SPACE_NAME_TAKEN')
+      assert.equal(JSON.stringify({ items: items.items, spaces: items.spaces, departed: items.departedSpaces }), before)
+      catalog.updateCatalogItem('preset:tissues', { name: '可同步名稱' })
+      const diskBefore = memory.get(key('items'))
+      install('localStorage', { ...storage, setItem(name, value) { if (name === key('items')) throw new Error('quota'); storage.setItem(name, value) } })
+      assert.equal(items.joinSpaceByCode('FAM-8888').code, 'STORAGE_FAILED')
+      assert.equal(JSON.stringify({ items: items.items, spaces: items.spaces, departed: items.departedSpaces }), before)
+      assert.equal(memory.get(key('items')), diskBefore)
+      install('localStorage', storage)
+      assert.equal(items.joinSpaceByCode('FAM-8888').ok, true)
+      assert.equal(items.getItem('collision').name, '新名稱')
+      assert.equal(items.getItem('collision').catalogId, null)
+    })
+    await t.test('ensure repairs stale linked metadata atomically and refuses storage failure', () => {
+      const { items } = fresh()
+      const original = JSON.parse(JSON.stringify(items.getItem('p').restockRecords))
+      items.updateItem('p', { name: '舊名稱', category: '舊分類', unit: '盒' })
+      const before = JSON.stringify(items.getItem('p'))
+      install('localStorage', { ...storage, setItem() { throw new Error('quota') } })
+      assert.equal(items.ensureCatalogItem('personal', 'preset:tissues').error.code, 'STORAGE_FAILED')
+      assert.equal(JSON.stringify(items.getItem('p')), before)
+      install('localStorage', storage)
+      const result = items.ensureCatalogItem('personal', 'preset:tissues')
+      assert.equal(result.ok, true)
+      assert.equal(result.created, false)
+      assert.equal(result.item.unit, '包')
+      assert.equal(result.item.name, '衛生紙')
+      assert.deepEqual(JSON.parse(JSON.stringify(result.item.restockRecords)), original)
+    })
+    await t.test('category validation trims and ignores case without merging historical categories', () => {
+      const { items } = fresh()
+      assert.equal(items.addCategory(' ABC ').ok, true)
+      assert.ok(items.customCategories.includes('ABC'))
+      assert.equal(items.validateCategoryName('abc').code, 'NAME_TAKEN')
+      assert.equal(items.addCategory(' abc ').ok, false)
+      items.customCategories.push('abc') // Historical duplicate fixture; never silently merge existing data.
+      const before = JSON.stringify(items.items)
+      assert.equal(items.addCategory('AbC').ok, false)
+      assert.ok(items.customCategories.includes('ABC') && items.customCategories.includes('abc'))
+      assert.equal(JSON.stringify(items.items), before)
+    })
     await t.test('creation enforces unique catalog per space and exposes a restock-page ensure API', () => {
       const { items } = fresh()
       assert.equal(items.getItemByCatalogId('personal', 'preset:tissues').id, 'p')
@@ -82,6 +166,33 @@ test('Catalog ID association and recoverable synchronization', async t => {
       items.restoreItem(snapshot)
       assert.equal(items.items.length, 2)
       assert.equal(items.getItem('a').restockRecords[0].id, 'a-record')
+    })
+    await t.test('category reaches zero only after space categories synchronize; empty-category deletion preserves moved items', () => {
+      const custom = { id: 'custom-stationery', name: '筆', category: '文具', unit: '個', createdAt: '2026-01-01T00:00:00Z' }
+      const { items, catalog } = fresh([
+        make('p', 'personal', { name: '筆', category: '文具', catalogId: custom.id, unit: '個' }),
+        make('f', 'family', { name: '筆', category: '文具', catalogId: custom.id, unit: '個' }),
+      ], { ...baseCatalog, catalogItems: [custom] })
+      items.customCategories = ['文具']
+      const records = items.items.map(item => JSON.stringify(item.restockRecords))
+      let observedZero = false
+      const stop = watch(() => catalog.allItems.filter(item => item.category === '文具').length, count => {
+        if (count === 0) {
+          observedZero = true
+          assert.ok(items.items.every(item => item.category === '清潔'))
+          assert.ok(loadPersisted('items').items.every(item => item.category === '清潔'))
+        }
+      }, { flush: 'sync' })
+      try {
+        assert.equal(catalog.updateCatalogItem(custom.id, { category: '清潔' }).ok, true)
+        assert.equal(observedZero, true)
+        assert.equal(catalog.removeCustomCategory('文具').ok, true)
+        assert.ok(items.items.every(item => item.category === '清潔'))
+        assert.deepEqual(items.items.map(item => JSON.stringify(item.restockRecords)), records)
+        pinia()
+        assert.ok(useItemsStore().items.every(item => item.category === '清潔'))
+        assert.equal(useCatalogStore().getById(custom.id).category, '清潔')
+      } finally { stop() }
     })
     await t.test('rename and category sync preserve IDs, history array and all non-metadata state', () => {
       const { items, catalog } = fresh()
@@ -116,7 +227,7 @@ test('Catalog ID association and recoverable synchronization', async t => {
       const before = JSON.stringify(items.items)
       assert.equal(catalog.updateCatalogItem('preset:tissues', { name: ' 面紙 ' }).error.code, 'SPACE_NAME_TAKEN')
       assert.equal(catalog.getById('preset:tissues').name, '衛生紙')
-      assert.equal(catalog.updateCatalogItem('preset:tissues', { unit: '箱' }).error.code, 'UNIT_CHANGE_NOT_SUPPORTED')
+      assert.equal(catalog.updateCatalogItem('preset:tissues', { unit: '箱' }).error.code, 'UNIT_CHANGE_CONFIRMATION_REQUIRED')
       assert.equal(JSON.stringify(items.items), before)
     })
     await t.test('deleting a custom option preserves linked space data and cannot reconnect a recreated name', () => {
@@ -184,7 +295,229 @@ test('Catalog ID association and recoverable synchronization', async t => {
         assert.equal(memory.has(key('catalog-integration')), false)
       }
     })
-    await t.test('editor can save metadata/delete but blocks unit changes', async () => {
+    await t.test('category deletion removes global options atomically but preserves linked space items and history', async () => {
+      const customs = Array.from({ length: 5 }, (_, index) => ({ id: `baby-${index}`, name: `嬰兒用品${index}`, category: '嬰幼兒用品', unit: '包', createdAt: '2026-01-01T00:00:00Z' }))
+      const { items, catalog } = fresh([make('existing', 'family', { name: customs[0].name, category: '嬰幼兒用品', catalogId: customs[0].id })], { ...baseCatalog, catalogItems: customs })
+      items.addCategory('嬰幼兒用品')
+      const before = JSON.stringify(items.items)
+      const records = items.getItem('existing').restockRecords
+      const result = catalog.removeCustomCategory('嬰幼兒用品')
+      assert.equal(result.ok, true)
+      assert.equal(result.removedIds.length, 5)
+      assert.equal(catalog.allItems.filter(item => item.category === '嬰幼兒用品').length, 0)
+      assert.equal(catalog.deletedCatalogItems.length, 5)
+      assert.equal(JSON.stringify(items.items), before)
+      assert.equal(items.getItem('existing').restockRecords, records)
+      assert.equal(items.categoryOptions.includes('嬰幼兒用品'), false)
+      assert.equal(catalog.justAddedId, null)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.customCategories.includes('嬰幼兒用品'), false)
+      assert.ok(JSON.parse(memory.get(key('catalog'))).data.deletedCategories.includes('嬰幼兒用品'))
+      // 重建 Store 模擬重整；舊空間用品不使已刪分類再次出現。
+      await nextTick()
+      window.dispatchEvent(new Event('pagehide'))
+      pinia()
+      const reloaded = useItemsStore()
+      assert.equal(reloaded.categoryOptions.includes('嬰幼兒用品'), false)
+      assert.equal(reloaded.getItem('existing').catalogId, customs[0].id)
+      assert.equal(reloaded.getItem('existing').restockRecords.length, 1)
+      assert.equal(reloaded.addCategory('嬰幼兒用品').ok, true)
+      assert.ok(reloaded.categoryOptions.includes('嬰幼兒用品'))
+      const newItem = useCatalogStore().addCatalogItem({ name: customs[0].name, category: '嬰幼兒用品', unit: '包' })
+      assert.notEqual(newItem.id, customs[0].id)
+      assert.equal(reloaded.getItem('existing').catalogId, customs[0].id)
+    })
+    await t.test('empty custom category can be deleted; system or preset-containing categories are protected', () => {
+      const { items, catalog } = fresh()
+      assert.equal(items.addCategory('空分類').ok, true)
+      assert.equal(catalog.removeCustomCategory('空分類').ok, true)
+      assert.equal(items.categoryOptions.includes('空分類'), false)
+      assert.equal(catalog.removeCustomCategory('生活日用品').error.code, 'INVALID_INPUT')
+      assert.equal(catalog.removeCustomCategory('不存在').error.code, 'NOT_FOUND')
+      items.addCategory('預設保護')
+      assert.equal(catalog.updateCatalogItem('preset:tissues', { category: '預設保護' }).ok, true)
+      assert.equal(catalog.removeCustomCategory('預設保護').error.code, 'PRESET_DELETE_FORBIDDEN')
+      assert.equal(catalog.getById('preset:tissues').category, '預設保護')
+      assert.ok(items.categoryOptions.includes('預設保護'))
+    })
+    await t.test('category transaction storage failure changes neither catalog nor categories', () => {
+      const custom = { id: 'category-fail', name: '嬰兒用品', category: '嬰幼兒用品', unit: '包', createdAt: '2026-01-01T00:00:00Z' }
+      const { items, catalog } = fresh([], { ...baseCatalog, catalogItems: [custom] })
+      // Existing saved category fixture: public add now correctly rejects a Catalog category duplicate.
+      items.customCategories.push('嬰幼兒用品')
+      let rejected = false
+      install('localStorage', { ...storage, setItem(name, value) {
+        if (name === key('items') && !rejected) { rejected = true; throw new Error('quota') }
+        storage.setItem(name, value)
+      } })
+      const result = catalog.removeCustomCategory('嬰幼兒用品')
+      assert.equal(result.ok, false)
+      assert.equal(result.error.code, 'STORAGE_FAILED')
+      assert.ok(items.categoryOptions.includes('嬰幼兒用品'))
+      assert.ok(catalog.getById(custom.id))
+      assert.equal(catalog.deletedCategories.includes('嬰幼兒用品'), false)
+      assert.equal(catalog.deletedCatalogItems.length, 0)
+      assert.ok(JSON.parse(memory.get(key('catalog'))).data.catalogItems.some(item => item.id === custom.id))
+      assert.ok(JSON.parse(memory.get(key('items'))).data.customCategories.includes('嬰幼兒用品'))
+    })
+    await t.test('category Undo rejects normalized case collisions without overwriting new categories or items', () => {
+      const { items, catalog } = fresh([])
+      items.addCategory('ABC')
+      const custom = catalog.addCatalogItem({ name: '測試用品', category: 'ABC', unit: '包' })
+      const original = JSON.parse(JSON.stringify(custom))
+      const deletion = catalog.removeCustomCategory('ABC')
+      assert.equal(deletion.ok, true)
+      assert.equal(items.addCategory(' abc ').ok, true)
+      const before = JSON.stringify(items.customCategories)
+      const result = deletion.undo()
+      assert.equal(result.ok, false)
+      assert.equal(result.error.code, 'CATEGORY_NAME_TAKEN')
+      assert.equal(JSON.stringify(items.customCategories), before)
+      assert.equal(catalog.getById(custom.id), null)
+      assert.equal(catalog.removeCustomCategory('abc').ok, true)
+      assert.equal(deletion.undo().ok, true)
+      assert.deepEqual(JSON.parse(JSON.stringify(catalog.getById(custom.id))), original)
+      assert.ok(items.customCategories.includes('ABC'))
+      assert.ok(!items.customCategories.includes('abc'))
+    })
+    await t.test('category undo restores original IDs, settings and order without overwriting later edits', () => {
+      const custom = (id, category, extra = {}) => ({ id, name: id, category, unit: '包', iconKey: 'tissues', iconManual: true, iconPhoto: 'data:image/jpeg;base64,test', createdAt: '2026-01-01T00:00:00Z', ...extra })
+      const originals = [custom('first', '玩具'), custom('other', '其他'), custom('last', '玩具')]
+      const { items, catalog } = fresh([make('linked', 'family', { name: 'first', category: '玩具', catalogId: 'first' })], { ...baseCatalog, catalogItems: originals })
+      items.addCategory('其他')
+      items.addCategory('玩具')
+      items.addCategory('下一個')
+      const categoriesBefore = [...items.customCategories]
+      const spaceBefore = JSON.stringify(items.items)
+      const deleted = catalog.removeCustomCategory('玩具')
+      assert.equal(deleted.ok, true)
+      assert.equal(catalog.updateCatalogItem('other', { name: '其他已改名' }).ok, true)
+      const added = catalog.addCatalogItem({ name: '新建用品', category: '其他', unit: '個' })
+      assert.equal(deleted.undo().ok, true)
+      assert.deepEqual(items.customCategories, categoriesBefore)
+      assert.equal(JSON.stringify(items.items), spaceBefore)
+      assert.equal(catalog.getById('other').name, '其他已改名')
+      assert.deepEqual(catalog.catalogItems.map(item => item.id), [added.id, 'first', 'other', 'last'])
+      for (const original of [originals[0], originals[2]]) assert.deepEqual(JSON.parse(JSON.stringify(catalog.getById(original.id))), original)
+      assert.equal(catalog.deletedCategories.includes('玩具'), false)
+      assert.equal(catalog.deletedCatalogItems.some(item => ['first','last'].includes(item.id)), false)
+      assert.equal(deleted.undo().error.code, 'UNDO_UNAVAILABLE')
+      const stored = JSON.parse(memory.get(key('catalog'))).data
+      assert.deepEqual(stored.catalogItems.find(item => item.id === 'first'), originals[0])
+      assert.deepEqual(JSON.parse(memory.get(key('items'))).data.customCategories, categoriesBefore)
+    })
+    await t.test('empty category undo works; recreating same category or item blocks overwrite', () => {
+      const { items, catalog } = fresh()
+      items.addCategory('空分類')
+      const empty = catalog.removeCustomCategory('空分類')
+      assert.equal(empty.undo().ok, true)
+      assert.ok(items.categoryOptions.includes('空分類'))
+      const duplicateCategory = catalog.removeCustomCategory('空分類')
+      items.addCategory('空分類')
+      assert.equal(duplicateCategory.undo().error.code, 'CATEGORY_NAME_TAKEN')
+      items.addCategory('玩具')
+      const original = catalog.addCatalogItem({ name: '玩具車', category: '玩具', unit: '個' })
+      const deleted = catalog.removeCustomCategory('玩具')
+      const replacement = catalog.addCatalogItem({ name: '玩具車', category: '生活日用品', unit: '個' })
+      assert.equal(deleted.undo().error.code, 'NAME_TAKEN')
+      assert.equal(catalog.getById(original.id), null)
+      assert.ok(catalog.getById(replacement.id))
+      assert.equal(items.categoryOptions.includes('玩具'), false)
+    })
+    await t.test('failed category undo rolls back both stores and can retry safely', () => {
+      const { items, catalog } = fresh()
+      items.addCategory('玩具')
+      const original = catalog.addCatalogItem({ name: '玩具車', category: '玩具', unit: '個' })
+      const deleted = catalog.removeCustomCategory('玩具')
+      let failed = false
+      install('localStorage', { ...storage, setItem(name, value) {
+        if (name === key('items') && !failed) { failed = true; throw new Error('quota') }
+        storage.setItem(name, value)
+      } })
+      assert.equal(deleted.undo().error.code, 'STORAGE_FAILED')
+      assert.equal(catalog.getById(original.id), null)
+      assert.equal(items.categoryOptions.includes('玩具'), false)
+      assert.equal(JSON.parse(memory.get(key('catalog'))).data.catalogItems.some(item => item.id === original.id), false)
+      assert.equal(JSON.parse(memory.get(key('items'))).data.customCategories.includes('玩具'), false)
+      assert.equal(deleted.undo().ok, true)
+      assert.equal(catalog.getById(original.id).id, original.id)
+      assert.ok(items.categoryOptions.includes('玩具'))
+    })
+    await t.test('selected catalog deletion is atomic and retains space items', () => {
+      const { catalog, items } = fresh()
+      const first = catalog.addCatalogItem({ name: '玩具甲', category: '玩具', unit: '個' })
+      const second = catalog.addCatalogItem({ name: '玩具乙', category: '玩具', unit: '個' })
+      items.ensureCatalogItem('personal', first.id)
+      const before = JSON.stringify(items.items)
+      assert.equal(catalog.removeCatalogItems([first.id, 'preset:tissues']).ok, false)
+      assert.ok(catalog.getById(first.id))
+      assert.equal(catalog.removeCatalogItems([first.id, 'missing']).ok, false)
+      assert.ok(catalog.getById(first.id))
+      const deletion = catalog.removeCatalogItems([first.id, second.id])
+      assert.equal(deletion.ok, true)
+      assert.equal(catalog.getById(first.id), null)
+      assert.equal(catalog.getById(second.id), null)
+      assert.equal(JSON.stringify(items.items), before)
+      assert.equal(deletion.undo().ok, true)
+      assert.deepEqual(catalog.getById(first.id), first)
+      assert.deepEqual(catalog.getById(second.id), second)
+      assert.equal(JSON.stringify(items.items), before)
+      assert.equal(deletion.undo().ok, false)
+    })
+    await t.test('category deletion/undo and confirmed unit changes preserve each other after integration', () => {
+      const { catalog, items } = fresh()
+      items.addCategory('整合測試')
+      const added = catalog.addCatalogItem({ name: '週期用品', category: '整合測試', unit: '盒' })
+      const linked = items.ensureCatalogItem('personal', added.id)
+      assert.equal(linked.ok, true)
+      const linkedId = linked.item.id
+      const periodBefore = items.getItem(linkedId).unitPeriodId
+      const update = catalog.updateCatalogItem(added.id, { unit: '箱', category: '清潔' }, { confirmUnitChange: true, expectedUnit: '盒' })
+      assert.equal(update.ok, true)
+      const changed = items.getItem(linkedId)
+      assert.equal(changed.unit, '箱')
+      assert.equal(changed.category, '清潔')
+      assert.notEqual(changed.unitPeriodId, periodBefore)
+      const periodAfter = changed.unitPeriodId
+      const deletion = catalog.removeCustomCategory('整合測試')
+      assert.equal(deletion.ok, true)
+      assert.equal(deletion.undo().ok, true)
+      assert.equal(items.getItem(linkedId).unitPeriodId, periodAfter)
+      assert.equal(catalog.getById(added.id).unit, '箱')
+      assert.equal(catalog.deletedCategories.includes('整合測試'), false)
+    })
+    await t.test('editor confirmation is cancellable, reports multi-space impact and retains drafts on failure', async () => {
+      const { catalog, items } = fresh()
+      const props = reactive({ open: false, item: { ...catalog.getById('preset:tissues') } })
+      const { default: component } = await server.ssrLoadModule(filename)
+      const scope = effectScope(); scopes.push(scope)
+      let closed = 0
+      const editor = scope.run(() => component.setup(props, { expose() {}, emit(event) { if (event === 'close') closed++ } }))
+      props.open = true
+      await nextTick(); await nextTick()
+      assert.equal(editor.linkedSpaceCount.value, 2)
+      editor.chooseUnit('箱')
+      const before = JSON.stringify(items.items)
+      editor.save()
+      assert.equal(JSON.stringify(items.items), before)
+      editor.cancelUnitChange()
+      assert.equal(JSON.stringify(items.items), before)
+      editor.save()
+      let fail = true
+      install('localStorage', { ...storage, setItem(k, value) { if (k === key('items') && fail) { fail = false; throw new Error('full') } storage.setItem(k, value) } })
+      editor.confirmUnitChange()
+      assert.equal(closed, 0)
+      assert.equal(editor.unit.value, '箱')
+      assert.ok(editor.operationError.value)
+      assert.equal(editor.saveFailureToast.value.variant, 'error')
+      assert.ok(editor.confirmedChanges.value)
+      assert.equal(JSON.stringify(items.items), before)
+      install('localStorage', storage)
+      editor.confirmUnitChange()
+      assert.equal(closed, 1)
+      assert.ok(items.items.every(item => item.unit === '箱'))
+      assert.notEqual(items.items[0].unitPeriodId, items.items[1].unitPeriodId)
+    })
+    await t.test('editor saves unit changes only after confirmation', async () => {
       const { catalog, items } = fresh()
       const custom = catalog.addCatalogItem({ name: '自訂紙巾', category: '生活日用品', unit: '包' })
       items.ensureCatalogItem('personal', custom.id)
@@ -192,16 +525,40 @@ test('Catalog ID association and recoverable synchronization', async t => {
       const { default: component } = await server.ssrLoadModule(filename)
       const scope = effectScope(); scopes.push(scope)
       const editor = scope.run(() => component.setup(props, { expose() {}, emit() {} }))
-      editor.dialog.value = { open: false, showModal() { this.open = true }, close() {} }
       editor.deleteDialog.value = { close() {} }
       props.open = true
       await nextTick(); await nextTick()
       assert.equal(editor.canSave.value, true)
+      const originalIcon = editor.iconKey.value
+      editor.draft.value.name = ''
+      assert.equal(editor.iconKey.value, originalIcon)
+      editor.draft.value.name = '另一個名稱'
+      assert.equal(editor.iconKey.value, originalIcon)
+      editor.restoreDefaults()
+      assert.equal(editor.draft.value.name, custom.name)
+      assert.equal(editor.iconKey.value, custom.iconKey)
+      assert.equal(catalog.getById(custom.id).name, custom.name)
+      assert.equal(editor.unitOptions.addUnit('盒').ok, true)
+      editor.deleteUnitDialog.value = { showModal() {}, close() {} }
+      editor.editingUnits.value = true
+      editor.requestUnitDeletion('盒')
+      editor.confirmUnitDeletion()
+      assert.equal(editor.unitOptions.customUnits.includes('盒'), false)
+      assert.equal(editor.unit.value, '包')
+      editor.undoUnitRemoval()
+      assert.equal(editor.unitOptions.customUnits.includes('盒'), true)
+      editor.editingUnits.value = false
       editor.chooseUnit('箱')
-      assert.equal(editor.canSave.value, false)
+      assert.equal(editor.canSave.value, true)
       editor.save()
       assert.equal(catalog.getById(custom.id).unit, '包')
-      editor.chooseUnit('包')
+      editor.cancelUnitChange()
+      assert.equal(catalog.getById(custom.id).unit, '包')
+      editor.save()
+      editor.confirmUnitChange()
+      assert.equal(catalog.getById(custom.id).unit, '箱')
+      props.item = { ...catalog.getById(custom.id) }
+      editor.chooseUnit('箱')
       editor.draft.value.name = '新的紙巾'
       editor.save()
       assert.equal(catalog.getById(custom.id).name, '新的紙巾')
