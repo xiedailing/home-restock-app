@@ -1,4 +1,4 @@
-# Feature 011｜補貨明細（用品詳情改版）（草案）
+# Feature 011｜補貨明細（用品詳情改版）（修訂版 1）
 
 > 草案日：2026-10-17。決策 UT-36（FR-1110 為 UT-40、UT-41）見 `docs/DECISION_LOG.md`〈決策紀錄｜可用性測試修改（2026-10-15）〉。
 > 本規格改版 `specs/003-item-detail/spec.md` 的用品詳情頁，並取代其中的部分條文（見「取代的既有規則」）。狀態標記規則沿用 `specs/010-inventory-list/spec.md`；推算與提醒開關沿用 `specs/009-restock-record/spec.md` FR-912、FR-913。

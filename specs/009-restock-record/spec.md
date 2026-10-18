@@ -1,4 +1,4 @@
-# Feature 009｜新增補貨紀錄（草案）
+# Feature 009｜新增補貨紀錄（修訂版 1）
 
 > 草案日：2026-10-16。決策 UT-13、UT-15～UT-29、UT-40、UT-41（FR-915）見 `docs/DECISION_LOG.md`〈決策紀錄｜可用性測試修改（2026-10-15）〉。
 > 補貨後的狀態處理沿用 `stores/items.js` 的 `completeRestock`（001 FR-003）；補貨日期上限沿用 `specs/003-item-detail/spec.md` DET-12；圖示取用沿用 `specs/008-item-icon/spec.md`。
