@@ -279,11 +279,11 @@ function clearFilters() {
         <img :src="emptyItemIcon" alt="" />
       </div>
       <div class="empty-copy">
-        <h2>這個空間目前還沒有用品</h2>
+        <h2>這個空間目前沒有紀錄</h2>
       </div>
       <button type="button" class="btn btn-primary empty-add" @click="openAddItem">
         <span class="add-symbol" aria-hidden="true">＋</span>
-        新增用品
+        記錄補貨
       </button>
     </div>
 
@@ -449,7 +449,7 @@ function clearFilters() {
   list-style: none;
 }
 
-.inventory-empty { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: t.$space-32; text-align: center; }
+.inventory-empty { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: t.$space-24; text-align: center; }
 .inventory-empty > * { flex-shrink: 0; }
 
 .empty-illustration {
@@ -464,13 +464,12 @@ function clearFilters() {
 
 .empty-copy {
   width: 100%;
-  min-height: 76px;
   h2 { margin: 0 0 2px; color: t.$text-main; font: t.$font-weight-bold #{t.$font-size-heading} / 30px t.$font-family; letter-spacing: 0; }
   p { max-width: 318px; margin: 0 auto; color: t.$text-sub; font-size: t.$font-size-body-sm; line-height: 22px; }
 }
 
 .empty-add {
-  width: 222px;
+  width: 160px;
   min-height: 48px;
   height: 48px;
   padding-block: 0;
