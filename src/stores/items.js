@@ -8,18 +8,17 @@ import { isValidInviteCode } from '../utils/inviteCode'
 import { validateCategoryName as checkCategoryName } from '../utils/categoryNames.js'
 import { generateId } from '../utils/id.js'
 import { createDebouncedSaver, loadPersisted, STORE_KEYS } from '../utils/persist.js'
-import { avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 import { profile } from './profile'
 import { useSharedNotificationsStore, registerRestockNotificationSource, reconcileRestockNotifications } from './sharedNotifications'
 import { useNotificationSettingsStore } from './notificationSettings'
 import { SYSTEM_CATEGORIES, PRESET_ITEMS, getItemCategory } from '../models/itemCategories'
 import { SPACE_COLORS, limitSpaceName } from '../models/space'
 import {
-  DEFAULT_SPACES,
   DEFAULT_SPACE_ID,
   createItem,
   createRestockRecord,
-  createSampleItems,
+  createPresentationState,
+  PRESENTATION_PRESET_OVERRIDES,
   countRecordDates,
   daysUntil,
   getLatestRecord,
@@ -27,7 +26,6 @@ import {
   getReminderStatus,
   getStatus,
   isSnoozed,
-  sampleHistory,
   SNOOZE_DAYS,
   STATUS,
   addDays,
@@ -41,23 +39,7 @@ export const UNDO_DURATION_MS = 8000
 export const SHOPPING_COMPLETED_KEEP_MS = 24 * 60 * 60 * 1000
 
 // 第一次使用（或存檔無效）時的示範資料。
-function createDemoState() {
-  const items = createSampleItems()
-  const spaces = DEFAULT_SPACES.map((space) => ({ ...space, ownerId: 'self', members: [] }))
-  // 保留展示空間；用品只使用五種補貨狀態各一筆的共用示範資料。
-  const previewSpaces = [
-    { id: 'preview-family', name: '家庭', shared: true, color: 'blue' },
-    { id: 'preview-company', name: '公司', shared: true, color: 'orange' },
-    { id: 'preview-travel', name: '旅行', shared: false, color: 'red' },
-  ]
-  spaces.push(...previewSpaces.map(space => ({ ...space, ownerId: 'self', members: [] })))
-  // 購買清單展示：目前使用者可接手小明已認購的家庭用品。
-  const takeoverPreviewSpace = spaces.find(space => space.id === 'preview-family')
-  takeoverPreviewSpace.members.push({ id: 'preview-xiaoming', name: '小明', avatar: avatarOptions[0].image }, { id: 'preview-huahua', name: '花花', avatar: avatarOptions[1].image })
-  const takeoverPreviewItem = items.find(item => item.name === '衛生紙')
-  Object.assign(takeoverPreviewItem, { spaceId: 'preview-family', inShoppingList: true, quantity: 2, addedToShoppingListDate: toDateString(), shoppingClaimantId: 'preview-xiaoming' })
-  return { items, spaces }
-}
+function createDemoState() { return createPresentationState() }
 
 // 讀取存檔並檢查結構；任何一項不符就回傳 null，整批改用示範資料，不載入一半。
 function loadSavedState() {
@@ -90,18 +72,11 @@ export const useItemsStore = defineStore('items', () => {
   const items = ref(normalizedItems)
   const customCategories = ref(saved?.customCategories ?? [])
   const spaces = ref(saved?.spaces ?? demo.spaces)
-  // 一次性新增共享清單展示用品；使用者之後刪除時不再自動補回。
   const demoSeeds = new Set(Array.isArray(saved?.demoSeeds) ? saved.demoSeeds : [])
-  const familyAlcoholSeed = 'family-unclaimed-alcohol-v1'
-  const needsFamilyAlcoholSeed = !demoSeeds.has(familyAlcoholSeed)
-  if (needsFamilyAlcoholSeed) {
-    const family = spaces.value.find(space => space.shared && space.name === '家庭')
-    if (family && !items.value.some(item => item.spaceId === family.id && item.name === '酒精')) {
-      items.value.push(createItem({ name: '酒精', iconKey: 'rubbing-alcohol', category: '清潔', unit: '瓶', spaceId: family.id, reminderEnabled: false, ...sampleHistory(toDateString(), 10, 30), inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), shoppingClaimantId: null }))
-    }
-    demoSeeds.add(familyAlcoholSeed)
-  }
   const catalog = useCatalogStore()
+  if (!saved && !loadPersisted(STORE_KEYS.catalog)) {
+    for (const [id, changes] of Object.entries(PRESENTATION_PRESET_OVERRIDES)) catalog.updateCatalogItem(id, changes, { confirmUnitChange: true })
+  }
   // 傳 toRaw：migrateCatalogLinks 以 {...item} 複製，若來源是 reactive，巢狀陣列會變成 Proxy，之後 snapshotItem 的 structuredClone 會失敗。
   const linkedItems = migrateCatalogLinks(toRaw(items.value), catalog.allItems, catalog.deletedCatalogItems)
   const needsCatalogSave = linkedItems.some((item, index) => item.catalogId !== items.value[index].catalogId)
@@ -781,7 +756,9 @@ export const useItemsStore = defineStore('items', () => {
   // 寫入失敗（儲存空間不足等）時為 true，讓畫面提示照片可能不會保留（specs/008 FR-807）。
   const persistFailed = ref(false)
   function catalogPersistenceSnapshot() {
-    return JSON.parse(JSON.stringify({ demoSeeds: [...demoSeeds], items: toRaw(items.value), spaces: toRaw(spaces.value),
+    return JSON.parse(JSON.stringify({
+      presentationVersion: (saved ?? demo)?.presentationVersion, presentationRunId: (saved ?? demo)?.presentationRunId, presentationDate: (saved ?? demo)?.presentationDate,
+      demoSeeds: [...demoSeeds], items: toRaw(items.value), spaces: toRaw(spaces.value),
       customCategories: toRaw(customCategories.value), departedSpaces: toRaw(departedSpaces.value) }))
   }
   function applyCatalogLinkedItems(nextItems) {
@@ -863,7 +840,7 @@ export const useItemsStore = defineStore('items', () => {
       .catch(() => { persistFailed.value = true })
   })
   watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
-  if (needsFamilyAlcoholSeed || needsCatalogSave || needsUnitSave) scheduleSave()
+  if (!saved || needsCatalogSave || needsUnitSave) scheduleSave()
 
   return {
     persistenceConflict, withPersistenceLock, flushPersistence, getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations, getClaimInfo,

@@ -1,3 +1,4 @@
+import { recoverPresentationTransaction } from './presentationTransaction.js'
 import { recoverCatalogTransaction, commitCatalogTransaction } from './catalogTransaction.js'
 // localStorage 持久化：所有讀寫都包 try/catch，無痕模式、禁用儲存或空間已滿時照常運作，只是不保存。
 // 存檔格式帶版本號；版本不符或 JSON 損壞時回傳 null，由呼叫端改用示範資料。
@@ -8,6 +9,9 @@ export const STORE_KEYS = { nativeNotifications: 'native-notifications', items: 
 
 const catalogTransactionConfig = { prefix: PREFIX, version: STORAGE_VERSION, journalKey: STORE_KEYS.catalogIntegration }
 function checkCatalogRecovery(name) {
+  let hasPresentationJournal = false
+  try { hasPresentationJournal = !!localStorage.getItem('home-restock:v1:presentation-transaction') } catch { /* 原有無儲存空間降級 */ }
+  if (hasPresentationJournal) recoverPresentationTransaction(localStorage)
   // 未開放本機儲存時沿用既有讀取降級；可讀到交易時才必須先復原。
   try { if (!localStorage.getItem(PREFIX + STORE_KEYS.catalogIntegration)) return } catch { return }
   if ([STORE_KEYS.catalog, STORE_KEYS.items].includes(name) && !recoverCatalogTransaction(catalogTransactionConfig)) {

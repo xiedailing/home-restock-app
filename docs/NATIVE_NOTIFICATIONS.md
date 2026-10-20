@@ -153,3 +153,7 @@
 本輪沒有清除任何現存資料、沒有新增重置工具，也沒有使用 `?reset=1`。
 
 兩分頁隔離瀏覽器案例：`tests/browser/items-write-conflict.mjs`，使用與上述腳本相同的 Preview／Playwright 設定；`ITEM_CONFLICT_STATE` 可指定 `removed`（預設）、`completed`、`deleted`、`left-space`。使用兩個真實瀏覽器分頁與 Web Locks，資料與通知 API 仍完全隔離，驗證舊存檔不覆寫、新 Demo 不建立。
+
+## 期末展示資料初始化
+
+六項用品、兩個空間、花花認領、備份／交易復原與手動套用流程見 [PRESENTATION_DATA.md](./PRESENTATION_DATA.md)。不會自動替換有效存檔。10 秒 Demo 保留；自己認領共享用品跳錯頁籤仍列為獨立待修。

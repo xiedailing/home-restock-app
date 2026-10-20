@@ -34,6 +34,7 @@ await page.waitForTimeout(500);
 if(state==='left-space') await page.locator('nav').getByRole('link',{name:'共享清單',exact:true}).click();
 const id=state==='left-space'?'qa-6':'qa-0';
 const other=await context.newPage();await other.goto(origin+'/shopping');
+await other.waitForFunction(()=>document.querySelector('#app').__vue_app__?.config.globalProperties.$pinia?._s.has('items'));
 const committed=await other.evaluate(async state=>{
  const store=document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('items');
  if(state==='removed')store.removeShoppingEntry('qa-0');
@@ -55,5 +56,5 @@ await page.evaluate(()=>window.dispatchEvent(new Event('pagehide')));await page.
 assert.equal(await page.evaluate(()=>localStorage.getItem('home-restock:v1:items')),afterOther);
 assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('home-restock:v1:native-notifications')||'{"data":{"tasks":[]}}').data.tasks.some(task=>task.demo)),false);
 console.log('PASS real two-tab stale write guard:',state,'disk preserved, delayed save blocked, no Demo');
-await context.close();
+await context.unrouteAll({behavior:'wait'});await context.close();
 }finally{await browser.close()}

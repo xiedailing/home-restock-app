@@ -1,4 +1,6 @@
 <script setup>
+import { allowsNotificationDemo } from '../utils/notificationDemoMode.js'
+const presentationSetupAllowed = allowsNotificationDemo(location.origin)
 import { storeToRefs } from 'pinia'
 import { useNotificationSettingsStore } from '../stores/notificationSettings'
 import AppToast from '../components/AppToast.vue'
@@ -281,6 +283,7 @@ function saveChanges() {
       </div>
     </section>
 
+    <p v-if="presentationSetupAllowed" class="presentation-setup-entry"><a href="/?demoSetup=1">展示資料初始化／還原</a></p>
     <button type="button" class="btn btn-danger-subtle logout-button" @click="openEditor('logout')">登出</button>
     <AppToast :toast="toast" @undo="runUndo"><template v-if="!noticeIsWarning && noticeAction === 'exit'" #icon><i :class="noticeIsWarning ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-arrow-right-from-bracket'" class="notice-icon" aria-hidden="true"></i></template></AppToast>
 
