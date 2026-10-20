@@ -127,7 +127,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     const key = JSON.stringify([itemId, date])
     if (snoozeSaves.has(key)) return snoozeSaves.get(key)
     const work = Promise.resolve().then(async () => {
-      const saved = items.snoozeShoppingReminder(itemId, date)
+      const saved = await items.withPersistenceLock(() => items.snoozeShoppingReminder(itemId, date))
       if (!saved.ok || !demoEnabled.value) return saved
       const result = await demo(itemId)
       if (result.ok) return { ...saved, demoResult: result }
@@ -215,27 +215,43 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   function demoEligibility(itemId, pendingItemIds = pendingDemoItems.value) {
     const item = items.getItem(itemId)
     const space = item && items.getSpace(item.spaceId)
-    return notificationDemoEligibility({ item, space,
+    const persisted = loadPersisted(STORE_KEYS.items)
+    const savedItem = persisted?.items?.find(entry => entry.id === itemId)
+    const savedSpace = persisted?.spaces?.find(entry => entry.id === item?.spaceId)
+    const eligibility = notificationDemoEligibility({ item, space,
       accessible: !space?.shared || items.getSpaceMembers(space.id).some(member => member.id === 'self'),
       pendingItemIds, enabled: demoEnabled.value, permission: permission.value,
-      supported: permission.value !== 'unsupported', pushEnabled: settings.pushEnabled,
+      supported: permission.value !== 'unsupported', pushEnabled: settings.pushEnabled && loadPersisted(STORE_KEYS.notifications)?.pushEnabled !== false,
       locksAvailable: !!navigator.locks?.request })
+    if (!eligibility.ok) return eligibility
+    if (item && (!savedItem || !savedSpace || !reminderEligible(savedItem, savedSpace)
+      || reminderFingerprint(item) !== reminderFingerprint(savedItem)
+      || JSON.stringify([item.reminderSnoozes?.self, item.reminderSnoozeOperationIds?.self]) !== JSON.stringify([savedItem.reminderSnoozes?.self, savedItem.reminderSnoozeOperationIds?.self]))) {
+      return { ok: false, code: 'stale-items', message: '用品資料已更新，請重新載入後再操作。' }
+    }
+    return eligibility
   }
   async function demo(itemId) {
     if (!demoEnabled.value) return { ok: false }
+    const flushed = await items.flushPersistence()
+    if (!flushed.ok) { report(flushed.error.message, true, itemId); return { ok: false, code: flushed.error.code, message: flushed.error.message } }
     await tick()
     const eligibility = demoEligibility(itemId)
     if (!eligibility.ok) { report(eligibility.message, true, itemId); return eligibility }
     try {
       await navigator.locks.request('bubu-native-reminders', async () => {
-        const tasks = readTasks()
-        const latest = demoEligibility(itemId, tasks.filter(task => task.demo && task.state === 'scheduled').map(task => task.itemId))
-        if (!latest.ok) throw new Error(latest.message)
-        const item = items.getItem(itemId)
-        tasks.push({ id: generateId(), itemId, spaceId: item.spaceId, fingerprint: reminderFingerprint(item),
-          dueAt: Date.now() + 10000, createdAt: Date.now(), state: 'scheduled', demo: true, demoSessionId: demoSessionId.value,
-          demoReminderSignature: JSON.stringify([item.reminderSnoozes?.self || null, item.reminderSnoozeOperationIds?.self || null]) })
-        saveTasks(tasks)
+        const committed = await items.withPersistenceLock(() => {
+          const tasks = readTasks()
+          const latest = demoEligibility(itemId, tasks.filter(task => task.demo && task.state === 'scheduled').map(task => task.itemId))
+          if (!latest.ok) throw new Error(latest.message)
+          const item = items.getItem(itemId)
+          tasks.push({ id: generateId(), itemId, spaceId: item.spaceId, fingerprint: reminderFingerprint(item),
+            dueAt: Date.now() + 10000, createdAt: Date.now(), state: 'scheduled', demo: true, demoSessionId: demoSessionId.value,
+            demoReminderSignature: JSON.stringify([item.reminderSnoozes?.self || null, item.reminderSnoozeOperationIds?.self || null]) })
+          saveTasks(tasks)
+          return { ok: true }
+        })
+        if (!committed.ok) throw new Error(committed.error.message)
       })
       report('已安排 10 秒測試，可切換至其他分頁；瀏覽器節流可能延遲，不會修改正式提醒日期。', false, itemId)
       return { ok: true }

@@ -393,6 +393,93 @@ test('native notification integration: permission, persistence, delay, cancellat
       assert.equal(routes.at(-1).query.notificationItem, 'a')
       native.stop()
     })
+    for (const state of ['removed', 'completed', 'deleted', 'left-space']) {
+      await t.test(`another tab ${state}: stale snooze and delayed saves cannot overwrite disk or arrange a demo`, async () => {
+        const { native, items } = fresh()
+        if (state === 'left-space') {
+          items.spaces.push({ id: 'audit-shared', name: '任意共享空間', shared: true, members: [{ id: 'other', name: '組員' }] })
+          items.updateItem('a', { spaceId: 'audit-shared' })
+          assert.equal((await items.flushPersistence()).ok, true)
+        }
+        const otherPinia = createPinia(), other = useItemsStore(otherPinia)
+        if (state === 'removed') other.removeShoppingEntry('a')
+        if (state === 'completed') other.completeShoppingItem('a')
+        if (state === 'deleted') other.removeItem('a')
+        if (state === 'left-space') other.leaveSpace('audit-shared')
+        assert.equal((await other.flushPersistence()).ok, true)
+        const afterOther = memory.get(key('items'))
+        const beforeLocal = JSON.stringify(items.getItem('a'))
+        const result = await native.saveSnoozeAndScheduleDemo('a', '2099-01-03')
+        assert.equal(result.ok, false); assert.equal(result.error.code, 'STALE_ITEMS')
+        assert.match(result.error.message, /重新載入/)
+        assert.equal(JSON.stringify(items.getItem('a')), beforeLocal)
+        assert.equal(memory.get(key('items')), afterOther)
+        assert.equal((await items.flushPersistence()).ok, false)
+        window.dispatchEvent(new Event('pagehide')); await new Promise(resolve => setTimeout(resolve, 10))
+        assert.equal(memory.get(key('items')), afterOther)
+        assert.equal(native.pendingDemo, false)
+        assert.equal(JSON.parse(memory.get(key('native-notifications')) || '{"data":{"tasks":[]}}').data.tasks.some(task => task.demo), false)
+        assert.equal(delivered.length, 0)
+        for (const store of otherPinia._s.values()) store.$dispose()
+      })
+    }
+    await t.test('latest persisted push preference blocks scheduling even when the local setting is still on', async () => {
+      const { native, items, settings } = fresh()
+      assert.equal(settings.pushEnabled, true)
+      memory.set(key('notifications'), JSON.stringify({ version: STORAGE_VERSION, data: { pushEnabled: false, restockDays: 5 } }))
+      const result = await native.saveSnoozeAndScheduleDemo('a', '2099-01-03')
+      assert.equal(result.ok, true); assert.equal(result.demoResult.ok, false)
+      assert.match(result.demoResult.message, /推播/)
+      assert.equal(items.getItem('a').reminderSnoozes.self, '2099-01-03')
+      assert.equal(native.pendingDemo, false)
+    })
+    for (const change of ['push-off', 'completed']) {
+      await t.test(`state changed while waiting for notification lock (${change}) is rechecked without rolling back saved date`, async () => {
+        const { native } = fresh()
+        const request = navigator.locks.request
+        let notificationLocks = 0
+        navigator.locks.request = async (...args) => {
+          if (args[0] === 'bubu-native-reminders' && ++notificationLocks === 2) {
+            if (change === 'push-off') memory.set(key('notifications'), JSON.stringify({ version: STORAGE_VERSION, data: { pushEnabled: false } }))
+            else {
+              const saved = JSON.parse(memory.get(key('items')))
+              saved.data.items[0].shoppingCompletedAt = 1; saved.revision = 'another-tab'
+              memory.set(key('items'), JSON.stringify(saved))
+            }
+          }
+          return request(...args)
+        }
+        try {
+          const result = await native.saveSnoozeAndScheduleDemo('a', '2099-01-03')
+          assert.equal(result.ok, true); assert.equal(result.demoResult.ok, false)
+          assert.equal(JSON.parse(memory.get(key('items'))).data.items[0].reminderSnoozes.self, '2099-01-03')
+          assert.equal(native.pendingDemo, false)
+        } finally { navigator.locks.request = request }
+      })
+    }
+    await t.test('random IDs and custom personal/shared spaces support sequential items and new rounds of the same item', async () => {
+      const { native, items } = fresh()
+      const personalId = 'space-' + crypto.randomUUID(), sharedId = 'space-' + crypto.randomUUID()
+      items.spaces.push({ id: personalId, name: '自訂個人空間', shared: false, members: [] },
+        { id: sharedId, name: '自訂共享空間', shared: true, members: [{ id: 'member', name: '組員' }] })
+      const entries = ['衛生紙', '洗衣精', '衛生棉', '洗碗精', '狗狗糧食', '自訂用品'].map((name, i) =>
+        createItem({ ...item(), id: crypto.randomUUID(), name, spaceId: i % 2 ? sharedId : personalId, reminderSnoozes: {}, reminderSnoozeOperationIds: {} }))
+      items.items.push(...entries)
+      let count = 0
+      for (const entry of [...entries, entries[0], entries[1]]) {
+        const before = entry.reminderSnoozeOperationIds.self
+        const result = await native.saveSnoozeAndScheduleDemo(entry.id, '2099-01-03')
+        assert.equal(result.demoResult.ok, true); assert.notEqual(entry.reminderSnoozeOperationIds.self, before)
+        assert.equal(native.pendingDemoItems.length, 1)
+        now += 10000; await native.tick(); await native.tick()
+        const notices = delivered.filter(n => n.title.includes('10 秒'))
+        assert.equal(notices.length, ++count); assert.equal(native.pendingDemo, false)
+        const url = new URL(notices.at(-1).options.data.url)
+        assert.equal(url.searchParams.get('notificationItem'), entry.id)
+        assert.equal(url.searchParams.get('tab'), entry.spaceId === sharedId ? 'shared' : 'personal')
+        assert.equal(entry.reminderSnoozes.self, '2099-01-03')
+      }
+    })
     await t.test('corrupt task storage is not cleared or replayed', async () => {
       const { native } = fresh()
       memory.set(key('native-notifications'), '{broken')

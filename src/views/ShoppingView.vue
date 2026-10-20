@@ -5,7 +5,7 @@ import AppToast from '../components/AppToast.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import RestockDateBar from '../components/restock/RestockDateBar.vue'
 import { addDays, toDateString, getReminderStatus } from '../models/item'
-import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick, inject, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SharedNotificationsMenu from '../components/SharedNotificationsMenu.vue'
 import BrandLogo from '../components/BrandLogo.vue'
@@ -18,6 +18,7 @@ import { profile } from '../stores/profile'
 import { getItemIconSrc } from '../assets/household-icons-by-state'
 const store = useItemsStore()
 const native = useNativeNotificationsStore()
+const appToast = inject('appToast', null)
 const shoppingPage = ref(null)
 const { toast, showToast, hideToast, runUndo } = useToast({ duration: 8000, pauseOnInteraction: true })
 const snoozeItemId = ref(null)
@@ -50,7 +51,10 @@ async function saveSnooze(close) {
   snoozeSaving.value = true
   try {
     const result = await native.saveSnoozeAndScheduleDemo(snoozeItemId.value, snoozeDate.value)
-    if (!result.ok) { showToast(result.error.message, null, '復原', 'error'); snoozeSaving.value = false; return }
+    if (!result.ok) {
+      const notify = result.error.code === 'STALE_ITEMS' ? appToast?.showToast || showToast : showToast
+      notify(result.error.message, null, '復原', 'error'); snoozeSaving.value = false; return
+    }
     const [year, month, day] = snoozeDate.value.split('-').map(Number)
     const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
     showToast(result.demoResult?.ok === false

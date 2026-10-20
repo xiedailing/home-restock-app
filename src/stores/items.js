@@ -1,3 +1,4 @@
+import { createItemsPersistenceGuard } from '../utils/itemsPersistenceGuard.js'
 import { migrateUnitPeriods, currentUnitRecords, undoItemChange } from '../utils/unitPeriods.js'
 import { computed, ref, shallowRef, toRaw, watch, onScopeDispose } from 'vue'
 import { defineStore, getActivePinia } from 'pinia'
@@ -6,7 +7,7 @@ import { migrateCatalogLinks, assertCatalogLinkUnique, catalogLinkError, normali
 import { isValidInviteCode } from '../utils/inviteCode'
 import { validateCategoryName as checkCategoryName } from '../utils/categoryNames.js'
 import { generateId } from '../utils/id.js'
-import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
+import { createDebouncedSaver, loadPersisted, STORE_KEYS } from '../utils/persist.js'
 import { avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 import { profile } from './profile'
 import { useSharedNotificationsStore, registerRestockNotificationSource, reconcileRestockNotifications } from './sharedNotifications'
@@ -71,6 +72,17 @@ function loadSavedState() {
 
 export const useItemsStore = defineStore('items', () => {
   const saved = loadSavedState()
+  const persistenceConflict = ref('')
+  const persistenceGuard = createItemsPersistenceGuard(message => { persistenceConflict.value = message })
+  function writeItems(data) { return persistenceGuard.write(data) }
+  function tryWriteItems(data) {
+    try { return writeItems(data) ? { ok: true } : { ok: false, error: { code: 'STORAGE_FAILED', message: '無法儲存用品資料。' } } }
+    catch (error) { return { ok: false, error: { code: error.code || 'STORAGE_FAILED', message: error.message } } }
+  }
+  async function withPersistenceLock(operation) {
+    try { return await persistenceGuard.withLock(operation) }
+    catch (error) { return { ok: false, error: { code: error.code || 'STORAGE_FAILED', message: error.message || '無法儲存用品資料。' } } }
+  }
   const demo = saved ? null : createDemoState()
   const originalItems = saved?.items ?? demo.items
   const normalizedItems = originalItems.map(migrateUnitPeriods)
@@ -369,7 +381,7 @@ export const useItemsStore = defineStore('items', () => {
     const space = getSpace(item.spaceId)
     if (!space?.shared) return
     // Persist the source operation before its pending notification, so immediate reload can verify it.
-    if (!savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot())) throw new Error('無法保存通知來源操作，未建立待發送通知。')
+    if (!writeItems(catalogPersistenceSnapshot())) throw new Error('無法保存通知來源操作，未建立待發送通知。')
     useSharedNotificationsStore().publishMemberEvent({ type, space, actorId: 'self', actorName: profile.name,
       itemName: item.name, itemId: item.id, recordId, operationId, memberIds: getSpaceMembers(space.id).map(member => member.id) })
   }
@@ -382,9 +394,10 @@ export const useItemsStore = defineStore('items', () => {
     itemsTransactionDepth++
     let result
     try {
+      persistenceGuard.assertCurrent()
       result = change()
       if (result?.ok === false) throw Object.assign(new Error(result.error?.message || '用品操作失敗。'), result.error)
-      if (!savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot())) {
+      if (!writeItems(catalogPersistenceSnapshot())) {
         throw Object.assign(new Error('用品資料儲存失敗，操作未套用。'), { code: 'STORAGE_FAILED' })
       }
     } catch (error) {
@@ -705,7 +718,8 @@ export const useItemsStore = defineStore('items', () => {
     const snapshot = catalogPersistenceSnapshot()
     const next = { ...snapshot, spaces: [...snapshot.spaces, structuredClone(toRaw(entry.space))],
       items: plan.items, departedSpaces: snapshot.departedSpaces.filter((_, i) => i !== index) }
-    if (!savePersisted(STORE_KEYS.items, next)) return { ok: false, code: 'STORAGE_FAILED', message: '無法儲存空間同步，資料未變更。' }
+    const written = tryWriteItems(next)
+    if (!written.ok) return { ok: false, code: written.error.code, message: written.error.message }
     const restoredIds = new Set(entry.items.map(item => item.id))
     spaces.value.push(entry.space)
     items.value.push(...plan.items.filter(item => restoredIds.has(item.id)))
@@ -781,7 +795,7 @@ export const useItemsStore = defineStore('items', () => {
       }
     }
   }
-  const unregisterBridge = catalog.registerItemsBridge({ snapshot: catalogPersistenceSnapshot, apply: applyCatalogLinkedItems, applyCategories: names => { customCategories.value = [...names] } })
+  const unregisterBridge = catalog.registerItemsBridge({ snapshot: () => { persistenceGuard.assertCurrent(); return catalogPersistenceSnapshot() }, didPersist: persistenceGuard.didCommitCatalog, apply: applyCatalogLinkedItems, applyCategories: names => { customCategories.value = [...names] } })
   onScopeDispose(unregisterBridge)
   function getItemByCatalogId(spaceId, catalogId) {
     if (typeof catalogId !== 'string' || !catalogId) throw catalogLinkError('INVALID_INPUT', '全域用品 ID 無效。')
@@ -800,7 +814,7 @@ export const useItemsStore = defineStore('items', () => {
         if (!plan.ok) return plan
         const refreshed = plan.items.find(item => item.id === existing.id)
         if (JSON.stringify(refreshed) !== JSON.stringify(existing)) {
-          if (persist && !savePersisted(STORE_KEYS.items, { ...catalogPersistenceSnapshot(), items: plan.items })) {
+          if (persist && !writeItems({ ...catalogPersistenceSnapshot(), items: plan.items })) {
             return { ok: false, error: { code: 'STORAGE_FAILED', message: '用品同步儲存失敗，資料未變更。' } }
           }
           applyCatalogLinkedItems(plan.items)
@@ -818,7 +832,8 @@ export const useItemsStore = defineStore('items', () => {
   function migrateCatalogAssociations() {
     const next = migrateCatalogLinks(items.value, catalog.allItems, catalog.deletedCatalogItems)
     const snapshot = catalogPersistenceSnapshot()
-    if (!savePersisted(STORE_KEYS.items, { ...snapshot, items: next })) return { ok: false, error: { code: 'STORAGE_FAILED', message: '無法儲存用品關聯。' } }
+    const written = tryWriteItems({ ...snapshot, items: next })
+    if (!written.ok) return written
     applyCatalogLinkedItems(next)
     return { ok: true }
   }
@@ -837,12 +852,21 @@ export const useItemsStore = defineStore('items', () => {
     try { useSharedNotificationsStore().flushPending() }
     catch (error) { console.error('[restock-notification] Pending recovery failed', error) }
   }
-  const scheduleSave = createDebouncedSaver(() => { persistFailed.value = !savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot()) })
+  async function flushPersistence() {
+    return withPersistenceLock(() => {
+      if (!writeItems(catalogPersistenceSnapshot())) return { ok: false, error: { code: 'STORAGE_FAILED', message: '無法儲存用品資料。' } }
+      return { ok: true }
+    })
+  }
+  const scheduleSave = createDebouncedSaver(() => {
+    persistenceGuard.withLock(() => { persistFailed.value = !writeItems(catalogPersistenceSnapshot()) })
+      .catch(() => { persistFailed.value = true })
+  })
   watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
   if (needsFamilyAlcoholSeed || needsCatalogSave || needsUnitSave) scheduleSave()
 
   return {
-    getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations, getClaimInfo,
+    persistenceConflict, withPersistenceLock, flushPersistence, getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations, getClaimInfo,
     persistFailed,
     customCategories,
     systemCategoryCounts,

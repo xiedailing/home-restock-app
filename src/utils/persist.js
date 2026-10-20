@@ -34,10 +34,10 @@ export function loadPersisted(name) {
 }
 
 // 回傳是否寫入成功；失敗（空間已滿等）不丟錯。
-export function savePersisted(name, data) {
+export function savePersisted(name, data, metadata = {}) {
   try {
     checkCatalogRecovery(name)
-    localStorage.setItem(PREFIX + name, JSON.stringify({ version: STORAGE_VERSION, data }))
+    localStorage.setItem(PREFIX + name, JSON.stringify({ version: STORAGE_VERSION, data, ...metadata }))
     return true
   } catch {
     return false

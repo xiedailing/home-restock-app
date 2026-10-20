@@ -105,7 +105,7 @@
 
 ## 本分支驗證結果
 
-- 完整 `node --test tests/*.test.mjs`：238 項通過、0 失敗。
+- 完整 `node --test tests/*.test.mjs`：249 項通過、0 失敗。
 - `npm run build`（不需展示環境變數）與 `VITE_NOTIFICATION_DEMO=true npm run build`、`git diff --check` 通過。
 - 自動化 Chromium（將本機正式產物映射至指定 origin，隔離通知 API 替身，非線上部署驗收）：儲存後自動排程、連續儲存去重、簡潔 sheet、其他用品任務保留、背景發送一次、個人／共享同名用品依 ID 定位、重複點擊、冷啟動深連結、390px 手機捲動、失效用品／空間提示、設定折疊取消／結束展示、正式日期保留與重整不重送。
 - 正式建置在指定 origin、展示連結與明確點擊後才啟用；Production 與未知 origin 即使帶舊儲存資料／環境變數也拒絕啟用。設定頁無用品選單。
@@ -117,3 +117,39 @@
 可重跑 `tests/browser/native-shopping-flow.mjs`。此腳本需另備 Playwright 與 Chromium，未新增專案套件依賴；請先 `npm run build`，另開終端執行 `npm run preview -- --host 127.0.0.1 --port 5210 --strictPort`。若 Playwright 不在專案模組搜尋路徑，設定 `PLAYWRIGHT_MODULE` 為其入口絕對路徑再執行 `node tests/browser/native-shopping-flow.mjs`；可用 `BUBU_PREVIEW_URL` 指定其他本機 Preview URL。
 
 腳本使用全新隔離 context、自備資料與 Notification／Service Worker API Mock，將本機產物映射到指定 Preview origin，不存取使用者本機資料，也不修改線上部署。此驗收不代表已驗證實際作業系統橫幅。
+
+## 多分頁衝突防護（本輪）
+
+- 每個 items Store 記住載入時的完整持久化 envelope。自己成功寫入時保存新的唯一 `revision`；每次寫入前比較完整 envelope，連舊版未帶 revision 的資料變更也能偵測。
+- 發現版本不同即回傳 `STALE_ITEMS`，提示「用品資料已在其他分頁更新，請重新載入後再操作」。不採用舊分頁快照覆寫，也不自動合併。該 Store 隨後的延遲存檔也拒絕寫入，避免失敗後又把資料存回。
+- 延後日期儲存、Demo 建立前的待存資料 flush、自動存檔使用共用 `bubu-items-write` Web Lock；取鎖後再比較版本。Demo 建立另沿用 `bubu-native-reminders`，在鎖內再次核對用品與最新持久化推播偏好。
+- 已成功儲存日期與安排 Demo 分開處理；另一分頁關閉推播或改變用品時，Demo 不回報安排成功，不回滾已保存日期。
+- 自己完成的 catalog/items 交易或成功復原到 before 資料，只在持久化內容與該交易預期資料完全相符時更新 baseline，避免把自己的交易誤判為其他分頁衝突。
+- **協調邊界：**Web Locks 保護已接入的非同步路徑。既有同步用品 API 與 catalog 多鍵交易仍保留同步契約，使用版本／完整快照檢查，尚未全部改為可等待的 Web Lock 交易；不能宣稱整個 App 的所有跨頁寫入完全原子化。未參與同一鎖的舊版本、同步寫入或外部程式仍可能在比較與寫入之間競爭。全面保證需後續統一所有 writer 的非同步交易入口或改用交易式儲存。
+- 沒有 Web Locks 的瀏覽器僅能進行樂觀衝突檢查，不能保證同時寫入的原子性；Demo 仍依原資格檢查禁止安排。發生衝突應重新載入，不依賴舊分頁繼續編輯。
+- 若原展示分頁關閉，不能可靠區分背景節流／休眠／暫停與真正結束，因此**不加入 heartbeat 逾時自動刪除**。有效待發送任務保留，其他分頁不得冒用；操作者可在啟用展示後由設定的「展示控制」取消舊任務。
+
+### 本輪驗收
+
+保留原有 238 項測試，新增衝突 guard 與整合案例，總計 249 項。包含 A/B 分頁移除、補貨、刪除、退出空間後的舊寫入拒絕、延遲存檔不能寫回、Web Lock 排隊後重驗版本、儲存失敗不局部寫入、最新推播關閉與等待鎖期間變更、六種名稱／隨機 ID／個人共享空間依序測試及同用品重測。
+
+人工驗收：兩分頁載入同一資料，B 完成上述操作並等待存檔後，A 儲存延後日期，應提示重載、B 的結果保留、沒有新增 Demo。另測 B 關閉推播後 A 儲存：日期可保存但提示未安排。若刻意讓未接入鎖的同步 API 同時執行，仍屬上述協調邊界，不能以順序衝突測試冒充全面原子保證。
+
+## 產品範圍：目前與後續規劃
+
+**目前已實作：**單項用品延後日期保存；啟用 Demo 後儲存即安排獨立 10 秒系統通知；點擊後依用品 ID 進入個人／共享清單、選擇空間、定位並展開一張卡片。
+
+**後續規劃，尚未實作：**同一接收者＋同一空間＋同一提醒日期的多項用品合併一則提醒，用品以 ID 去重。不同接收者、空間、日期不混合。點擊合併通知進入該空間購買清單，所有卡片保持收合，由使用者自行選擇。現有共享操作 60 秒批次與站內預測提醒的群組機制不等於這套合併產品規則已完成。本輪不修改多項通知或其路由。
+
+## 未來期末展示初始資料重置方案（僅規劃）
+
+1. 對指定展示 origin 備份 items、catalog、native-notifications、shared-notifications 及必要偏好，先確認是否保留個人檔案／授權設定。不同 origin 的存檔需分開處理。
+2. 關閉其他補補分頁、停止目前頁面的排程與延遲 saver，再取寫入／通知協調鎖；不能讓舊 Store 稍後把快照寫回。不能只依賴 `?reset=1`。
+3. 結束所有展示 session，清除待發送與已完成的 Demo 任務／測試去重資料；一併規劃相關站內測試通知與 pending batches。嘗試關閉本 App 已顯示的系統通知，但不保證能撤回所有舊 OS 橫幅。
+4. 用品的 reminderSnoozes、reminderSnoozeOperationIds 等延後狀態須與任務一致清理；新用品、空間關聯與購買清單、catalog 資料整批建立並驗證，新用品使用全新 ID，避免舊通知定位到新用品。
+5. 使用可回復的重置 journal／備份流程寫入整組資料；localStorage 多 key 並非原子交易，失敗要能還原，不能只依序刪除／重建部分 key。完成後重新載入新的 Store，再允許啟用 Demo。
+6. 驗證無舊任務補發、新資料關聯一致、舊通知只顯示失效提示、不會展開新用品，再開始期末展示。
+
+本輪沒有清除任何現存資料、沒有新增重置工具，也沒有使用 `?reset=1`。
+
+兩分頁隔離瀏覽器案例：`tests/browser/items-write-conflict.mjs`，使用與上述腳本相同的 Preview／Playwright 設定；`ITEM_CONFLICT_STATE` 可指定 `removed`（預設）、`completed`、`deleted`、`left-space`。使用兩個真實瀏覽器分頁與 Web Locks，資料與通知 API 仍完全隔離，驗證舊存檔不覆寫、新 Demo 不建立。

@@ -29,6 +29,9 @@ watch(() => itemsStore.itemsWithStatus, () => {
   catch (error) { console.error('[notifications] Reminder generation failed', error) }
 }, { deep: true, immediate: true })
 const { toast, showToast, runUndo } = useToast()
+watch(() => itemsStore.persistenceConflict, message => {
+  if (message) showToast(message, null, '復原', 'error')
+})
 watch(() => nativeNotifications.deliveryFailure, failure => {
   if (failure) showToast(failure.message, null, '復原', 'error')
 })
