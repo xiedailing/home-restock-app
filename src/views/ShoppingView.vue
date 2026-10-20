@@ -2,7 +2,7 @@
 import AppToast from '../components/AppToast.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import RestockDateBar from '../components/restock/RestockDateBar.vue'
-import { addDays, toDateString } from '../models/item'
+import { addDays, toDateString, getReminderStatus } from '../models/item'
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SharedNotificationsMenu from '../components/SharedNotificationsMenu.vue'
@@ -283,7 +283,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
             <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card" :class="{ completed: group.id === 'completed', expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
               <div class="personal-card-summary">
                 <input class="shopping-checkbox" type="checkbox" :checked="group.id === 'completed'"  :aria-label="`${item.name}已補貨`" @change="completeItem(item)" />
-                <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
+                <div class="item-icon-disc" ><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, getReminderStatus(item, store.today, store.remindWithinDays))" alt="" /></div>
                 <div class="item-info"><h3>{{ item.name }}</h3><SpaceTag :space-id="item.spaceId" /><p>補貨數量 {{ group.id === 'completed' ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
                 <button v-if="item.shoppingCompletedAt == null" type="button" class="item-expand" :aria-expanded="expandedItems.includes(item.id)" :aria-controls="`item-controls-${item.id}`" :aria-label="`${expandedItems.includes(item.id) ? '收起' : '展開'}${item.name}`" @click="toggleItem(item.id)"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
               </div>
@@ -320,7 +320,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <div v-show="group.id !== 'shared-completed' || !collapsedGroups.includes(group.id)" :id="`shopping-group-${group.id}`" :inert="group.id === 'shared-completed' && collapsedGroups.includes(group.id)"><div class="group-drawer-content">
           <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card shared-card" :class="{ completed: item.shoppingCompletedAt != null, expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
             <div class="personal-card-summary">
-              <div class="item-icon-disc" :class="{ restocked: item.shoppingCompletedAt != null }"><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, item.shoppingCompletedAt != null ? 'in-stock' : 'in-shopping-list')" alt="" /></div>
+              <div class="item-icon-disc" ><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, getReminderStatus(item, store.today, store.remindWithinDays))" alt="" /></div>
               <div class="item-info"><h3>{{ item.name }}</h3><p>{{ store.getSpace(item.spaceId)?.name }}</p><p>補貨數量 {{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
               <span class="claim-status" :class="{ claimed: item.shoppingClaimantId, restocked: item.shoppingCompletedAt != null }">{{ claimStatus(item) }}</span>
               <button v-if="item.shoppingCompletedAt == null" type="button" class="item-expand" :aria-expanded="expandedItems.includes(item.id)" :aria-controls="`shared-item-controls-${item.id}`" :aria-label="`${expandedItems.includes(item.id) ? '收起' : '展開'}${item.name}`" @click="toggleItem(item.id)"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
@@ -422,7 +422,7 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .personal-card.expanded { box-shadow: t.$shadow-card, inset 0 0 0 1.5px #9db59a; }
 .personal-card-summary { position: relative; display: grid; grid-template-columns: 32px 52px minmax(0, 1fr); align-items: start; column-gap: t.$space-12; min-height: calc(t.$button-height + t.$space-24 * 2 + t.$space-24); box-sizing: border-box; padding-block: t.$space-24; padding-right: t.$space-32; }
 .personal-card .shopping-checkbox { margin-top: 10px; }
-.item-icon-disc { display: grid; place-items: center; width: 52px; height: 52px; border-radius: t.$radius-pill; background: t.$primary-subtle; box-shadow: t.$shadow-inset; transition: background-color .5s ease; &.restocked { background: t.$success-subtle; } }
+.item-icon-disc { display: grid; place-items: center; width: 52px; height: 52px; border-radius: t.$radius-pill; background: t.$icon-circle-bg; box-shadow: inset -2.308px -2.308px 4.615px rgba(255, 255, 255, .9), inset 2.308px 2.308px 4.615px rgba(184, 131, 90, .22); }
 .personal-card .item-icon { width: 48px; height: 48px; }
 .personal-card .item-info { gap: 2px; h3 { font-size: t.$font-size-card-title; line-height: t.$line-height-app-bar; overflow-wrap: anywhere; } p { font-size: t.$font-size-metadata; line-height: t.$line-height-body; } }
 .personal-card :deep(.space-tag) { font-size: t.$font-size-caption; line-height: 14px; padding-block: 3px; }
