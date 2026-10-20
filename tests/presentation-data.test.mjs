@@ -127,6 +127,50 @@ test('six-item presentation uses real state calculations, model fields and safe 
         if (item.inShoppingList) { assert.ok(item.quantity > 0); assert.equal(item.addedToShoppingListDate, today) }
       }
     })
+    await t.test('data-only fixture contract stays exact across month, year and leap-day boundaries', async () => {
+      const { PRESET_ITEMS } = await server.ssrLoadModule('/src/models/itemCategories.js')
+      const expected = [
+        ['衛生紙', '生活日用品', '袋', 'tissues'],
+        ['洗衣精', '洗衣', '瓶', 'laundry-detergent'],
+        ['衛生棉', '個人護理', '包', 'sanitary-pads'],
+        ['狗狗糧食', '寵物用品', '包', 'dog-food'],
+        ['酒精', '清潔', '瓶', 'rubbing-alcohol'],
+        ['垃圾袋', '生活日用品', '包', 'trash-bags'],
+      ]
+      for (const date of ['2026-01-01', '2026-03-01', '2028-02-29', '2026-12-31']) {
+        const fixture = setup.newPresentationSnapshot(date)
+        const data = JSON.parse(fixture.items).data
+        const catalog = JSON.parse(fixture.catalog).data
+        assert.deepEqual(data.items.map(i => [i.name, i.category, i.unit, i.iconKey]), expected)
+        assert.equal(new Set(data.spaces.map(space => space.id)).size, 2)
+        assert.equal(new Set(data.items.map(item => item.id)).size, 6)
+        const recordIds = data.items.flatMap(item => item.restockRecords.map(record => record.id))
+        assert.equal(new Set(recordIds).size, recordIds.length)
+        for (const item of data.items) {
+          const preset = PRESET_ITEMS.find(entry => 'preset:' + entry.iconKey === item.catalogId)
+          assert.ok(preset)
+          const linked = { ...preset, ...catalog.presetOverrides[item.catalogId] }
+          assert.deepEqual([linked.name, linked.category, linked.unit, linked.iconKey], [item.name, item.category, item.unit, item.iconKey])
+          assert.equal(new Set(item.restockRecords.map(record => record.date)).size, item.restockRecords.length)
+          assert.ok(item.restockRecords.every(record => record.date <= date))
+          assert.equal(currentUnitRecords(item).length, item.restockRecords.length)
+        }
+        const get = name => data.items.find(item => item.name === name)
+        for (let threshold = 1; threshold <= 20; threshold++) {
+          const marks = name => model.getStatusMarks(model.getReminderStatus(get(name), date, threshold), get(name).inShoppingList)
+          assert.equal(marks('衛生紙').pill, model.STATUS.OVERDUE)
+          assert.deepEqual(marks('洗衣精'), { pill: null, showListMark: false })
+          assert.equal(marks('衛生棉').pill, model.STATUS.IN_SHOPPING_LIST)
+          assert.deepEqual(marks('狗狗糧食'), { pill: null, showListMark: false })
+        }
+        assert.deepEqual(data.items.filter(item => item.inShoppingList).map(item => item.name), ['衛生棉', '酒精', '垃圾袋'])
+        assert.equal(get('酒精').shoppingClaimantId, null)
+        assert.equal(get('垃圾袋').shoppingClaimantId, data.spaces[1].members[0].id)
+        assert.notEqual(get('垃圾袋').shoppingClaimantId, 'self')
+        assert.deepEqual(JSON.parse(fixture['native-notifications']).data.tasks, [])
+        assert.deepEqual(JSON.parse(fixture['shared-notifications']).data.records, [])
+      }
+    })
     await t.test('new runs never reuse item/record/period/space IDs; old notification resolves missing', async () => {
       const next = model.createPresentationState(today)
       for (const key of ['id', 'unitPeriodId']) assert.ok(next.items.every(item => !state.items.some(old => old[key] === item[key])))
