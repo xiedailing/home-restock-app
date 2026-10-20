@@ -1,3 +1,4 @@
+import { notificationDemoEligibility } from '../utils/notificationDemoEligibility.js'
 import { ref, onScopeDispose } from 'vue'
 import { defineStore } from 'pinia'
 import { useItemsStore } from './items'
@@ -17,14 +18,23 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   const settings = useNotificationSettingsStore()
   const message = ref('')
   const error = ref(false)
+  const messageItemId = ref(null)
   const permission = ref('default')
+  const authorizationMessage = ref('')
+  const demoFeedback = ref({})
   const pendingDemo = ref(false)
   const pendingDemoItems = ref([])
   let interval
   let busy = false
   let active = false
   let navigate
-  function report(text, failed = false) { message.value = text; error.value = failed }
+  function report(text, failed = false, itemId = null) {
+    message.value = text; error.value = failed; messageItemId.value = itemId
+    if (itemId) demoFeedback.value = { ...demoFeedback.value, [itemId]: { message: text, error: failed } }
+  }
+  function clearDemoFeedback(itemId) {
+    const next = { ...demoFeedback.value }; delete next[itemId]; demoFeedback.value = next
+  }
   function support() {
     const result = notificationSupport()
     permission.value = result.permission || 'unsupported'
@@ -36,8 +46,10 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     const current = support()
     if (result.ok && current.permission !== 'granted') {
       const failed = { ok: false, message: '瀏覽器仍回報未允許通知，請檢查網站權限與作業系統設定；系統通知未啟用。' }
+      authorizationMessage.value = failed.message
       report(failed.message, true); return failed
     }
+    authorizationMessage.value = result.ok ? '' : result.message
     if (result.ok) { settings.setPushEnabled(true); report('已允許通知。請確認作業系統也允許瀏覽器通知，並關閉勿擾模式。') }
     else report(result.message, true)
     return result
@@ -106,7 +118,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       }
       // Stationary permission state is never a reason to request permission.
       if (!settings.pushEnabled || loadPersisted(STORE_KEYS.notifications)?.pushEnabled === false || !support().ok || permission.value !== 'granted') {
-        if (task.demo) { task.state = 'blocked'; saveTasks(tasks); report('未啟用通知或尚未授權，測試通知未發送。', true) }
+        if (task.demo) { task.state = 'blocked'; saveTasks(tasks); report('未啟用通知或尚未授權，測試通知未發送。', true, task.itemId) }
         continue
       }
       item = items.getItem(task.itemId)
@@ -121,8 +133,8 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
           url: itemUrl(item.id), onClick: () => openItem(item.id),
           shouldSend: () => settings.pushEnabled && loadPersisted(STORE_KEYS.notifications)?.pushEnabled !== false && currentValid(task) })
         task.state = 'sent'
-        report('通知已交給瀏覽器處理；若未看到，請檢查作業系統通知與勿擾設定。')
-      } catch (cause) { task.state = 'failed'; task.failure = cause.message; report(cause.message, true) }
+        report('通知已交給瀏覽器處理；若未看到，請檢查作業系統通知與勿擾設定。', false, task.demo ? task.itemId : null)
+      } catch (cause) { task.state = 'failed'; task.failure = cause.message; report(cause.message, true, task.demo ? task.itemId : null) }
       // Failing this write leaves attempted on disk: do not duplicate the OS alert.
       saveTasks(tasks)
     }
@@ -139,30 +151,37 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     } catch (cause) { report(cause.message || '系統通知處理失敗。', true) }
     finally { busy = false }
   }
+  function demoEligibility(itemId, pendingItemIds = pendingDemoItems.value) {
+    const item = items.getItem(itemId)
+    const space = item && items.getSpace(item.spaceId)
+    return notificationDemoEligibility({ item, space,
+      accessible: !space?.shared || items.getSpaceMembers(space.id).some(member => member.id === 'self'),
+      pendingItemIds, enabled: notificationDemoEnabled, permission: permission.value,
+      supported: permission.value !== 'unsupported', pushEnabled: settings.pushEnabled,
+      locksAvailable: !!navigator.locks?.request })
+  }
   async function demo(itemId) {
     if (!notificationDemoEnabled) return { ok: false }
     await tick()
-    if (!support().ok || permission.value !== 'granted' || !settings.pushEnabled) {
-      report('請先點擊「開啟系統通知」並啟用推播通知，才可安排測試。', true); return { ok: false }
-    }
-    const item = items.getItem(itemId)
-    if (!canAccess(item) || !item.reminderSnoozes?.self) { report('請選擇仍在購買清單、尚未補貨且已開啟補貨提醒的用品進行測試。', true); return { ok: false } }
-    if (!navigator.locks?.request) { report('此瀏覽器缺少多分頁排程鎖，無法安排測試。', true); return { ok: false } }
+    const eligibility = demoEligibility(itemId)
+    if (!eligibility.ok) { report(eligibility.message, true, itemId); return eligibility }
     try {
       await navigator.locks.request('bubu-native-reminders', async () => {
         const tasks = readTasks()
-        if (tasks.some(task => task.demo && task.state === 'scheduled')) throw new Error('已有 10 秒測試等待中，請稍候。')
+        const latest = demoEligibility(itemId, tasks.filter(task => task.demo && task.state === 'scheduled').map(task => task.itemId))
+        if (!latest.ok) throw new Error(latest.message)
+        const item = items.getItem(itemId)
         tasks.push({ id: generateId(), itemId, spaceId: item.spaceId, fingerprint: reminderFingerprint(item),
           dueAt: Date.now() + 10000, createdAt: Date.now(), state: 'scheduled', demo: true,
           demoReminderSignature: JSON.stringify([item.reminderSnoozes?.self || null, item.reminderSnoozeOperationIds?.self || null]) })
         saveTasks(tasks)
       })
-      report('已安排 10 秒測試，可切換至其他分頁；瀏覽器節流可能延遲，不會修改正式提醒日期。')
+      report('已安排 10 秒測試，可切換至其他分頁；瀏覽器節流可能延遲，不會修改正式提醒日期。', false, itemId)
       return { ok: true }
-    } catch (cause) { report(cause.message, true); return { ok: false } }
+    } catch (cause) { report(cause.message, true, itemId); return { ok: false } }
   }
-  async function cancelDemo(itemId) {
-    if (!navigator.locks?.request) { report('此瀏覽器無法安全取消測試，請更新瀏覽器。', true); return { ok: false } }
+  async function cancelDemo(itemId, feedbackItemId = itemId) {
+    if (!navigator.locks?.request) { report('此瀏覽器無法安全取消測試，請更新瀏覽器。', true, feedbackItemId); return { ok: false } }
     try {
       await navigator.locks.request('bubu-native-reminders', async () => {
         const tasks = readTasks()
@@ -171,8 +190,8 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
         for (const task of waiting) task.state = 'cancelled'
         saveTasks(tasks)
       })
-      report('已取消測試通知。'); return { ok: true }
-    } catch (cause) { report(cause.message, true); return { ok: false } }
+      report('已取消測試通知。', false, feedbackItemId); return { ok: true }
+    } catch (cause) { report(cause.message, true, feedbackItemId); return { ok: false } }
   }
   function onMessage(event) {
     if (event.data?.type !== 'bubu-notification-click' || typeof event.data.url !== 'string') return
@@ -203,5 +222,5 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     navigator.serviceWorker?.removeEventListener('message', onMessage)
   }
   onScopeDispose(stop)
-  return { message, error, permission, pendingDemo, pendingDemoItems, enable, support, demo, cancelDemo, tick, start, stop }
+  return { message, error, messageItemId, permission, authorizationMessage, demoFeedback, clearDemoFeedback, demoEligibility, pendingDemo, pendingDemoItems, enable, support, demo, cancelDemo, tick, start, stop }
 })

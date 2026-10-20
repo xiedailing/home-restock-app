@@ -1,3 +1,4 @@
+import { notificationDemoEligibility } from '../src/utils/notificationDemoEligibility.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'vite'
@@ -9,6 +10,25 @@ const item = () => ({ id: 'a', spaceId: 'personal', inShoppingList: true, shoppi
   unitPeriodId: 'p', restockRecords: [{ id: 'r', date: '2026-01-01', quantity: 1, unit: '包' }],
   reminderSnoozes: { self: '2099-01-02' }, reminderSnoozeOperationIds: { self: 'op1' } })
 const space = { id: 'personal', shared: false }
+
+test('demo eligibility distinguishes item state, saved date, queue and permission without mutations', () => {
+  const source = item(), before = structuredClone(source)
+  const check = overrides => notificationDemoEligibility({ item: source, space, ...overrides })
+  assert.equal(check({}).ok, true)
+  for (const [changes, code] of [
+    [{ item: null }, 'missing'], [{ space: null }, 'inaccessible'], [{ accessible: false }, 'inaccessible'],
+    [{ item: { ...source, inShoppingList: false } }, 'removed'],
+    [{ item: { ...source, shoppingCompletedAt: 1 } }, 'completed'],
+    [{ item: { ...source, reminderEnabled: false } }, 'reminder-off'],
+    [{ item: { ...source, reminderSnoozes: {} } }, 'unsaved'],
+    [{ pendingItemIds: ['a'] }, 'waiting-self'], [{ pendingItemIds: ['b'] }, 'waiting-other'],
+    [{ permission: 'denied' }, 'permission'], [{ supported: false }, 'unsupported'],
+    [{ pushEnabled: false }, 'push-off'], [{ locksAvailable: false }, 'locks'], [{ enabled: false }, 'disabled'],
+  ]) assert.equal(check(changes).code, code)
+  assert.equal(check({ pendingItemIds: ['b'] }).otherItemId, 'b')
+  assert.match(check({ item: { ...source, reminderEnabled: false } }).message, /先.*開啟/)
+  assert.deepEqual(source, before)
+})
 
 test('08:00 local date validation and invalid calendar dates', () => {
   assert.equal(reminderTime('2099-01-02'), new Date(2099, 0, 2, 8).getTime())
@@ -199,6 +219,35 @@ test('native notification integration: permission, persistence, delay, cancellat
         assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
         assert.equal(native.pendingDemo, false)
       }
+    })
+    await t.test('disabled reminder and unsaved snooze report specific reasons, keep state and scope feedback', async () => {
+      const { native, items } = fresh()
+      items.disableReminder('a')
+      const before = JSON.stringify(items.getItem('a'))
+      assert.equal((await native.demo('a')).code, 'reminder-off')
+      assert.equal(JSON.stringify(items.getItem('a')), before)
+      assert.match(native.demoFeedback.a.message, /先.*開啟/)
+      assert.equal(native.messageItemId, 'a')
+      assert.equal(native.demoFeedback.b, undefined)
+      native.clearDemoFeedback('a'); assert.equal(native.demoFeedback.a, undefined)
+      items.enableReminder('a'); items.cancelShoppingReminderSnooze('a')
+      assert.equal((await native.demo('a')).code, 'unsaved')
+      assert.equal(native.pendingDemo, false)
+    })
+    await t.test('other pending item blocks scheduling and can be cancelled from the current item', async () => {
+      const { native, items } = fresh()
+      items.items.push(createItem({ ...item(), id: 'b', name: '洗衣精' }))
+      items.updateItem('b', { quantity: 2 })
+      assert.equal((await native.demo('a')).ok, true)
+      assert.equal(native.demoEligibility('b').otherItemId, 'a')
+      assert.equal((await native.demo('b')).code, 'waiting-other')
+      assert.equal(native.demoFeedback.a.error, false)
+      assert.equal(native.demoFeedback.b.error, true)
+      assert.equal((await native.cancelDemo('a', 'b')).ok, true)
+      assert.equal(native.demoFeedback.b.message, '已取消測試通知。')
+      assert.equal(native.demoEligibility('b').ok, true)
+      assert.equal((await native.demo('b')).ok, true)
+      assert.deepEqual([...native.pendingDemoItems], ['b'])
     })
     await t.test('corrupt task storage is not cleared or replayed', async () => {
       const { native } = fresh()

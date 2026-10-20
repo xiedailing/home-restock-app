@@ -360,7 +360,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
             <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
             <button type="button" class="btn btn-primary" @click="saveSnooze()">儲存</button>
             <button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" @click="cancelSnooze(close)">取消延後</button>
-            <SnoozeNotificationActions v-if="currentSnooze" :item-id="snoozeItemId" />
+            <SnoozeNotificationActions :item-id="snoozeItemId" />
           </template>
           <template v-else>
             <p role="status">已儲存延後提醒日期。</p>
