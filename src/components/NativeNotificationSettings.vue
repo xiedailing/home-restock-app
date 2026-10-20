@@ -8,13 +8,12 @@ const native = useNativeNotificationsStore()
 const route = useRoute()
 const operatorVisible = computed(() => allowsNotificationDemo(location.origin) && route.query.notificationDemo === '1')
 const statusMessage = computed(() => native.authorizationMessage || (operatorVisible.value && native.error && !native.messageItemId ? native.message : ''))
-const visible = computed(() => operatorVisible.value || native.permission !== 'granted' || !!statusMessage.value)
+const visible = computed(() => native.permission !== 'granted' || !!statusMessage.value || (operatorVisible.value && (native.demoEnabled || !!native.demoModeMessage)))
 onMounted(() => native.support())
 </script>
 <template>
   <div v-if="visible" class="native-notification-settings">
-    <span v-if="operatorVisible && native.permission === 'granted'">系統通知已開啟</span>
-    <span v-else-if="native.permission === 'denied'">系統通知已封鎖，請至瀏覽器網站設定允許通知。</span>
+    <span v-if="native.permission === 'denied'">系統通知已封鎖，請至瀏覽器網站設定允許通知。</span>
     <span v-else-if="native.permission === 'unsupported'">此環境無法使用系統通知，請使用電腦版 Chrome 或 Safari。</span>
     <button v-else-if="native.permission === 'default'" type="button" class="native-permission-link" @click="native.enable">開啟系統通知</button>
     <SnoozeNotificationActions v-if="operatorVisible" />

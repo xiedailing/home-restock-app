@@ -5,7 +5,7 @@ const native = useNativeNotificationsStore()
 const route = useRoute()
 </script>
 <template>
-  <aside v-if="!native.demoEnabled && native.demoInvited && route.query.notificationDemo === '1'" class="notification-demo-mode" aria-label="通知展示模式">
+  <aside v-if="route.name !== 'settings' && !native.demoEnabled && native.demoInvited && route.query.notificationDemo === '1'" class="notification-demo-mode" aria-label="通知展示模式">
     <button type="button" @click="native.activateDemo">啟用通知展示模式</button>
     <p v-if="native.demoModeMessage" role="status">{{ native.demoModeMessage }}</p>
   </aside>

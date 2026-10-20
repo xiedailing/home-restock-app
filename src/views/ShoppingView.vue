@@ -1,4 +1,6 @@
 <script setup>
+import { createTitleLongPress } from '../utils/titleLongPress.js'
+import { allowsNotificationDemo } from '../utils/notificationDemoMode.js'
 import { useNativeNotificationsStore } from '../stores/nativeNotifications'
 import { resolveShoppingNotification } from '../utils/shoppingNotificationTarget.js'
 import AppToast from '../components/AppToast.vue'
@@ -21,6 +23,50 @@ const native = useNativeNotificationsStore()
 const appToast = inject('appToast', null)
 const shoppingPage = ref(null)
 const { toast, showToast, hideToast, runUndo } = useToast({ duration: 8000, pauseOnInteraction: true })
+const hiddenDemoAllowed = allowsNotificationDemo(location.origin)
+let demoToggleBusy = false
+async function toggleHiddenDemo() {
+  if (!hiddenDemoAllowed || demoToggleBusy) return
+  demoToggleBusy = true
+  try {
+    if (native.demoEnabled) {
+      const result = await native.endDemo()
+      showToast(result.ok ? '通知展示模式已關閉' : native.demoModeMessage, null, '復原', result.ok ? 'success' : 'error')
+      return
+    }
+    const result = native.activateDemo({ userGesture: true })
+    if (!result.ok) { showToast(native.demoModeMessage || '無法啟用通知展示模式。', null, '復原', 'error'); return }
+    showToast('通知展示模式已啟用')
+    // No await before requesting permission; keep push preferences unchanged.
+    const support = native.support()
+    if (support.permission === 'default') {
+      const authorization = await native.enable({ preservePush: true })
+      if (!authorization.ok) showToast(authorization.message, null, '復原', 'error')
+    } else if (!support.ok || support.permission !== 'granted') {
+      showToast(support.message || '尚未允許系統通知，請在瀏覽器網站設定中允許通知。', null, '復原', 'error')
+    }
+  } finally { demoToggleBusy = false }
+}
+const titleGesture = createTitleLongPress(toggleHiddenDemo, { enabled: () => hiddenDemoAllowed && !demoToggleBusy })
+const cancelTitleGesture = () => titleGesture.cancel()
+onMounted(() => {
+  if (!hiddenDemoAllowed) return
+  window.addEventListener('pointermove', titleGesture.pointermove)
+  window.addEventListener('pointerup', titleGesture.pointerup)
+  window.addEventListener('pointercancel', cancelTitleGesture)
+  window.addEventListener('scroll', cancelTitleGesture, true)
+  window.addEventListener('blur', cancelTitleGesture)
+  document.addEventListener('visibilitychange', cancelTitleGesture)
+})
+onBeforeUnmount(() => {
+  titleGesture.dispose()
+  window.removeEventListener('pointermove', titleGesture.pointermove)
+  window.removeEventListener('pointerup', titleGesture.pointerup)
+  window.removeEventListener('pointercancel', cancelTitleGesture)
+  window.removeEventListener('scroll', cancelTitleGesture, true)
+  window.removeEventListener('blur', cancelTitleGesture)
+  document.removeEventListener('visibilitychange', cancelTitleGesture)
+})
 const snoozeItemId = ref(null)
 const snoozeSaving = ref(false)
 const snoozeOpen = ref(false)
@@ -330,7 +376,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 </script>
 <template>
   <section ref="shoppingPage" class="shopping-page" aria-labelledby="shopping-title">
-    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title">購買清單<span class="desktop-breadcrumb"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span class="breadcrumb-current">{{ activeTab === 'shared' ? (store.getSpace(selectedSpace)?.name || '共享清單') : '我的清單' }}</span></span></h1></div><SharedNotificationsMenu /></header>
+    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title" :data-demo-switch="hiddenDemoAllowed ? '' : undefined" :tabindex="hiddenDemoAllowed ? 0 : undefined" :aria-description="hiddenDemoAllowed ? '長按三秒後放開，或聚焦後按住空白鍵或 Enter 三秒後放開，切換通知展示模式。' : undefined" @pointerdown="titleGesture.pointerdown" @pointerleave="cancelTitleGesture" @keydown="titleGesture.keydown" @keyup="titleGesture.keyup" @blur="cancelTitleGesture" @click.capture="titleGesture.click" @contextmenu="hiddenDemoAllowed && $event.preventDefault()" @selectstart="hiddenDemoAllowed && $event.preventDefault()">購買清單<span class="desktop-breadcrumb"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span class="breadcrumb-current">{{ activeTab === 'shared' ? (store.getSpace(selectedSpace)?.name || '共享清單') : '我的清單' }}</span></span></h1></div><SharedNotificationsMenu /></header>
     <div class="shopping-main">
     <div class="shopping-tabs" role="tablist" aria-label="購買清單類型">
       <button id="personal-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'personal'" aria-controls="personal-shopping-panel" @click="selectShoppingTab('personal')">我的清單</button>
@@ -455,6 +501,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 .shopping-header { @include ph.page-header; align-items: center; }
 .page-brand { @include ph.page-brand; }
 h1 { @include ph.page-title; }
+#shopping-title[data-demo-switch] { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .inline-claim-all { margin-bottom: t.$space-16; .btn { width: 100%; min-height: t.$button-height; background: t.$primary-soft; color: t.$primary-green; box-shadow: t.$shadow-raised; } .btn:disabled { background: t.$text-disabled; color: t.$text-inverse; box-shadow: none; opacity: 1; } }
 .shopping-tabs { display: flex; box-sizing: border-box; min-height: 46px; padding: 3px; margin-bottom: t.$space-16; border-radius: t.$radius-popover; background: t.$surface-bg; button { flex: 1; min-width: 0; min-height: 40px; padding: 0 t.$space-8; border: 0; border-radius: t.$radius-popover; background: transparent; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; cursor: pointer; &[aria-selected="true"] { background: t.$primary-soft; color: t.$primary-green; font-weight: t.$font-weight-medium; box-shadow: t.$shadow-added; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; } } }
 .shopping-empty { display: flex; flex-direction: column; align-items: center; padding-top: max(64px, calc(36dvh - 126px)); text-align: center; h2 { margin: 19px 0 2px; font: t.$font-weight-bold #{t.$font-size-heading} / 30px t.$font-family; } p { max-width: 318px; margin: 0; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; } }

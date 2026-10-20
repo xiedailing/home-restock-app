@@ -24,9 +24,9 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   function captureDemoLink(search) {
     if (demoLinkRequested(location.origin, search)) demoInvited.value = true
   }
-  function activateDemo() {
+  function activateDemo({ userGesture = false } = {}) {
     if (demoEnabled.value) return { ok: true }
-    if (!demoOriginAllowed || !demoInvited.value) return { ok: false }
+    if (!demoOriginAllowed || (!demoInvited.value && !userGesture)) return { ok: false }
     try {
       const id = generateId()
       sessionStorage.setItem(DEMO_SESSION_KEY, JSON.stringify({ version: 1, origin: location.origin, id }))
@@ -76,7 +76,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     permission.value = result.permission || 'unsupported'
     return result
   }
-  async function enable() {
+  async function enable({ preservePush = false } = {}) {
     // No await before requesting permission: preserve Safari user activation.
     const result = await requestBrowserNotifications()
     const current = support()
@@ -86,7 +86,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       report(failed.message, true); return failed
     }
     authorizationMessage.value = result.ok ? '' : result.message
-    if (result.ok) { settings.setPushEnabled(true); report('已允許通知。請確認作業系統也允許瀏覽器通知，並關閉勿擾模式。') }
+    if (result.ok) { if (!preservePush) settings.setPushEnabled(true); report('已允許通知。請確認作業系統也允許瀏覽器通知，並關閉勿擾模式。') }
     else report(result.message, true)
     return result
   }

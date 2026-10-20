@@ -132,6 +132,26 @@ test('native notification integration: permission, persistence, delay, cancellat
       native.$dispose(); const reload = useNativeNotificationsStore(); await reload.tick()
       assert.equal(delivered.length, 1); assert.equal(shared.records.length, 1)
     })
+    await t.test('explicit hidden gesture toggles the same session without URL invitation and never changes push preference', async () => {
+      const { native, settings, items } = fresh()
+      await native.endDemo(); location.search = ''
+      const formal = JSON.stringify(items.getItem('a').reminderSnoozes)
+      assert.equal(native.activateDemo().ok, false)
+      assert.equal(native.activateDemo({ userGesture: true }).ok, true)
+      settings.setPushEnabled(false)
+      assert.equal((await native.enable({ preservePush: true })).ok, true)
+      assert.equal(settings.pushEnabled, false)
+      assert.equal((await native.demo('a')).code, 'push-off')
+      settings.setPushEnabled(true)
+      assert.equal((await native.demo('a')).ok, true)
+      const closing = native.endDemo(); assert.equal(native.demoEnabled, false); await closing
+      assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.filter(task => task.demo && task.state === 'scheduled').length, 0)
+      assert.equal(JSON.stringify(items.getItem('a').reminderSnoozes), formal)
+      assert.equal(native.activateDemo({ userGesture: true }).ok, true)
+      MockNotification.permission = 'denied'
+      assert.equal((await native.enable({ preservePush: true })).ok, false)
+      assert.equal((await native.demo('a')).code, 'permission')
+    })
     await t.test('permission is requested only by an explicit enable action', async () => {
       const { native } = fresh(); const before = permissionRequests
       MockNotification.permission = 'default'
@@ -306,6 +326,7 @@ test('native notification integration: permission, persistence, delay, cancellat
         denied.captureDemoLink('?notificationDemo=1')
         assert.equal(denied.demoInvited, false); assert.equal(denied.demoEnabled, false)
         assert.equal(denied.activateDemo().ok, false)
+        assert.equal(denied.activateDemo({ userGesture: true }).ok, false)
         assert.equal((await denied.demo('a')).ok, false)
         assert.equal((await denied.cancelDemo('a')).ok, false)
         now += 10000; await denied.tick()

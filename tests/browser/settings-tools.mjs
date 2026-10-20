@@ -45,9 +45,9 @@ for(const width of [1440,390]){
  for(const name of ['補貨提醒','尚未購買提醒']){const button=page.getByRole('button',{name:new RegExp('^'+name)});await button.click();assert.equal(await button.getAttribute('aria-expanded'),'true');await button.click()}
  await page.screenshot({path:'/tmp/bubu-settings-clean-'+width+'.png',fullPage:true});
 }
-await route('/settings?notificationDemo=1');await page.getByRole('button',{name:'啟用通知展示模式',exact:true}).waitFor();assert.equal(await nativeState(),false);
+await route('/shopping?notificationDemo=1');await page.getByRole('button',{name:'啟用通知展示模式',exact:true}).waitFor();assert.equal(await nativeState(),false);
 await route('/settings');await clean();assert.equal(await nativeState(),false); // invitation must not leak or activate.
-await route('/settings?notificationDemo=1');await page.getByRole('button',{name:'啟用通知展示模式',exact:true}).click();assert.equal(await nativeState(),true);await page.getByText('展示控制',{exact:true}).waitFor();
+await route('/shopping?notificationDemo=1');await page.getByRole('button',{name:'啟用通知展示模式',exact:true}).click();assert.equal(await nativeState(),true);await route('/settings?notificationDemo=1');await page.getByText('展示控制',{exact:true}).waitFor();
 await route('/settings');await clean();assert.equal(await nativeState(),true); // hidden controls must not disable mode.
 await page.evaluate(()=>{window.__OriginalNotification=Notification;Notification.permission='default';Notification.requestPermission=async()=>{window.__permissionRequests=(window.__permissionRequests||0)+1;Notification.permission='granted';return 'granted'};document.querySelector('#app').__vue_app__.config.globalProperties.$pinia._s.get('native-notifications').support()});
 await page.getByRole('button',{name:'開啟系統通知',exact:true}).click();await page.waitForFunction(()=>window.__permissionRequests===1);await clean();
