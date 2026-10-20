@@ -185,6 +185,7 @@ export function createItem(input = {}) {
     addedToShoppingListDate: input.addedToShoppingListDate ?? null,
     // 「暫時不用補貨」的延後到期日；當天起重新出現在首頁補貨提醒（specs/005 SNZ-02）。
     snoozedUntil: input.snoozedUntil ?? null,
+    reminderSnoozeOperationIds: input.reminderSnoozeOperationIds && typeof input.reminderSnoozeOperationIds === 'object' ? { ...input.reminderSnoozeOperationIds } : {},
     reminderSnoozes: input.reminderSnoozes && typeof input.reminderSnoozes === 'object' ? { ...input.reminderSnoozes } : {},
     // 依新增順序排列；同一天多筆時，較晚新增者為最新一筆。
     restockRecords: input.restockRecords ?? [],

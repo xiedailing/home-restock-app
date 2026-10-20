@@ -2,6 +2,7 @@
 import { loadRouteLocation, useRoute, useRouter } from 'vue-router'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue'
 import BottomNav from './components/BottomNav.vue'
+import { useNativeNotificationsStore } from './stores/nativeNotifications'
 import DesktopWallpaper from './components/DesktopWallpaper.vue'
 import AddSpaceSheet from './components/add-item/AddSpaceSheet.vue'
 import AppToast from './components/AppToast.vue'
@@ -15,6 +16,9 @@ const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
 const notifications = useSharedNotificationsStore()
+const nativeNotifications = useNativeNotificationsStore()
+onMounted(() => nativeNotifications.start(target => router.push(target)))
+onBeforeUnmount(() => nativeNotifications.stop())
 if (import.meta.env.DEV) notifications.seedPreviewHistory(itemsStore.spaces, itemsStore.items)
 watch(() => itemsStore.itemsWithStatus, () => {
   try { notifications.publishRestockReminders() }

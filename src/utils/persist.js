@@ -4,7 +4,7 @@ import { recoverCatalogTransaction, commitCatalogTransaction } from './catalogTr
 export const STORAGE_VERSION = 2
 const PREFIX = 'home-restock:v1:'
 
-export const STORE_KEYS = { items: 'items', profile: 'profile', notifications: 'notifications', sharedNotifications: 'shared-notifications', catalog: 'catalog', unitOptions: 'unit-options', catalogIntegration: 'catalog-integration' }
+export const STORE_KEYS = { nativeNotifications: 'native-notifications', items: 'items', profile: 'profile', notifications: 'notifications', sharedNotifications: 'shared-notifications', catalog: 'catalog', unitOptions: 'unit-options', catalogIntegration: 'catalog-integration' }
 
 const catalogTransactionConfig = { prefix: PREFIX, version: STORAGE_VERSION, journalKey: STORE_KEYS.catalogIntegration }
 function checkCatalogRecovery(name) {

@@ -295,7 +295,8 @@ export const useItemsStore = defineStore('items', () => {
       || !Number.isFinite(new Date(`${date}T00:00:00`).getTime()) || addDays(date, 0) !== date || date <= toDateString()) {
       return { ok: false, error: { message: '請選擇明天或之後的提醒日期。' } }
     }
-    return persistItemsOperation(() => updateItem(id, { reminderSnoozes: { ...item.reminderSnoozes, self: date } }))
+    return persistItemsOperation(() => updateItem(id, { reminderSnoozes: { ...item.reminderSnoozes, self: date },
+      reminderSnoozeOperationIds: { ...item.reminderSnoozeOperationIds, self: generateId() } }))
   }
 
   function cancelShoppingReminderSnooze(id) {
@@ -303,7 +304,9 @@ export const useItemsStore = defineStore('items', () => {
     if (!item?.inShoppingList || item.shoppingCompletedAt != null) return { ok: false, error: { message: '用品已不在待買清單。' } }
     const reminderSnoozes = { ...item.reminderSnoozes }
     delete reminderSnoozes.self
-    return persistItemsOperation(() => updateItem(id, { reminderSnoozes }))
+    const reminderSnoozeOperationIds = { ...item.reminderSnoozeOperationIds }
+    delete reminderSnoozeOperationIds.self
+    return persistItemsOperation(() => updateItem(id, { reminderSnoozes, reminderSnoozeOperationIds }))
   }
 
   // specs/009 FR-913：重新開啟不再填寫，直接用補貨紀錄重算；推算日已過就直接是「該補貨了」。

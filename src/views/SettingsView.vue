@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { useNotificationSettingsStore } from '../stores/notificationSettings'
 import AppToast from '../components/AppToast.vue'
+import NativeNotificationSettings from '../components/NativeNotificationSettings.vue'
 import { useToast } from '../composables/useToast'
 import { isValidInviteCode } from '../utils/inviteCode'
 import { computed, ref, onBeforeMount, onMounted, onBeforeUnmount } from 'vue'
@@ -221,6 +222,7 @@ function saveChanges() {
         </div>
         <div class="notification-hint-collapse" :class="{ expanded: !notifications }" :aria-hidden="notifications"><div class="notification-hint-inner"><p class="phone-notification-hint">關閉後仍會保留補貨日期與紀錄。</p></div></div>
         </div>
+        <NativeNotificationSettings />
         <template v-for="reminder in [{ type: 'restock', label: '補貨提醒' }, { type: 'shopping', label: '尚未購買提醒' }]" :key="reminder.type">
           <button type="button" class="settings-row" :class="{ 'last-reminder-row': reminder.type === 'shopping' }" data-reminder-control :aria-expanded="expandedReminder === reminder.type" :aria-controls="`reminder-options-${reminder.type}`" @click="toggleReminder(reminder.type)">
             <span>{{ reminder.label }}</span>
