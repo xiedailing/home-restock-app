@@ -51,6 +51,7 @@ function pick(date) {
 }
 // 鍵盤 Tab 離開日曆就收起，同「⋯」選單。
 function onFocusout(event) {
+  if (!document.documentElement.classList.contains('keyboard-nav')) return
   const target = event.relatedTarget
   if (!calendarOpen.value || !target) return
   if (popover.value?.contains(target) || dayButton.value?.contains(target)) return
@@ -75,7 +76,7 @@ function onFocusout(event) {
 
     <div v-if="calendarOpen" class="calendar-backdrop" @click="closeCalendar()" />
     <Transition name="calendar-pop">
-      <div v-if="calendarOpen" ref="popover" class="calendar-popover" role="dialog" :aria-label="allowFuture ? '選擇提醒日期' : '選擇補貨日期'" @keydown.esc.stop="closeCalendar({ restoreFocus: true })">
+      <div v-if="calendarOpen" ref="popover" class="calendar-popover" role="dialog" :aria-label="allowFuture ? '選擇提醒日期' : '選擇補貨日期'" @pointerdown.stop @click.stop @keydown.esc.stop.prevent="closeCalendar({ restoreFocus: true })">
         <CalendarPicker ref="calendar" :model-value="modelValue" :min-date="minDate" :max-date="allowFuture ? null : today" @update:model-value="pick" />
       </div>
     </Transition>

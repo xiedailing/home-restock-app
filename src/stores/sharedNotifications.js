@@ -103,7 +103,7 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
           const event = snooze ? `${base}:snooze:${recipientId}:${snooze}` : base
           return !processed.includes(`${event}:recipient:${recipientId}`) && (snooze || !processed.includes(base))
         })
-        if (!space.shared || !fresh.length) continue
+        if (!fresh.length || (!space.shared && recipientId !== 'self')) continue
         const signature = JSON.stringify(fresh.map(item => item.id))
         if (!groups.has(signature)) groups.set(signature, { fresh, recipients: [] })
         groups.get(signature).recipients.push(recipientId)
