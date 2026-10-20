@@ -80,12 +80,16 @@ await page.evaluate(snapshot=>localStorage.setItem('home-restock:v1:items',snaps
 // Operator controls are confined to settings and can cancel a waiting test.
 await page.getByRole('tab',{name:'我的清單',exact:true}).click();await open('qa-2');await save();
 await page.locator('nav').getByRole('link',{name:'設定',exact:true}).click();
+assert.equal(await page.getByText('展示控制',{exact:true}).count(),0);
+await page.evaluate(()=>document.querySelector('#app').__vue_app__.config.globalProperties.$router.push('/settings?notificationDemo=1'));
 await page.getByText('展示控制',{exact:true}).click();
 await page.getByRole('button',{name:'取消「垃圾袋」的待發送通知',exact:true}).click();
 await page.waitForFunction(()=>JSON.parse(localStorage.getItem('home-restock:v1:native-notifications')).data.tasks.filter(t=>t.demo&&t.state==='scheduled').length===0);
 await page.locator('nav').getByRole('link',{name:'購買清單',exact:true}).click();await open('qa-2');await save();
 // Operator controls are confined to the settings page, not the presentation sheet.
 await page.locator('nav').getByRole('link',{name:'設定',exact:true}).click();
+assert.equal(await page.getByText('展示控制',{exact:true}).count(),0);
+await page.evaluate(()=>document.querySelector('#app').__vue_app__.config.globalProperties.$router.push('/settings?notificationDemo=1'));
 await page.getByText('展示控制',{exact:true}).click();
 await page.getByRole('button',{name:'結束展示並取消待發送測試',exact:true}).click();
 await page.waitForFunction(()=>!sessionStorage.getItem('bubu:notification-demo-session:v1'));

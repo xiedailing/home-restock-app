@@ -29,7 +29,7 @@
 
 `https://home-restock-app-git-feature-native-browser-n-f5352f-xiedailing.vercel.app`
 
-1. 在指定 Preview 設定頁點「展示資料初始化／還原」，或開啟 `/?demoSetup=1`。
+1. 直接開啟指定 Preview 的 `/?demoSetup=1`；一般設定頁不提供管理入口。
 2. 關閉其他補補分頁，包括舊部署版本的分頁與視窗。此工具頁不掛載 App、Router、Pinia 或通知排程。
 3. 點「恢復六項展示初始資料」，在一次確認對話框中確認。取消不會備份或重置。
 4. 系統自動保留操作前一版本地備份，再執行既有交易。成功後完整導向 `/shopping?notificationDemo=1`，返回原本 App，不停留在管理頁。

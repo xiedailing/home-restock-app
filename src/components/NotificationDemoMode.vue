@@ -1,9 +1,11 @@
 <script setup>
+import { useRoute } from 'vue-router'
 import { useNativeNotificationsStore } from '../stores/nativeNotifications'
 const native = useNativeNotificationsStore()
+const route = useRoute()
 </script>
 <template>
-  <aside v-if="!native.demoEnabled && native.demoInvited" class="notification-demo-mode" aria-label="通知展示模式">
+  <aside v-if="!native.demoEnabled && native.demoInvited && route.query.notificationDemo === '1'" class="notification-demo-mode" aria-label="通知展示模式">
     <button type="button" @click="native.activateDemo">啟用通知展示模式</button>
     <p v-if="native.demoModeMessage" role="status">{{ native.demoModeMessage }}</p>
   </aside>
