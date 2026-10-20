@@ -40,30 +40,42 @@ watch(() => drawerOpen.value && desktopBackground.value.fullPath, async path => 
   const resolved = await loadRouteLocation(router.resolve(path))
   if (desktopBackground.value.fullPath === path) desktopBackground.value = { ...resolved }
 }, { immediate: true })
-let drawerEnteredFromMain = false
 watch(() => route.fullPath, (_to, from) => {
   if (desktopRoots.includes(route.name)) desktopBackground.value = { ...route }
   if (isDesktop.value && isDrawerRoute(route) && from && desktopRoots.includes(router.resolve(from).name)) {
     desktopBackground.value = router.resolve(from)
-    drawerEnteredFromMain = true
   }
 }, { flush: 'sync' })
 watch(drawerOpen, async () => {
+  if (!drawerOpen.value) {
+    drawer.value?.close()
+    return
+  }
   await nextTick()
   // Read the latest route state after rendering; a queued open must not reopen
   // an empty dialog after navigation has already returned to a main page.
   if (drawerOpen.value && drawer.value?.isConnected && !drawer.value.open) drawer.value.showModal()
   else if (!drawerOpen.value && drawer.value?.open) drawer.value.close()
-}, { immediate: true })
+}, { immediate: true, flush: 'sync' })
 function onDrawerBackdropClick(event) {
   if (event.target !== drawer.value || !drawerOpen.value) return
   const bounds = drawer.value.getBoundingClientRect()
   if (event.clientX < bounds.left || event.clientX > bounds.right
     || event.clientY < bounds.top || event.clientY > bounds.bottom) closeDesktopDrawer()
 }
-function closeDesktopDrawer() {
-  if (drawerEnteredFromMain) router.back()
-  else router.push(desktopBackground.value.fullPath)
+let drawerClosing = false
+async function closeDesktopDrawer() {
+  if (!drawerOpen.value || drawerClosing) return
+  drawerClosing = true
+  const sourcePath = route.fullPath
+  const targetPath = desktopBackground.value.fullPath
+  try {
+    if (drawer.value?.open && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      await drawer.value.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }],
+        { duration: 250, easing: 'ease-in', fill: 'none' }).finished
+    }
+    if (route.fullPath === sourcePath) await router.push(targetPath)
+  } finally { drawerClosing = false }
 }
 function updateDesktopMedia() { isDesktop.value = desktopMedia.matches }
 onMounted(() => desktopMedia.addEventListener('change', updateDesktopMedia))

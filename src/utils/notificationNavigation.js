@@ -1,7 +1,7 @@
 // Navigation decisions are read-only; historical text and restock state never change here.
 export function notificationDestination(entry, items) {
   const space = items.getSpace(entry.spaceId)
-  if (!space?.shared) return { message: '此空間已不存在或無法查看' }
+  if (!space || (!space.shared && entry.type !== 'restock-due')) return { message: '此空間已不存在或無法查看' }
   const ids = entry.itemIds ?? entry.targets?.map(target => target.itemId)
   // Old notices without IDs can still open their space; absence of IDs is not proof of deletion.
   const deleted = Array.isArray(ids) && ids.length ? ids.filter(id => items.getItem(id)?.spaceId !== entry.spaceId).length : 0

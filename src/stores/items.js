@@ -298,6 +298,14 @@ export const useItemsStore = defineStore('items', () => {
     return persistItemsOperation(() => updateItem(id, { reminderSnoozes: { ...item.reminderSnoozes, self: date } }))
   }
 
+  function cancelShoppingReminderSnooze(id) {
+    const item = getItem(id)
+    if (!item?.inShoppingList || item.shoppingCompletedAt != null) return { ok: false, error: { message: '用品已不在待買清單。' } }
+    const reminderSnoozes = { ...item.reminderSnoozes }
+    delete reminderSnoozes.self
+    return persistItemsOperation(() => updateItem(id, { reminderSnoozes }))
+  }
+
   // specs/009 FR-913：重新開啟不再填寫，直接用補貨紀錄重算；推算日已過就直接是「該補貨了」。
   function enableReminder(id) {
     updateItem(id, { reminderEnabled: true, snoozedUntil: null })
@@ -813,8 +821,8 @@ export const useItemsStore = defineStore('items', () => {
   }
   const notificationPinia = getActivePinia()
   const unregisterNotifications = registerRestockNotificationSource(notificationPinia, { getItem, getSpace, getSpaceMembers,
-    reminderGroups: () => spaces.value.filter(space => space.shared).map(space => ({ space,
-      recipientIds: [...new Set(getSpaceMembers(space.id).map(member => member.id))],
+    reminderGroups: () => spaces.value.map(space => ({ space,
+      recipientIds: space.shared ? [...new Set(getSpaceMembers(space.id).map(member => member.id))] : ['self'],
       items: itemsWithStatus.value.filter(item => item.spaceId === space.id && ['overdue', 'dueSoon'].includes(item.reminderStatus)
         && !(item.snoozedUntil && today.value < item.snoozedUntil)),
     })) })
@@ -865,6 +873,7 @@ export const useItemsStore = defineStore('items', () => {
     disableReminder,
     snoozeReminder,
     snoozeShoppingReminder,
+    cancelShoppingReminderSnooze,
     enableReminder,
     completeRestock,
     recordRestockBatch,

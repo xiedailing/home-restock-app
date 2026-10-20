@@ -146,6 +146,27 @@ test('claimed-by-other shared items cannot be restocked until taken over', async
       const persisted = JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'mine')
       assert.equal(persisted.reminderSnoozes.self, '2099-01-10')
     })
+    await t.test('shopping snooze can be modified and cancelled without changing another member', () => {
+      const { items } = fresh()
+      items.updateItem('mine', { reminderSnoozes: { 'member-1': '2099-02-01' } })
+      assert.equal(items.snoozeShoppingReminder('mine', '2099-01-10').ok, true)
+      assert.equal(items.snoozeShoppingReminder('mine', '2099-01-20').ok, true)
+      assert.equal(items.getItem('mine').reminderSnoozes.self, '2099-01-20')
+      assert.equal(items.cancelShoppingReminderSnooze('mine').ok, true)
+      assert.deepEqual(items.getItem('mine').reminderSnoozes, { 'member-1': '2099-02-01' })
+      assert.deepEqual(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'mine').reminderSnoozes, { 'member-1': '2099-02-01' })
+    })
+    await t.test('shopping snooze cancellation rolls back on storage failure', () => {
+      const { items } = fresh()
+      items.snoozeShoppingReminder('mine', '2099-01-10')
+      const before = memory.get(key('items'))
+      const write = storage.setItem
+      storage.setItem = () => { throw new Error('quota') }
+      try { assert.equal(items.cancelShoppingReminderSnooze('mine').ok, false) }
+      finally { storage.setItem = write }
+      assert.equal(items.getItem('mine').reminderSnoozes.self, '2099-01-10')
+      assert.equal(memory.get(key('items')), before)
+    })
     await t.test('shopping snooze rejects invalid dates, removed and completed items', () => {
       const { items } = fresh()
       for (const date of ['2020-01-01', '2099-02-31', 'invalid']) assert.equal(items.snoozeShoppingReminder('mine', date).ok, false)

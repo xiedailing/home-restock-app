@@ -227,6 +227,48 @@ test('notification V2 integration', async t => {
       n.publishRestockReminders()
       assert.equal(n.records.length, 2)
     })
+    await t.test('personal restock-due reaches only self, opens its space and deduplicates after reload', () => {
+      const { items, notifications: n } = fresh()
+      const item = items.getItem('i0')
+      items.updateItem('i0', { spaceId: 'personal', restockRecords: [
+        { id: 'p-due-1', date: '2026-01-01', quantity: 1, unit: item.unit, unitPeriodId: item.unitPeriodId },
+        { id: 'p-due-2', date: '2026-01-10', quantity: 1, unit: item.unit, unitPeriodId: item.unitPeriodId },
+      ] })
+      assert.equal(n.publishRestockReminders().ok, true)
+      assert.equal(n.visibleRecords.length, 1)
+      const entry = n.visibleRecords[0]
+      assert.deepEqual(entry.recipientIds, ['self'])
+      assert.equal(n.hasUnseen, true)
+      assert.deepEqual(notificationDestination(entry, items).route, { name: 'inventory' })
+      assert.equal(notificationDestination(entry, items).inventorySpaceId, 'personal')
+      n.publishRestockReminders(); assert.equal(n.records.length, 1)
+      n.$dispose()
+      const reload = useSharedNotificationsStore()
+      reload.publishRestockReminders(); assert.equal(reload.records.length, 1)
+    })
+    await t.test('personal restock-due respects item reminder switch and personal snooze', () => {
+      const { items, notifications: n } = fresh()
+      const item = items.getItem('i0')
+      items.updateItem('i0', { spaceId: 'personal', reminderEnabled: false, restockRecords: [
+        { id: 'p-off-1', date: '2026-01-01', quantity: 1, unit: item.unit, unitPeriodId: item.unitPeriodId },
+        { id: 'p-off-2', date: '2026-01-10', quantity: 1, unit: item.unit, unitPeriodId: item.unitPeriodId },
+      ] })
+      n.publishRestockReminders(); assert.equal(n.records.length, 0)
+      items.updateItem('i0', { reminderEnabled: true })
+      items.snoozeShoppingReminder('i0', '2099-01-10')
+      n.publishRestockReminders(); assert.equal(n.records.length, 0)
+      items.cancelShoppingReminderSnooze('i0')
+      n.publishRestockReminders(); assert.equal(n.records.length, 1)
+    })
+    await t.test('personal member operations do not enqueue shared notifications', () => {
+      const { items, notifications: n } = fresh()
+      const space = items.getSpace('personal')
+      for (const type of ['claimed', 'takeover', 'restocked']) {
+        assert.equal(n.publishMemberEvent({ type, space, actorId: 'self', actorName: '本人', itemId: 'i0', itemName: '甲', memberIds: ['self', 'm1'], operationId: type, recordId: type }).skipped, true)
+      }
+      assert.equal(n.pendingBatches.length, 0)
+      assert.equal(n.records.length, 0)
+    })
     await t.test('claim and takeover notification faults never interrupt successful member operations', () => {
       const { items, notifications: n } = fresh()
       n.publishMemberEvent = () => { throw new Error('delivery failed') }

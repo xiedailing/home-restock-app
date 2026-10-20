@@ -12,9 +12,14 @@ const closing = ref(false)
 let closeTimer
 let startY = null
 
-watch(() => props.open, async (open) => {
+watch(() => props.open, async () => {
+  if (!props.open) {
+    clearTimeout(closeTimer)
+    dialog.value?.close()
+    return
+  }
   await nextTick()
-  if (open) {
+  if (props.open) {
     clearTimeout(closeTimer)
     closing.value = false
     offset.value = 0
@@ -22,7 +27,7 @@ watch(() => props.open, async (open) => {
   } else {
     dialog.value?.close()
   }
-}, { immediate: true })
+}, { immediate: true, flush: 'sync' })
 
 function close() {
   if (closing.value) return

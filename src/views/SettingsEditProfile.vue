@@ -229,7 +229,7 @@ async function selectAvatar(event) {
           <div v-else class="nickname-value"><span>{{ profile.name }}</span><button type="button" class="edit-name" aria-label="修改暱稱" @click="editName"><i class="fa-solid fa-pencil" aria-hidden="true"></i></button></div>
         </div>
       </div>
-      <p class="hint">共享成員會看到：{{ name.trim() || profile.name }} 認購</p>
+      <p class="hint">共享成員會看到：{{ name.trim() || profile.name }} 認領</p>
       <p v-if="error" class="error-message" role="alert">{{ error }}</p>
     </form>
     <Teleport to="body">

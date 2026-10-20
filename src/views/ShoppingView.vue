@@ -20,6 +20,19 @@ const snoozeItemId = ref(null)
 const snoozeOpen = ref(false)
 const snoozeDate = ref('')
 const snoozeToday = ref(toDateString())
+const currentSnooze = computed(() => store.getItem(snoozeItemId.value)?.reminderSnoozes?.self || '')
+function snoozeLabel(item) {
+  const date = item.reminderSnoozes?.self
+  if (!date || date <= store.today) return '延後提醒'
+  const [, month, day] = date.split('-')
+  return `延至 ${Number(month)}/${Number(day)}`
+}
+function cancelSnooze(close) {
+  const result = store.cancelShoppingReminderSnooze(snoozeItemId.value)
+  if (!result.ok) { showToast(result.error.message, null, '復原', 'error'); return }
+  showToast('已取消延後提醒')
+  close()
+}
 function openSnooze(item) {
   snoozeToday.value = toDateString()
   snoozeItemId.value = item.id
@@ -29,7 +42,9 @@ function openSnooze(item) {
 function saveSnooze(close) {
   const result = store.snoozeShoppingReminder(snoozeItemId.value, snoozeDate.value)
   if (!result.ok) { showToast(result.error.message, null, '復原', 'error'); return }
-  showToast(`已延後提醒至 ${snoozeDate.value.replaceAll('-', '/')}`)
+  const [year, month, day] = snoozeDate.value.split('-').map(Number)
+  const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
+  showToast(`已延後提醒至 ${month}/${day} 週${weekday}`)
   close()
 }
 function completeItem(item) {
@@ -82,7 +97,7 @@ function toggleCard(event, id) {
 function toggleItem(id) {
   const item = store.getItem(id)
   if (!item || item.shoppingCompletedAt != null) return
-  expandedItems.value = expandedItems.value.includes(id) ? expandedItems.value.filter(value => value !== id) : [...expandedItems.value, id]
+  expandedItems.value = expandedItems.value.includes(id) ? [] : [id]
 }
 function changeQuantity(item, delta) {
   if (item.shoppingCompletedAt != null) return
@@ -279,7 +294,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
                     <button v-if="group.id === 'claimed'" type="button" class="btn claim-button cancel-claim-button personal-cancel-claim" @click="requestClaimChange(item, 'cancel')"><i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>取消認領</button>
                     <div v-if="item.shoppingCompletedAt == null" class="shopping-secondary-actions">
                     <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
-                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i>延後提醒</button>
+                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ snoozeLabel(item) }}</button>
                   </div>
                   </div>
                 </div>
@@ -289,7 +304,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           </Transition>
         </section>
       </template>
-      <div v-else class="shopping-empty" role="status"><div class="empty-disc"><img :src="shoppingListEmpty" alt="" width="48" height="55" /></div><h2>尚未有購買清單</h2><p>用品需要補貨時，會顯示在這裡。</p></div>
+      <div v-else class="shopping-empty" role="status"><div class="empty-disc"><img :src="shoppingListEmpty" alt="" width="48" height="55" /></div><h2>尚未有購買清單</h2><p>將需要補貨的用品加入購買清單，就會顯示在這裡。</p></div>
     </div>
     <div v-else id="shared-shopping-panel" role="tabpanel" aria-labelledby="shared-shopping-tab">
       <div v-if="pendingSharedSpaces.length" class="shared-space-tabs">
@@ -319,7 +334,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
                   <button v-else-if="item.inShoppingList" type="button" class="btn claim-button takeover-button" @click="requestClaimChange(item, 'takeover')"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>接手認領</button>
                   <div v-if="item.shoppingCompletedAt == null" class="shopping-secondary-actions">
                     <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
-                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i>延後提醒</button>
+                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ snoozeLabel(item) }}</button>
                   </div>
                 </div>
               </div>
@@ -337,13 +352,14 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
       <template #default="{ close }">
         <div class="snooze-reminder-sheet">
           <h2 id="snooze-reminder-title">延後提醒</h2>
-          <p>選擇下次提醒日期</p>
+          <p class="snooze-personal-hint">僅延後你對此用品的提醒，其他成員不受影響。</p>
           <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
-          <button type="button" class="btn btn-primary" @click="saveSnooze(close)">確認延後</button>
+          <button type="button" class="btn btn-primary" @click="saveSnooze(close)">儲存</button>
+          <button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" @click="cancelSnooze(close)">取消延後</button>
         </div>
       </template>
     </BottomSheet>
-    <dialog ref="restockAllDialog" class="shopping-delete-dialog" aria-labelledby="restock-all-title" @close="restockAllIds = []"><form @submit.prevent="confirmRestockAll"><h2 id="restock-all-title">全部補貨？</h2><p>將 {{ restockAllIds.length }} 項用品標記為已補貨。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="restockAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">已購買</button></div></form></dialog>
+    <dialog ref="restockAllDialog" class="shopping-delete-dialog" aria-labelledby="restock-all-title" @close="restockAllIds = []"><form @submit.prevent="confirmRestockAll"><h2 id="restock-all-title">全部標記已買？</h2><p>將 {{ restockAllIds.length }} 項用品標記為已買。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="restockAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">確認</button></div></form></dialog>
     <dialog ref="claimAllDialog" class="shopping-delete-dialog" aria-labelledby="claim-all-title" @close="claimAllRequest = null"><form @submit.prevent="confirmClaimAll"><h2 id="claim-all-title">全部認領 {{ claimAllRequest?.ids.length }} 項？</h2><p>將認領「{{ claimAllRequest?.name }}」中的{{ claimAllRequest?.ids.length }}項用品。</p><div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="claimAllDialog.close()">取消</button><button type="submit" class="btn btn-primary">認領</button></div></form></dialog>
     <dialog ref="claimDialog" class="shopping-delete-dialog" aria-labelledby="claim-change-title" @close="pendingClaim = null">
       <form @submit.prevent="confirmClaimChange">
@@ -356,7 +372,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
     </dialog>
     <dialog ref="deleteDialog" class="shopping-delete-dialog" aria-labelledby="shopping-delete-title" aria-describedby="shopping-delete-message" @close="pendingRemovalId = null">
       <form @submit.prevent="confirmRemoval">
-        <h2 id="shopping-delete-title">移除清單？</h2>
+        <h2 id="shopping-delete-title">移除用品？</h2>
         <p id="shopping-delete-message">{{ removalMessage }}</p>
         <div class="shopping-delete-actions"><button type="button" class="btn btn-secondary" autofocus @click="deleteDialog.close()">取消</button><button type="submit" class="btn btn-danger">移除</button></div>
       </form>
@@ -492,5 +508,7 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
   --bs-btn-active-shadow: none;
 }
 .snooze-reminder-sheet { display: flex; flex-direction: column; gap: 16px; h2 { margin: 0; font: 700 17px / 24px t.$font-family; } p { margin: 0; color: t.$text-sub; } }
+.snooze-reminder-sheet .snooze-personal-hint { font-size: t.$font-size-caption; line-height: t.$line-height-body; }
+.snooze-reminder-sheet > .btn-primary { margin-top: t.$space-8; }
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { .snooze-reminder-button:not(:disabled):hover { background: #d5e2d0; color: t.$primary-green; } }
 </style>

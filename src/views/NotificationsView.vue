@@ -53,7 +53,7 @@ function formatTime(time) {
           </button>
         </li>
       </ul>
-      <div v-else class="notification-empty" role="status"><h2>目前沒有通知</h2><p>有新的共享用品動態時，會顯示在這裡。</p></div>
+      <div v-else class="notification-empty" role="status"><h2>目前沒有通知</h2><p>有補貨提醒或新的共享用品動態時，會顯示在這裡。</p></div>
     </div>
   </section>
 </template>
