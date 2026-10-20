@@ -204,6 +204,35 @@ test('six-item presentation uses real state calculations, model fields and safe 
       assert.deepEqual(JSON.parse(storage.getItem(prefix + 'items')).data, state)
       assert.deepEqual(JSON.parse(storage.getItem(prefix + 'native-notifications')).data.tasks, [])
     })
+    for (const occupied of ['bubu-native-reminders', 'bubu-items-write']) await t.test(`reset refuses occupied inner lock ${occupied} without any writes`, async () => {
+      const before = [...storage.map.entries()]
+      const locks = { request: (name, options, callback) => {
+        assert.equal(options.ifAvailable, true)
+        return callback(name === occupied ? null : {})
+      } }
+      const env = { location: { origin: DEMO_PREVIEW_ORIGIN }, navigator: { locks }, localStorage: storage, sessionStorage: memory() }
+      await assert.rejects(setup.applyPresentationSetup({ confirmed: true, expectedSnapshot: presentationSnapshot(storage) }, env))
+      assert.deepEqual([...storage.map.entries()], before)
+    })
+    await t.test('automatic backup failure preserves data, settings, session and prior backup', async () => {
+      const before = [...storage.map.entries()], write = storage.setItem
+      const session = memory(); session.setItem('bubu:notification-demo-session:v1', 'keep-session')
+      const locks = { request: (_name, _options, callback) => callback({}) }
+      const env = { location: { origin: DEMO_PREVIEW_ORIGIN }, navigator: { locks }, localStorage: storage, sessionStorage: session }
+      storage.setItem = (key, value) => { if (key === PRESENTATION_BACKUP) throw new Error('backup quota'); write(key, value) }
+      try { await assert.rejects(setup.applyPresentationSetup({ confirmed: true, expectedSnapshot: presentationSnapshot(storage) }, env), /backup quota/) }
+      finally { storage.setItem = write }
+      assert.deepEqual([...storage.map.entries()], before)
+      assert.equal(session.getItem('bubu:notification-demo-session:v1'), 'keep-session')
+    })
+    await t.test('Production and unknown origins refuse the actual reset API with valid confirmed snapshots', async () => {
+      const before = [...storage.map.entries()]
+      for (const origin of [DEMO_PRODUCTION_ORIGIN, 'https://unknown.vercel.app']) {
+        const env = { location: { origin }, navigator: { locks: { request() { throw new Error('must not request locks') } } }, localStorage: storage }
+        await assert.rejects(setup.applyPresentationSetup({ confirmed: true, expectedSnapshot: presentationSnapshot(storage) }, env))
+      }
+      assert.deepEqual([...storage.map.entries()], before)
+    })
     await t.test('fresh store persists once and reload keeps IDs and Huahua without inserting alcohol', async () => {
       storage.map.clear()
       const pinia = createPinia(); setActivePinia(pinia)
