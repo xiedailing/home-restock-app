@@ -75,7 +75,7 @@ test('native notification integration: permission, persistence, delay, cancellat
   const originalSetTimeout = globalThis.setTimeout
   const timers = new Set()
   globalThis.setTimeout = (...args) => { const timer = originalSetTimeout(...args); if (args[1] > 1000) { timer.unref(); timers.add(timer) } return timer }
-  const server = await createServer({ configFile: false, appType: 'custom', server: { middlewareMode: true, hmr: false, watch: null } })
+  const server = await createServer({ configFile: false, define: { 'import.meta.env.VITE_NOTIFICATION_DEMO': JSON.stringify('true') }, appType: 'custom', server: { middlewareMode: true, hmr: false, watch: null } })
   let pinia
   const dispose = () => { if (pinia) for (const store of [...pinia._s.values()]) store.$dispose() }
   try {
@@ -161,6 +161,44 @@ test('native notification integration: permission, persistence, delay, cancellat
       assert.equal(items.getItem('a').reminderSnoozes.self, date)
       assert.equal(shared.records.length, 1)
       document.visibilityState = 'visible'
+    })
+    await t.test('explicit cancellation persists across reload and repeat clicks reserve only one demo', async () => {
+      const { native } = fresh()
+      const results = await Promise.all([native.demo('a'), native.demo('a')])
+      assert.equal(results.filter(result => result.ok).length, 1)
+      assert.deepEqual([...native.pendingDemoItems], ['a'])
+      assert.equal((await native.cancelDemo('a')).ok, true)
+      assert.equal(native.pendingDemo, false)
+      native.$dispose()
+      const reload = useNativeNotificationsStore()
+      now += 10000; await reload.tick()
+      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+      assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.find(task => task.demo).state, 'cancelled')
+    })
+    await t.test('demo pending after reload delivers once and uses current item and space', async () => {
+      const { native } = fresh()
+      assert.equal((await native.demo('a')).ok, true)
+      native.$dispose()
+      const reload = useNativeNotificationsStore(); await reload.tick()
+      assert.deepEqual([...reload.pendingDemoItems], ['a'])
+      now += 10000; await reload.tick(); await reload.tick()
+      const demos = delivered.filter(entry => entry.title.includes('10 秒'))
+      assert.equal(demos.length, 1)
+      assert.match(demos[0].options.body, /衛生紙/)
+      assert.ok(demos[0].options.data.url.endsWith('/items/a'))
+    })
+    await t.test('completed, deleted and removed items invalidate a waiting demo', async () => {
+      for (const change of [item => { item.shoppingCompletedAt = 1 }, item => { item.inShoppingList = false }, null]) {
+        const { native, items } = fresh()
+        assert.equal((await native.demo('a')).ok, true)
+        const saved = JSON.parse(memory.get(key('items')))
+        if (change) { change(items.getItem('a')); change(saved.data.items[0]) }
+        else { items.items.splice(0); saved.data.items = [] }
+        memory.set(key('items'), JSON.stringify(saved))
+        now += 10000; await native.tick()
+        assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+        assert.equal(native.pendingDemo, false)
+      }
     })
     await t.test('corrupt task storage is not cleared or replayed', async () => {
       const { native } = fresh()
@@ -276,4 +314,13 @@ test('notification worker opens a new app window if the original was closed', as
   let work
   handlers.get('notificationclick')({ notification: { data: { url: 'https://example.test/items/a' }, close() {} }, waitUntil: promise => { work = promise } })
   await work; assert.deepEqual(opened, ['https://example.test/items/a'])
+})
+
+
+test('demo is disabled in a build without explicit opt-in', async () => {
+  const server = await createServer({ configFile: false, define: { 'import.meta.env.VITE_NOTIFICATION_DEMO': JSON.stringify('false') }, appType: 'custom', server: { middlewareMode: true, hmr: false, watch: null } })
+  try {
+    const { notificationDemoEnabled } = await server.ssrLoadModule('/src/stores/nativeNotifications.js')
+    assert.equal(notificationDemoEnabled, false)
+  } finally { await server.close() }
 })

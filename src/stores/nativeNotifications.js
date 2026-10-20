@@ -8,6 +8,8 @@ import { generateId } from '../utils/id.js'
 import { reminderFingerprint, reminderEligible, syncReminderTasks, taskStillValid } from '../utils/nativeReminderTasks.js'
 import { notificationSupport, requestBrowserNotifications, deliverBrowserNotification } from '../utils/browserNotifications.js'
 
+// Explicit opt-in at build time, including Vercel Preview. Disabled by default.
+export const notificationDemoEnabled = import.meta.env.VITE_NOTIFICATION_DEMO === 'true'
 const KEY = STORE_KEYS.nativeNotifications
 export const useNativeNotificationsStore = defineStore('native-notifications', () => {
   const items = useItemsStore()
@@ -17,6 +19,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   const error = ref(false)
   const permission = ref('default')
   const pendingDemo = ref(false)
+  const pendingDemoItems = ref([])
   let interval
   let busy = false
   let active = false
@@ -51,19 +54,21 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   }
   function saveTasks(tasks) {
     if (!savePersisted(KEY, { tasks })) throw new Error('提醒排程無法儲存，系統通知未發送，請恢復儲存空間後重試。')
-    pendingDemo.value = tasks.some(task => task.demo && task.state === 'scheduled')
+    pendingDemoItems.value = tasks.filter(task => task.demo && task.state === 'scheduled').map(task => task.itemId)
+    pendingDemo.value = pendingDemoItems.value.length > 0
   }
   function canAccess(item) {
     const space = item && items.getSpace(item.spaceId)
     return reminderEligible(item, space) && (!space.shared || items.getSpaceMembers(space.id).some(member => member.id === 'self'))
   }
   function currentValid(task) {
+    if (task.demo && readTasks().find(entry => entry.id === task.id)?.state === 'cancelled') return false
     const item = items.getItem(task.itemId)
-    if (!canAccess(item) || !taskStillValid(task, item, item && items.getSpace(item.spaceId), import.meta.env.DEV)) return false
+    if (!canAccess(item) || !taskStillValid(task, item, item && items.getSpace(item.spaceId), notificationDemoEnabled)) return false
     const persisted = loadPersisted(STORE_KEYS.items)
     const savedItem = persisted?.items?.find(item => item.id === task.itemId)
     const savedSpace = persisted?.spaces?.find(space => space.id === task.spaceId)
-    return taskStillValid(task, savedItem, savedSpace, import.meta.env.DEV)
+    return taskStillValid(task, savedItem, savedSpace, notificationDemoEnabled)
   }
   function itemUrl(id) { return new URL(`${import.meta.env.BASE_URL}items/${encodeURIComponent(id)}`, location.origin).href }
   function openItem(id) {
@@ -79,21 +84,21 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   }
   async function process() {
     const oldTasks = readTasks()
-    // Production never executes persisted development test jobs.
+    // Builds without explicit demo opt-in invalidate persisted demo jobs.
     const persisted = loadPersisted(STORE_KEYS.items)
     const sourceItems = Array.isArray(persisted?.items) ? persisted.items : items.items
     const sourceSpace = id => Array.isArray(persisted?.spaces) ? persisted.spaces.find(space => space.id === id) : items.getSpace(id)
     const tasks = syncReminderTasks(oldTasks, sourceItems, sourceSpace, Date.now(), generateId)
     for (const task of tasks) {
       const item = sourceItems.find(item => item.id === task.itemId)
-      if (task.state !== 'cancelled' && !taskStillValid(task, item, item && sourceSpace(item.spaceId), import.meta.env.DEV)) task.state = 'cancelled'
+      if (task.state !== 'cancelled' && !taskStillValid(task, item, item && sourceSpace(item.spaceId), notificationDemoEnabled)) task.state = 'cancelled'
     }
     if (JSON.stringify(tasks) !== JSON.stringify(oldTasks)) saveTasks(tasks)
     await closeInvalidTags(tasks.filter(task => task.state === 'cancelled').map(task => task.id))
     for (const task of tasks) {
       if (task.state !== 'scheduled' || task.dueAt > Date.now()) continue
       let item = items.getItem(task.itemId)
-      if (!taskStillValid(task, item, item && items.getSpace(item.spaceId), import.meta.env.DEV) || !canAccess(item)) continue
+      if (!taskStillValid(task, item, item && items.getSpace(item.spaceId), notificationDemoEnabled) || !canAccess(item)) continue
       if (!currentValid(task)) continue
       if (!task.demo) {
         const result = shared.publishScheduledSnooze(task)
@@ -121,11 +126,13 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       // Failing this write leaves attempted on disk: do not duplicate the OS alert.
       saveTasks(tasks)
     }
-    pendingDemo.value = tasks.some(task => task.demo && task.state === 'scheduled')
+    pendingDemoItems.value = tasks.filter(task => task.demo && task.state === 'scheduled').map(task => task.itemId)
+    pendingDemo.value = pendingDemoItems.value.length > 0
   }
   async function tick() {
     if (busy) return
     busy = true
+    support()
     try {
       if (!navigator.locks?.request) { report('此瀏覽器缺少安全的多分頁排程鎖，未啟用自動系統通知。請更新 Chrome 或 Safari。', true); return }
       await navigator.locks.request('bubu-native-reminders', { ifAvailable: true }, async lock => { if (lock) await process() })
@@ -133,12 +140,13 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     finally { busy = false }
   }
   async function demo(itemId) {
-    if (!import.meta.env.DEV) return { ok: false }
+    if (!notificationDemoEnabled) return { ok: false }
+    await tick()
     if (!support().ok || permission.value !== 'granted' || !settings.pushEnabled) {
       report('請先點擊「開啟系統通知」並啟用推播通知，才可安排測試。', true); return { ok: false }
     }
     const item = items.getItem(itemId)
-    if (!canAccess(item)) { report('請選擇仍在購買清單、尚未補貨且已開啟補貨提醒的用品進行測試。', true); return { ok: false } }
+    if (!canAccess(item) || !item.reminderSnoozes?.self) { report('請選擇仍在購買清單、尚未補貨且已開啟補貨提醒的用品進行測試。', true); return { ok: false } }
     if (!navigator.locks?.request) { report('此瀏覽器缺少多分頁排程鎖，無法安排測試。', true); return { ok: false } }
     try {
       await navigator.locks.request('bubu-native-reminders', async () => {
@@ -151,6 +159,19 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       })
       report('已安排 10 秒測試，可切換至其他分頁；瀏覽器節流可能延遲，不會修改正式提醒日期。')
       return { ok: true }
+    } catch (cause) { report(cause.message, true); return { ok: false } }
+  }
+  async function cancelDemo(itemId) {
+    if (!navigator.locks?.request) { report('此瀏覽器無法安全取消測試，請更新瀏覽器。', true); return { ok: false } }
+    try {
+      await navigator.locks.request('bubu-native-reminders', async () => {
+        const tasks = readTasks()
+        const waiting = tasks.filter(task => task.demo && task.itemId === itemId && task.state === 'scheduled')
+        if (!waiting.length) throw new Error('測試已開始交付或已結束，無法再取消。')
+        for (const task of waiting) task.state = 'cancelled'
+        saveTasks(tasks)
+      })
+      report('已取消測試通知。'); return { ok: true }
     } catch (cause) { report(cause.message, true); return { ok: false } }
   }
   function onMessage(event) {
@@ -182,5 +203,5 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     navigator.serviceWorker?.removeEventListener('message', onMessage)
   }
   onScopeDispose(stop)
-  return { message, error, permission, pendingDemo, enable, demo, tick, start, stop }
+  return { message, error, permission, pendingDemo, pendingDemoItems, enable, support, demo, cancelDemo, tick, start, stop }
 })

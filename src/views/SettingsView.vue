@@ -215,14 +215,13 @@ function saveChanges() {
       <div class="card settings-card">
         <div class="notification-section">
         <div class="settings-row">
-          <span>推播通知</span>
+          <div class="push-notification-label"><span>推播通知</span><NativeNotificationSettings /></div>
           <button type="button" class="notification-switch" role="switch" :aria-checked="notifications" aria-label="推播通知" @click="notifications = !notifications">
             <SwitchTrack :checked="notifications" />
           </button>
         </div>
         <div class="notification-hint-collapse" :class="{ expanded: !notifications }" :aria-hidden="notifications"><div class="notification-hint-inner"><p class="phone-notification-hint">關閉後仍會保留補貨日期與紀錄。</p></div></div>
         </div>
-        <NativeNotificationSettings />
         <template v-for="reminder in [{ type: 'restock', label: '補貨提醒' }, { type: 'shopping', label: '尚未購買提醒' }]" :key="reminder.type">
           <button type="button" class="settings-row" :class="{ 'last-reminder-row': reminder.type === 'shopping' }" data-reminder-control :aria-expanded="expandedReminder === reminder.type" :aria-controls="`reminder-options-${reminder.type}`" @click="toggleReminder(reminder.type)">
             <span>{{ reminder.label }}</span>
@@ -561,4 +560,6 @@ button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -3px
 }
 .settings-dialog .dialog-actions .btn-secondary:focus, .settings-dialog .dialog-actions .btn-secondary:focus-visible { outline: none; }
 .notice-icon { width: 22px; flex-shrink: 0; font-size: 22px; color: t.$toast-success-accent; }
+.push-notification-label { flex: 1; min-width: 0; }
+.push-notification-label :deep(.native-notification-settings) { padding: 0; line-height: 18px; }
 </style>
