@@ -2,7 +2,7 @@
 import { computed, watch } from 'vue'
 import { useItemsStore } from '../stores/items'
 import NativeNotificationSettings from './NativeNotificationSettings.vue'
-import { notificationDemoEnabled, useNativeNotificationsStore } from '../stores/nativeNotifications'
+import { useNativeNotificationsStore } from '../stores/nativeNotifications'
 const props = defineProps({ itemId: { type: String, required: true } })
 const native = useNativeNotificationsStore()
 const items = useItemsStore()
@@ -16,7 +16,8 @@ const pending = computed(() => native.pendingDemoItems.includes(props.itemId))
 <template>
   <div class="snooze-notification-actions">
     <NativeNotificationSettings />
-    <div v-if="notificationDemoEnabled" class="snooze-demo">
+    <div v-if="native.demoEnabled" class="snooze-demo">
+      <button type="button" class="btn btn-secondary" @click="native.endDemo">結束此分頁展示</button>
       <p>Demo 測試：不影響正式延後日期。分頁須保持開啟，可切換其他網站。</p>
       <button v-if="pending" type="button" class="btn btn-secondary" @click="native.cancelDemo(itemId)">取消測試通知</button>
       <button v-else type="button" class="btn btn-secondary" :disabled="!eligibility.ok" @click="native.demo(itemId)">Demo：10 秒後測試通知</button>

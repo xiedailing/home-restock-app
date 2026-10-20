@@ -1,6 +1,7 @@
 <script setup>
 import { loadRouteLocation, useRoute, useRouter } from 'vue-router'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue'
+import NotificationDemoMode from './components/NotificationDemoMode.vue'
 import BottomNav from './components/BottomNav.vue'
 import { useNativeNotificationsStore } from './stores/nativeNotifications'
 import DesktopWallpaper from './components/DesktopWallpaper.vue'
@@ -17,6 +18,9 @@ const router = useRouter()
 const itemsStore = useItemsStore()
 const notifications = useSharedNotificationsStore()
 const nativeNotifications = useNativeNotificationsStore()
+watch(() => route.query.notificationDemo, value => {
+  if (value === '1') nativeNotifications.captureDemoLink('?notificationDemo=1')
+}, { immediate: true })
 onMounted(() => nativeNotifications.start(target => router.push(target)))
 onBeforeUnmount(() => nativeNotifications.stop())
 if (import.meta.env.DEV) notifications.seedPreviewHistory(itemsStore.spaces, itemsStore.items)
@@ -162,6 +166,7 @@ function onSpaceCreated(space) {
 </script>
 
 <template>
+  <NotificationDemoMode />
   <div class="app-container">
     <DesktopWallpaper v-if="!hideBottomNav || drawerOpen" />
     <!-- 主內容呈現區 -->

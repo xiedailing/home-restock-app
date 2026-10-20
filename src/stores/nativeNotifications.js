@@ -1,5 +1,6 @@
 import { notificationDemoEligibility } from '../utils/notificationDemoEligibility.js'
-import { ref, onScopeDispose } from 'vue'
+import { allowsNotificationDemo, demoLinkRequested, restoreDemoSession, DEMO_SESSION_KEY } from '../utils/notificationDemoMode.js'
+import { ref, computed, onScopeDispose } from 'vue'
 import { defineStore } from 'pinia'
 import { useItemsStore } from './items'
 import { useSharedNotificationsStore } from './sharedNotifications'
@@ -9,13 +10,45 @@ import { generateId } from '../utils/id.js'
 import { reminderFingerprint, reminderEligible, syncReminderTasks, taskStillValid } from '../utils/nativeReminderTasks.js'
 import { notificationSupport, requestBrowserNotifications, deliverBrowserNotification } from '../utils/browserNotifications.js'
 
-// Explicit opt-in at build time, including Vercel Preview. Disabled by default.
-export const notificationDemoEnabled = import.meta.env.VITE_NOTIFICATION_DEMO === 'true'
 const KEY = STORE_KEYS.nativeNotifications
 export const useNativeNotificationsStore = defineStore('native-notifications', () => {
   const items = useItemsStore()
   const shared = useSharedNotificationsStore()
   const settings = useNotificationSettingsStore()
+  const demoOriginAllowed = allowsNotificationDemo(location.origin)
+  const demoSessionId = ref(restoreDemoSession(location.origin, undefined, globalThis.performance?.getEntriesByType?.('navigation')?.[0]?.type))
+  const demoEnabled = computed(() => demoOriginAllowed && !!demoSessionId.value)
+  const demoInvited = ref(demoLinkRequested(location.origin, location.search))
+  const demoModeMessage = ref('')
+  function captureDemoLink(search) {
+    if (demoLinkRequested(location.origin, search)) demoInvited.value = true
+  }
+  function activateDemo() {
+    if (demoEnabled.value) return { ok: true }
+    if (!demoOriginAllowed || !demoInvited.value) return { ok: false }
+    try {
+      const id = generateId()
+      sessionStorage.setItem(DEMO_SESSION_KEY, JSON.stringify({ version: 1, origin: location.origin, id }))
+      demoSessionId.value = id; demoModeMessage.value = ''
+      return { ok: true }
+    } catch { demoModeMessage.value = '無法保存展示狀態，未啟用展示。請允許此網站使用分頁儲存空間。'; return { ok: false } }
+  }
+  async function endDemo() {
+    const sessionId = demoSessionId.value
+    // Disable synchronously, including shouldSend after an awaited transport setup.
+    demoSessionId.value = null; demoInvited.value = false
+    try {
+      sessionStorage.removeItem(DEMO_SESSION_KEY)
+      if (!navigator.locks?.request) throw new Error('無法取得排程鎖，展示已停用；待發送測試不會由此分頁執行。')
+      await navigator.locks.request('bubu-native-reminders', async () => {
+        const tasks = readTasks()
+        for (const task of tasks) if (task.demo && task.demoSessionId === sessionId && task.state === 'scheduled') task.state = 'cancelled'
+        saveTasks(tasks)
+      })
+      demoFeedback.value = {}; demoModeMessage.value = '已結束展示並取消此分頁待發送的測試。'
+      return { ok: true }
+    } catch (cause) { demoModeMessage.value = cause.message; return { ok: false } }
+  }
   const message = ref('')
   const error = ref(false)
   const messageItemId = ref(null)
@@ -74,13 +107,14 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     return reminderEligible(item, space) && (!space.shared || items.getSpaceMembers(space.id).some(member => member.id === 'self'))
   }
   function currentValid(task) {
+    if (task.demo && (!demoEnabled.value || task.demoSessionId !== demoSessionId.value)) return false
     if (task.demo && readTasks().find(entry => entry.id === task.id)?.state === 'cancelled') return false
     const item = items.getItem(task.itemId)
-    if (!canAccess(item) || !taskStillValid(task, item, item && items.getSpace(item.spaceId), notificationDemoEnabled)) return false
+    if (!canAccess(item) || !taskStillValid(task, item, item && items.getSpace(item.spaceId), demoEnabled.value)) return false
     const persisted = loadPersisted(STORE_KEYS.items)
     const savedItem = persisted?.items?.find(item => item.id === task.itemId)
     const savedSpace = persisted?.spaces?.find(space => space.id === task.spaceId)
-    return taskStillValid(task, savedItem, savedSpace, notificationDemoEnabled)
+    return taskStillValid(task, savedItem, savedSpace, demoEnabled.value)
   }
   function itemUrl(id) { return new URL(`${import.meta.env.BASE_URL}items/${encodeURIComponent(id)}`, location.origin).href }
   function openItem(id) {
@@ -96,21 +130,23 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   }
   async function process() {
     const oldTasks = readTasks()
-    // Builds without explicit demo opt-in invalidate persisted demo jobs.
+    // Nonparticipating tabs validate source data, but never cancel a valid foreign session merely because Demo is off here.
     const persisted = loadPersisted(STORE_KEYS.items)
     const sourceItems = Array.isArray(persisted?.items) ? persisted.items : items.items
     const sourceSpace = id => Array.isArray(persisted?.spaces) ? persisted.spaces.find(space => space.id === id) : items.getSpace(id)
     const tasks = syncReminderTasks(oldTasks, sourceItems, sourceSpace, Date.now(), generateId)
     for (const task of tasks) {
       const item = sourceItems.find(item => item.id === task.itemId)
-      if (task.state !== 'cancelled' && !taskStillValid(task, item, item && sourceSpace(item.spaceId), notificationDemoEnabled)) task.state = 'cancelled'
+      if (task.state !== 'cancelled' && (!taskStillValid(task, item, item && sourceSpace(item.spaceId), demoOriginAllowed)
+        || (task.demo && !task.demoSessionId))) task.state = 'cancelled'
     }
     if (JSON.stringify(tasks) !== JSON.stringify(oldTasks)) saveTasks(tasks)
     await closeInvalidTags(tasks.filter(task => task.state === 'cancelled').map(task => task.id))
     for (const task of tasks) {
       if (task.state !== 'scheduled' || task.dueAt > Date.now()) continue
+      if (task.demo && (!demoEnabled.value || task.demoSessionId !== demoSessionId.value)) continue
       let item = items.getItem(task.itemId)
-      if (!taskStillValid(task, item, item && items.getSpace(item.spaceId), notificationDemoEnabled) || !canAccess(item)) continue
+      if (!taskStillValid(task, item, item && items.getSpace(item.spaceId), demoEnabled.value) || !canAccess(item)) continue
       if (!currentValid(task)) continue
       if (!task.demo) {
         const result = shared.publishScheduledSnooze(task)
@@ -156,12 +192,12 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     const space = item && items.getSpace(item.spaceId)
     return notificationDemoEligibility({ item, space,
       accessible: !space?.shared || items.getSpaceMembers(space.id).some(member => member.id === 'self'),
-      pendingItemIds, enabled: notificationDemoEnabled, permission: permission.value,
+      pendingItemIds, enabled: demoEnabled.value, permission: permission.value,
       supported: permission.value !== 'unsupported', pushEnabled: settings.pushEnabled,
       locksAvailable: !!navigator.locks?.request })
   }
   async function demo(itemId) {
-    if (!notificationDemoEnabled) return { ok: false }
+    if (!demoEnabled.value) return { ok: false }
     await tick()
     const eligibility = demoEligibility(itemId)
     if (!eligibility.ok) { report(eligibility.message, true, itemId); return eligibility }
@@ -172,7 +208,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
         if (!latest.ok) throw new Error(latest.message)
         const item = items.getItem(itemId)
         tasks.push({ id: generateId(), itemId, spaceId: item.spaceId, fingerprint: reminderFingerprint(item),
-          dueAt: Date.now() + 10000, createdAt: Date.now(), state: 'scheduled', demo: true,
+          dueAt: Date.now() + 10000, createdAt: Date.now(), state: 'scheduled', demo: true, demoSessionId: demoSessionId.value,
           demoReminderSignature: JSON.stringify([item.reminderSnoozes?.self || null, item.reminderSnoozeOperationIds?.self || null]) })
         saveTasks(tasks)
       })
@@ -181,6 +217,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     } catch (cause) { report(cause.message, true, itemId); return { ok: false } }
   }
   async function cancelDemo(itemId, feedbackItemId = itemId) {
+    if (!demoEnabled.value) return { ok: false }
     if (!navigator.locks?.request) { report('此瀏覽器無法安全取消測試，請更新瀏覽器。', true, feedbackItemId); return { ok: false } }
     try {
       await navigator.locks.request('bubu-native-reminders', async () => {
@@ -222,5 +259,5 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     navigator.serviceWorker?.removeEventListener('message', onMessage)
   }
   onScopeDispose(stop)
-  return { message, error, messageItemId, permission, authorizationMessage, demoFeedback, clearDemoFeedback, demoEligibility, pendingDemo, pendingDemoItems, enable, support, demo, cancelDemo, tick, start, stop }
+  return { demoEnabled, demoInvited, demoModeMessage, activateDemo, endDemo, captureDemoLink, message, error, messageItemId, permission, authorizationMessage, demoFeedback, clearDemoFeedback, demoEligibility, pendingDemo, pendingDemoItems, enable, support, demo, cancelDemo, tick, start, stop }
 })

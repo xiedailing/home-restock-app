@@ -1,4 +1,5 @@
 import { notificationDemoEligibility } from '../src/utils/notificationDemoEligibility.js'
+import { allowsNotificationDemo, demoLinkRequested, restoreDemoSession, DEMO_SESSION_KEY, DEMO_PREVIEW_ORIGIN, DEMO_PRODUCTION_ORIGIN } from '../src/utils/notificationDemoMode.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'vite'
@@ -69,9 +70,11 @@ test('development demo jobs cannot run in production and do not require changing
 })
 
 test('native notification integration: permission, persistence, delay, cancellation and dedupe', async t => {
-  const originals = new Map(['localStorage', 'window', 'document', 'navigator', 'isSecureContext', 'Notification', 'location'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
+  const originals = new Map(['localStorage', 'window', 'document', 'navigator', 'isSecureContext', 'Notification', 'location', 'sessionStorage'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]))
   const install = (key, value) => Object.defineProperty(globalThis, key, { value, writable: true, configurable: true })
-  const memory = new Map(), delivered = []
+  const memory = new Map(), session = new Map(), delivered = []
+  const sessionStorage = { getItem: key => session.get(key) ?? null, setItem: (key, value) => session.set(key, value), removeItem: key => session.delete(key) }
+  install('sessionStorage', sessionStorage)
   let failStorage = false, failDelivery = false, permissionRequests = 0
   const storage = { getItem: key => memory.get(key) ?? null, setItem(key, value) { if (failStorage) throw new Error('quota'); memory.set(key, value) }, removeItem: key => memory.delete(key) }
   class MockNotification {
@@ -88,7 +91,7 @@ test('native notification integration: permission, persistence, delay, cancellat
   setMaxListeners(0, window, document)
   install('navigator', { locks: { request: async (_name, options, callback) => (callback || options)({ name: 'test-lock' }) } })
   install('isSecureContext', true); install('Notification', MockNotification)
-  install('location', { origin: 'http://localhost', href: 'http://localhost/' })
+  install('location', { origin: DEMO_PREVIEW_ORIGIN, href: DEMO_PREVIEW_ORIGIN + '/shopping?notificationDemo=1', search: '?notificationDemo=1' })
   const originalNow = Date.now
   let now = new Date(2099, 0, 2, 7, 59, 59).getTime()
   Date.now = () => now
@@ -110,12 +113,14 @@ test('native notification integration: permission, persistence, delay, cancellat
     function fresh() {
       failStorage = false; window.dispatchEvent(new Event('pagehide')); dispose()
       for (const timer of timers) clearTimeout(timer)
-      timers.clear(); memory.clear(); delivered.length = 0; failDelivery = false
+      timers.clear(); memory.clear(); session.clear(); delivered.length = 0; failDelivery = false
       MockNotification.permission = 'granted'; now = new Date(2099, 0, 2, 7, 59, 59).getTime()
       memory.set(key('items'), JSON.stringify({ version: STORAGE_VERSION, data: { items: [createItem({ ...item(), name: '衛生紙', unit: '包', category: '生活日用品' })],
         spaces: [space], customCategories: [], departedSpaces: [], demoSeeds: ['family-unclaimed-alcohol-v1'] } }))
       pinia = createPinia(); setActivePinia(pinia)
-      return { items: useItemsStore(), native: useNativeNotificationsStore(), shared: useSharedNotificationsStore(), settings: useNotificationSettingsStore() }
+      location.origin = DEMO_PREVIEW_ORIGIN; location.search = '?notificationDemo=1'
+      const native = useNativeNotificationsStore(); native.activateDemo()
+      return { items: useItemsStore(), native, shared: useSharedNotificationsStore(), settings: useNotificationSettingsStore() }
     }
     await t.test('nothing before 08:00, one station record and one OS delivery at expiry, reload does not repeat', async () => {
       const { native, shared } = fresh()
@@ -249,6 +254,79 @@ test('native notification integration: permission, persistence, delay, cancellat
       assert.equal((await native.demo('b')).ok, true)
       assert.deepEqual([...native.pendingDemoItems], ['b'])
     })
+    await t.test('preview requires a link and click; activation survives route changes and reload, ending cancels only demo', async () => {
+      const { native, items } = fresh()
+      await native.endDemo()
+      assert.equal(native.demoEnabled, false)
+      assert.equal(native.activateDemo().ok, false)
+      native.captureDemoLink('?notificationDemo=1')
+      assert.equal(native.demoEnabled, false)
+      assert.equal((await native.demo('a')).ok, false)
+      assert.equal(native.activateDemo().ok, true)
+      const before = JSON.stringify(items.getItem('a'))
+      assert.equal((await native.demo('a')).ok, true)
+      location.search = ''; native.captureDemoLink('')
+      assert.equal(native.demoEnabled, true)
+      native.$dispose()
+      const reload = useNativeNotificationsStore()
+      assert.equal(reload.demoEnabled, true)
+      await reload.endDemo()
+      assert.equal(sessionStorage.getItem(DEMO_SESSION_KEY), null)
+      const tasks = JSON.parse(memory.get(key('native-notifications'))).data.tasks
+      assert.equal(tasks.find(task => task.demo).state, 'cancelled')
+      assert.equal(tasks.find(task => !task.demo).state, 'scheduled')
+      assert.equal(JSON.stringify(items.getItem('a')), before)
+      now += 10000; await reload.tick()
+      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+    })
+    await t.test('an inactive or separately activated tab does not cancel or dispatch another session demo', async () => {
+      const { native } = fresh()
+      assert.equal((await native.demo('a')).ok, true)
+      const ownerSession = sessionStorage.getItem(DEMO_SESSION_KEY)
+      sessionStorage.removeItem(DEMO_SESSION_KEY)
+      const otherPinia = createPinia(); const other = useNativeNotificationsStore(otherPinia)
+      assert.equal(other.demoEnabled, false)
+      now += 10000; await other.tick()
+      assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.find(task => task.demo).state, 'scheduled')
+      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+      other.activateDemo(); await other.tick(); await other.endDemo()
+      assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.find(task => task.demo).state, 'scheduled')
+      sessionStorage.setItem(DEMO_SESSION_KEY, ownerSession)
+      await native.tick(); await native.tick()
+      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 1)
+      for (const store of otherPinia._s.values()) store.$dispose()
+    })
+    await t.test('production and unknown origins reject invitations and persisted sessions even with build flag true', async () => {
+      for (const origin of [DEMO_PRODUCTION_ORIGIN, 'https://unknown.vercel.app', 'http://localhost']) {
+        const { native } = fresh(); assert.equal((await native.demo('a')).ok, true)
+        location.origin = origin
+        const deniedPinia = createPinia(); const denied = useNativeNotificationsStore(deniedPinia)
+        denied.captureDemoLink('?notificationDemo=1')
+        assert.equal(denied.demoInvited, false); assert.equal(denied.demoEnabled, false)
+        assert.equal(denied.activateDemo().ok, false)
+        assert.equal((await denied.demo('a')).ok, false)
+        assert.equal((await denied.cancelDemo('a')).ok, false)
+        now += 10000; await denied.tick()
+        assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+        assert.equal(delivered.filter(entry => !entry.title.includes('10 秒')).length, 1)
+        assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.find(task => task.demo).state, 'cancelled')
+        for (const store of deniedPinia._s.values()) store.$dispose()
+      }
+      location.origin = DEMO_PREVIEW_ORIGIN
+    })
+    await t.test('session storage failure refuses activation without changing formal reminders', async () => {
+      const { native, items } = fresh(); await native.endDemo()
+      native.captureDemoLink('?notificationDemo=1')
+      const before = JSON.stringify(items.getItem('a'))
+      const originalSet = sessionStorage.setItem
+      try {
+        sessionStorage.setItem = () => { throw new Error('blocked') }
+        assert.equal(native.activateDemo().ok, false)
+        assert.equal(native.demoEnabled, false)
+        assert.match(native.demoModeMessage, /未啟用/)
+        assert.equal(JSON.stringify(items.getItem('a')), before)
+      } finally { sessionStorage.setItem = originalSet }
+    })
     await t.test('corrupt task storage is not cleared or replayed', async () => {
       const { native } = fresh()
       memory.set(key('native-notifications'), '{broken')
@@ -366,10 +444,21 @@ test('notification worker opens a new app window if the original was closed', as
 })
 
 
-test('demo is disabled in a build without explicit opt-in', async () => {
-  const server = await createServer({ configFile: false, define: { 'import.meta.env.VITE_NOTIFICATION_DEMO': JSON.stringify('false') }, appType: 'custom', server: { middlewareMode: true, hmr: false, watch: null } })
-  try {
-    const { notificationDemoEnabled } = await server.ssrLoadModule('/src/stores/nativeNotifications.js')
-    assert.equal(notificationDemoEnabled, false)
-  } finally { await server.close() }
+test('exact preview origin and explicit invitation cannot be overridden by saved state or URL lookalikes', () => {
+  const storage = { getItem: () => JSON.stringify({ version: 1, origin: DEMO_PREVIEW_ORIGIN, id: 'old-session' }) }
+  assert.equal(allowsNotificationDemo(DEMO_PREVIEW_ORIGIN), true)
+  assert.equal(demoLinkRequested(DEMO_PREVIEW_ORIGIN, '?notificationDemo=1'), true)
+  assert.equal(demoLinkRequested(DEMO_PREVIEW_ORIGIN, ''), false)
+  assert.equal(demoLinkRequested(DEMO_PREVIEW_ORIGIN, '?notificationDemo=true'), false)
+  for (const origin of [DEMO_PRODUCTION_ORIGIN, 'http://localhost', DEMO_PREVIEW_ORIGIN + '.evil.test',
+    DEMO_PREVIEW_ORIGIN.replace('https:', 'http:'), 'https://other.vercel.app', DEMO_PREVIEW_ORIGIN + ':444']) {
+    assert.equal(allowsNotificationDemo(origin), false)
+    assert.equal(demoLinkRequested(origin, '?notificationDemo=1'), false)
+    assert.equal(restoreDemoSession(origin, storage), null)
+  }
+  assert.equal(restoreDemoSession(DEMO_PREVIEW_ORIGIN, storage, 'reload'), 'old-session')
+  let removed = false
+  assert.equal(restoreDemoSession(DEMO_PREVIEW_ORIGIN, { ...storage, removeItem: () => { removed = true } }, 'navigate'), null)
+  assert.equal(removed, true)
+  assert.equal(restoreDemoSession(DEMO_PREVIEW_ORIGIN, { getItem: () => '{broken' }), null)
 })
