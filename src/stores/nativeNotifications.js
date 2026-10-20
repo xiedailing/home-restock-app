@@ -1,3 +1,4 @@
+import { shoppingNotificationTarget, shoppingNotificationUrl, parseShoppingNotificationUrl } from '../utils/shoppingNotificationTarget.js'
 import { notificationDemoEligibility } from '../utils/notificationDemoEligibility.js'
 import { allowsNotificationDemo, demoLinkRequested, restoreDemoSession, DEMO_SESSION_KEY } from '../utils/notificationDemoMode.js'
 import { ref, computed, onScopeDispose } from 'vue'
@@ -55,6 +56,8 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   const permission = ref('default')
   const authorizationMessage = ref('')
   const demoFeedback = ref({})
+  const deliveryFailure = ref(null)
+  const snoozeSaves = new Map()
   const pendingDemo = ref(false)
   const pendingDemoItems = ref([])
   let interval
@@ -116,10 +119,30 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     const savedSpace = persisted?.spaces?.find(space => space.id === task.spaceId)
     return taskStillValid(task, savedItem, savedSpace, demoEnabled.value)
   }
-  function itemUrl(id) { return new URL(`${import.meta.env.BASE_URL}items/${encodeURIComponent(id)}`, location.origin).href }
-  function openItem(id) {
-    if (!items.getItem(id)) { report('此用品已不存在，無法開啟。', true); navigate?.({ name: 'notifications' }); return }
-    navigate?.({ name: 'item-detail', params: { id } })
+  function openShopping(target) {
+    // A fresh request key also handles repeated clicks before the first query is consumed.
+    navigate?.({ ...target, query: { ...target.query, notificationRequest: generateId() } })
+  }
+  async function saveSnoozeAndScheduleDemo(itemId, date) {
+    const key = JSON.stringify([itemId, date])
+    if (snoozeSaves.has(key)) return snoozeSaves.get(key)
+    const work = Promise.resolve().then(async () => {
+      const saved = items.snoozeShoppingReminder(itemId, date)
+      if (!saved.ok || !demoEnabled.value) return saved
+      const result = await demo(itemId)
+      if (result.ok) return { ...saved, demoResult: result }
+      const reasons = {
+        'reminder-off': '請先開啟此用品的補貨提醒。', unsaved: '延後日期尚未儲存。',
+        permission: '尚未允許系統通知，請至提醒設定開啟。', 'push-off': '請先在提醒設定開啟推播通知。',
+        'waiting-self': '此用品已有提醒等待發送。',
+      }
+      const pendingItem = items.getItem(result.otherItemId)
+      const reason = result.code === 'waiting-other' ? `「${pendingItem?.name || '其他用品'}」仍有提醒等待發送。`
+        : reasons[result.code] || result.message || demoFeedback.value[itemId]?.message || '此次系統通知未安排。'
+      return { ...saved, demoResult: { ok: false, message: reason } }
+    })
+    snoozeSaves.set(key, work)
+    try { return await work } finally { snoozeSaves.delete(key) }
   }
   async function closeInvalidTags(tags) {
     if (!navigator.serviceWorker || !tags.length) return
@@ -154,7 +177,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       }
       // Stationary permission state is never a reason to request permission.
       if (!settings.pushEnabled || loadPersisted(STORE_KEYS.notifications)?.pushEnabled === false || !support().ok || permission.value !== 'granted') {
-        if (task.demo) { task.state = 'blocked'; saveTasks(tasks); report('未啟用通知或尚未授權，測試通知未發送。', true, task.itemId) }
+        if (task.demo) { task.state = 'blocked'; saveTasks(tasks); report('未啟用通知或尚未授權，測試通知未發送。', true, task.itemId); deliveryFailure.value = { id: task.id, message: '系統通知未發送，請確認通知權限與推播設定。' } }
         continue
       }
       item = items.getItem(task.itemId)
@@ -163,14 +186,16 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       // A process crash between these steps is reported as uncertain, never replayed.
       task.state = 'attempted'
       saveTasks(tasks)
+      const clickTarget = shoppingNotificationTarget(item.id, item.spaceId, items.getSpace(item.spaceId)?.shared)
       try {
         await deliverBrowserNotification({ title: task.demo ? '補補｜10 秒測試提醒' : '補補｜延後提醒',
           body: `${items.getSpace(item.spaceId).name}的${item.name}已到提醒時間。`, tag: task.id,
-          url: itemUrl(item.id), onClick: () => openItem(item.id),
+          url: shoppingNotificationUrl(item, items.getSpace(item.spaceId), import.meta.env.BASE_URL, location.origin),
+          onClick: () => openShopping(clickTarget),
           shouldSend: () => settings.pushEnabled && loadPersisted(STORE_KEYS.notifications)?.pushEnabled !== false && currentValid(task) })
         task.state = 'sent'
         report('通知已交給瀏覽器處理；若未看到，請檢查作業系統通知與勿擾設定。', false, task.demo ? task.itemId : null)
-      } catch (cause) { task.state = 'failed'; task.failure = cause.message; report(cause.message, true, task.demo ? task.itemId : null) }
+      } catch (cause) { task.state = 'failed'; task.failure = cause.message; report(cause.message, true, task.demo ? task.itemId : null); deliveryFailure.value = { id: task.id, message: cause.message } }
       // Failing this write leaves attempted on disk: do not duplicate the OS alert.
       saveTasks(tasks)
     }
@@ -232,13 +257,20 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   }
   function onMessage(event) {
     if (event.data?.type !== 'bubu-notification-click' || typeof event.data.url !== 'string') return
+    const target = parseShoppingNotificationUrl(event.data.url, import.meta.env.BASE_URL, location.origin)
+    if (target) { openShopping(target); return }
+    // Backward compatibility for notifications already delivered by older versions.
     try {
       const url = new URL(event.data.url)
       const prefix = `${import.meta.env.BASE_URL}items/`
       if (url.origin !== location.origin || !url.pathname.startsWith(prefix)) return
-      openItem(decodeURIComponent(url.pathname.slice(prefix.length)))
+      const id = decodeURIComponent(url.pathname.slice(prefix.length))
+      if (!id || id.includes('/')) return
+      const item = items.getItem(id)
+      openShopping(shoppingNotificationTarget(id, item?.spaceId, items.getSpace(item?.spaceId)?.shared))
     } catch { report('無法開啟通知對應的用品。', true) }
   }
+
   function start(routerNavigate) {
     if (active) return
     active = true; navigate = routerNavigate; support()
@@ -259,5 +291,5 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     navigator.serviceWorker?.removeEventListener('message', onMessage)
   }
   onScopeDispose(stop)
-  return { demoEnabled, demoInvited, demoModeMessage, activateDemo, endDemo, captureDemoLink, message, error, messageItemId, permission, authorizationMessage, demoFeedback, clearDemoFeedback, demoEligibility, pendingDemo, pendingDemoItems, enable, support, demo, cancelDemo, tick, start, stop }
+  return { demoEnabled, demoInvited, demoModeMessage, activateDemo, endDemo, captureDemoLink, message, error, messageItemId, permission, authorizationMessage, demoFeedback, deliveryFailure, saveSnoozeAndScheduleDemo, clearDemoFeedback, demoEligibility, pendingDemo, pendingDemoItems, enable, support, demo, cancelDemo, tick, start, stop }
 })

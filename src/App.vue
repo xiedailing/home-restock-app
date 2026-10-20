@@ -29,6 +29,9 @@ watch(() => itemsStore.itemsWithStatus, () => {
   catch (error) { console.error('[notifications] Reminder generation failed', error) }
 }, { deep: true, immediate: true })
 const { toast, showToast, runUndo } = useToast()
+watch(() => nativeNotifications.deliveryFailure, failure => {
+  if (failure) showToast(failure.message, null, '復原', 'error')
+})
 // 補貨頁記錄成功後會回到上一頁，Toast（含復原）要跟得過去，所以提供 App 層的 Toast。
 provide('appToast', { showToast })
 const hideBottomNav = useBottomNavHidden()

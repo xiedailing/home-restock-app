@@ -1,10 +1,11 @@
 <script setup>
-import SnoozeNotificationActions from '../components/SnoozeNotificationActions.vue'
+import { useNativeNotificationsStore } from '../stores/nativeNotifications'
+import { resolveShoppingNotification } from '../utils/shoppingNotificationTarget.js'
 import AppToast from '../components/AppToast.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import RestockDateBar from '../components/restock/RestockDateBar.vue'
 import { addDays, toDateString, getReminderStatus } from '../models/item'
-import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SharedNotificationsMenu from '../components/SharedNotificationsMenu.vue'
 import BrandLogo from '../components/BrandLogo.vue'
@@ -16,9 +17,11 @@ import shoppingListEmpty from '../assets/household-icons-by-state/empty-states/s
 import { profile } from '../stores/profile'
 import { getItemIconSrc } from '../assets/household-icons-by-state'
 const store = useItemsStore()
+const native = useNativeNotificationsStore()
+const shoppingPage = ref(null)
 const { toast, showToast, hideToast, runUndo } = useToast({ duration: 8000, pauseOnInteraction: true })
 const snoozeItemId = ref(null)
-const snoozeSaved = ref(false)
+const snoozeSaving = ref(false)
 const snoozeOpen = ref(false)
 const snoozeDate = ref('')
 const snoozeToday = ref(toDateString())
@@ -36,19 +39,24 @@ function cancelSnooze(close) {
   close()
 }
 function openSnooze(item) {
-  snoozeSaved.value = false
+  snoozeSaving.value = false
   snoozeToday.value = toDateString()
   snoozeItemId.value = item.id
   snoozeDate.value = item.reminderSnoozes?.self > snoozeToday.value ? item.reminderSnoozes.self : addDays(snoozeToday.value, 1)
   snoozeOpen.value = true
 }
-function saveSnooze() {
-  const result = store.snoozeShoppingReminder(snoozeItemId.value, snoozeDate.value)
-  if (!result.ok) { showToast(result.error.message, null, '復原', 'error'); return }
-  const [year, month, day] = snoozeDate.value.split('-').map(Number)
-  const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
-  showToast(`已延後提醒至 ${month}/${day} 週${weekday}`)
-  snoozeSaved.value = true
+async function saveSnooze(close) {
+  if (snoozeSaving.value) return
+  snoozeSaving.value = true
+  try {
+    const result = await native.saveSnoozeAndScheduleDemo(snoozeItemId.value, snoozeDate.value)
+    if (!result.ok) { showToast(result.error.message, null, '復原', 'error'); snoozeSaving.value = false; return }
+    const [year, month, day] = snoozeDate.value.split('-').map(Number)
+    const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
+    showToast(result.demoResult?.ok === false
+      ? `日期已儲存；${result.demoResult.message}` : `已延後提醒至 ${month}/${day} 週${weekday}`)
+    close()
+  } catch { showToast('無法完成此操作，請確認延後日期後重試。', null, '復原', 'error'); snoozeSaving.value = false }
 }
 function completeItem(item) {
   if (item.shoppingCompletedAt != null) {
@@ -117,20 +125,23 @@ const router = useRouter()
 const fromSharedItem = route.query.tab === 'shared'
 const selectedSpace = ref(fromSharedItem && store.getSpace(route.query.space)?.shared ? route.query.space : '')
 const activeTab = ref(fromSharedItem ? 'shared' : 'personal')
-watch(() => [route.query.tab, route.query.space], ([tab, space]) => {
+const notificationSpaceInvalid = ref(false)
+watch(() => [route.query.tab, route.query.space], ([tab, space], previous) => {
+  if (previous && (tab !== previous[0] || space !== previous[1])) notificationSpaceInvalid.value = false
   activeTab.value = tab === 'shared' ? 'shared' : 'personal'
   selectedSpace.value = store.getSpace(space)?.shared ? space : ''
 })
 function selectShoppingTab(tab) {
+  notificationSpaceInvalid.value = false
   const query = { ...route.query, tab }
   if (tab === 'personal') delete query.space
   router.replace({ name: 'shopping', query })
 }
 const personalItems = computed(() => store.shoppingList.filter(item => !store.getSpace(item.spaceId)?.shared))
 const allSharedItems = computed(() => store.items.filter(item => (item.inShoppingList || item.shoppingCompletedAt != null) && store.getSpace(item.spaceId)?.shared))
-const sharedItems = computed(() => allSharedItems.value.filter(item => !selectedSpace.value || selectedSpace.value === item.spaceId))
+const sharedItems = computed(() => notificationSpaceInvalid.value ? [] : allSharedItems.value.filter(item => !selectedSpace.value || selectedSpace.value === item.spaceId))
 const pendingSharedSpaces = computed(() => store.sharedSpaces.filter(space => allSharedItems.value.some(item => item.spaceId === space.id && item.inShoppingList)))
-watch(pendingSharedSpaces, spaces => { if (selectedSpace.value && !spaces.some(space => space.id === selectedSpace.value)) selectedSpace.value = '' })
+watch(pendingSharedSpaces, spaces => { if (selectedSpace.value && !spaces.some(space => space.id === selectedSpace.value) && !allSharedItems.value.some(item => item.spaceId === selectedSpace.value)) selectedSpace.value = '' })
 function claimOperation(item, takeOver = false) {
   return takeOver ? store.takeOverShoppingClaim(item.id) : store.claimShoppingItem(item.id)
 }
@@ -194,6 +205,52 @@ function restockAll(ids = myPendingItems.value.map(item => item.id)) {
   })
 }
 const collapsedGroups = ref([])
+let focusGeneration = 0
+async function focusNotificationItem() {
+  if (route.name !== 'shopping' || typeof route.query.notificationItem !== 'string') return
+  const generation = ++focusGeneration
+  const id = route.query.notificationItem
+  const expectedSpace = typeof route.query.notificationSpace === 'string' ? route.query.notificationSpace : ''
+  snoozeOpen.value = false
+  for (const dialog of [deleteDialog, restockAllDialog, claimAllDialog, claimDialog]) dialog.value?.close()
+  personalExpandedItems.value = []; sharedExpandedItems.value = []
+  const item = store.getItem(id)
+  const space = item && store.getSpace(item.spaceId)
+  const accessible = !space?.shared || store.getSpaceMembers(space.id).some(member => member.id === 'self')
+  const resolution = resolveShoppingNotification(item, space, expectedSpace, accessible)
+  notificationSpaceInvalid.value = !!item && (!space || !accessible || !!expectedSpace && item.spaceId !== expectedSpace)
+  const query = { ...route.query }
+  delete query.notificationItem; delete query.notificationSpace; delete query.notificationRequest
+  if (resolution.ok) {
+    activeTab.value = space.shared ? 'shared' : 'personal'
+    selectedSpace.value = space.shared ? space.id : ''
+    query.tab = activeTab.value
+    if (space.shared) query.space = space.id
+    else delete query.space
+    const groupId = resolution.completed ? (space.shared ? 'shared-completed' : 'completed')
+      : space.shared ? (item.shoppingClaimantId ? 'shared-claimed' : 'shared-pending') : 'pending'
+    collapsedGroups.value = collapsedGroups.value.filter(group => group !== groupId)
+    if (!resolution.completed) toggleItem(id)
+  }
+  if (resolution.message) showToast(resolution.message)
+  await router.replace({ name: 'shopping', query })
+  await nextTick()
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  if (generation !== focusGeneration || route.name !== 'shopping' || !resolution.ok) return
+  const card = [...(shoppingPage.value?.querySelectorAll('[data-shopping-item-id]') || [])]
+    .find(element => element.dataset.shoppingItemId === id)
+  if (!card) return
+  // Wait for the existing expansion/route animations before measuring the card.
+  const animations = card.getAnimations?.({ subtree: true }).filter(animation => Number.isFinite(animation.effect?.getTiming().iterations)) || []
+  await Promise.race([Promise.allSettled(animations.map(animation => animation.finished)), new Promise(resolve => setTimeout(resolve, 600))])
+  if (generation !== focusGeneration || route.name !== 'shopping' || activeTab.value !== (space.shared ? 'shared' : 'personal')) return
+  window.scrollTo({ top: Math.max(0, window.scrollY + card.getBoundingClientRect().top - 24), behavior: 'instant' })
+}
+watch(() => [route.query.notificationItem, route.query.notificationRequest], () => {
+  if (route.query.notificationItem) focusNotificationItem()
+}, { flush: 'post' })
+onMounted(focusNotificationItem)
+onBeforeUnmount(() => { focusGeneration++ })
 function claimItem(item, takeOver = false) {
   const previousClaimant = item.shoppingClaimantId
   claimOperation(item, takeOver)
@@ -268,7 +325,7 @@ function claimStatus(item) {
 const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '垃圾袋': 'trash-bags', '洗碗精': 'dish-soap', '狗狗糧食': 'dog-food' }
 </script>
 <template>
-  <section class="shopping-page" aria-labelledby="shopping-title">
+  <section ref="shoppingPage" class="shopping-page" aria-labelledby="shopping-title">
     <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title">購買清單<span class="desktop-breadcrumb"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span class="breadcrumb-current">{{ activeTab === 'shared' ? (store.getSpace(selectedSpace)?.name || '共享清單') : '我的清單' }}</span></span></h1></div><SharedNotificationsMenu /></header>
     <div class="shopping-main">
     <div class="shopping-tabs" role="tablist" aria-label="購買清單類型">
@@ -283,7 +340,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <p v-if="group.id === 'completed'" class="completed-group-hint">24 小時後移出購買清單</p>
           <Transition name="group-slide" @enter="expandGroup" @leave="collapseGroup" @after-enter="finishGroupAnimation" @after-leave="finishGroupAnimation" @enter-cancelled="finishGroupAnimation" @leave-cancelled="finishGroupAnimation">
           <div v-show="group.id !== 'completed' || !collapsedGroups.includes(group.id)" :id="`shopping-group-${group.id}`" :inert="group.id === 'completed' && collapsedGroups.includes(group.id)"><div class="group-drawer-content">
-            <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card" :class="{ completed: group.id === 'completed', expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
+            <article v-for="item in group.items" :key="item.id" :data-shopping-item-id="item.id" class="shopping-card personal-card" :class="{ completed: group.id === 'completed', expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
               <div class="personal-card-summary">
                 <input class="shopping-checkbox" type="checkbox" :checked="group.id === 'completed'"  :aria-label="`${item.name}已補貨`" @change="completeItem(item)" />
                 <div class="item-icon-disc" ><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, getReminderStatus(item, store.today, store.remindWithinDays))" alt="" /></div>
@@ -311,8 +368,8 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
     </div>
     <div v-else id="shared-shopping-panel" role="tabpanel" aria-labelledby="shared-shopping-tab">
       <div v-if="pendingSharedSpaces.length" class="shared-space-tabs">
-        <button type="button" :aria-pressed="!selectedSpace" @click="selectedSpace = ''">全部 {{ allSharedItems.length }}</button>
-        <button v-for="space in pendingSharedSpaces" :key="space.id" type="button" :aria-pressed="selectedSpace === space.id" :style="{ '--space-color': getSpaceColor(space.color).dark }" :title="space.name" @click="selectedSpace = space.id">{{ formatSpaceLabel(space.name) }} {{ sharedSpaceCount(space.id) }}</button>
+        <button type="button" :aria-pressed="!selectedSpace" @click="notificationSpaceInvalid = false; selectedSpace = ''">全部 {{ allSharedItems.length }}</button>
+        <button v-for="space in pendingSharedSpaces" :key="space.id" type="button" :aria-pressed="selectedSpace === space.id" :style="{ '--space-color': getSpaceColor(space.color).dark }" :title="space.name" @click="notificationSpaceInvalid = false; selectedSpace = space.id">{{ formatSpaceLabel(space.name) }} {{ sharedSpaceCount(space.id) }}</button>
       </div>
       <section v-for="group in sharedGroups" :key="group.id" class="shopping-group">
         <div v-if="group.id === 'shared-pending'" class="pending-group-heading"><h2>{{ group.title }} {{ group.items.length }}項</h2><button v-if="showClaimAll" type="button" class="claim-all-heading-button" @click="requestClaimAll">全部認領</button></div>
@@ -321,7 +378,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
         <p v-if="group.id === 'shared-completed'" class="completed-group-hint">24 小時後移出購買清單</p>
         <Transition name="group-slide" @enter="expandGroup" @leave="collapseGroup" @after-enter="finishGroupAnimation" @after-leave="finishGroupAnimation" @enter-cancelled="finishGroupAnimation" @leave-cancelled="finishGroupAnimation">
           <div v-show="group.id !== 'shared-completed' || !collapsedGroups.includes(group.id)" :id="`shopping-group-${group.id}`" :inert="group.id === 'shared-completed' && collapsedGroups.includes(group.id)"><div class="group-drawer-content">
-          <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card shared-card" :class="{ completed: item.shoppingCompletedAt != null, expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
+          <article v-for="item in group.items" :key="item.id" :data-shopping-item-id="item.id" class="shopping-card personal-card shared-card" :class="{ completed: item.shoppingCompletedAt != null, expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
             <div class="personal-card-summary">
               <div class="item-icon-disc" ><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, getReminderStatus(item, store.today, store.remindWithinDays))" alt="" /></div>
               <div class="item-info"><h3>{{ item.name }}</h3><p>{{ store.getSpace(item.spaceId)?.name }}</p><p>補貨數量 {{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
@@ -356,17 +413,9 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
         <div class="snooze-reminder-sheet">
           <h2 id="snooze-reminder-title">延後提醒</h2>
           <p class="snooze-personal-hint">僅延後你對此用品的提醒，其他成員不受影響。</p>
-          <template v-if="!snoozeSaved">
-            <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
-            <button type="button" class="btn btn-primary" @click="saveSnooze()">儲存</button>
-            <button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" @click="cancelSnooze(close)">取消延後</button>
-            <SnoozeNotificationActions :item-id="snoozeItemId" />
-          </template>
-          <template v-else>
-            <p role="status">已儲存延後提醒日期。</p>
-            <SnoozeNotificationActions :item-id="snoozeItemId" />
-            <button type="button" class="btn btn-secondary" @click="close()">完成</button>
-          </template>
+          <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
+          <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="saveSnooze(close)">儲存</button>
+          <button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button>
         </div>
       </template>
     </BottomSheet>

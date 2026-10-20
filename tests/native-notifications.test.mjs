@@ -1,5 +1,6 @@
 import { notificationDemoEligibility } from '../src/utils/notificationDemoEligibility.js'
 import { allowsNotificationDemo, demoLinkRequested, restoreDemoSession, DEMO_SESSION_KEY, DEMO_PREVIEW_ORIGIN, DEMO_PRODUCTION_ORIGIN } from '../src/utils/notificationDemoMode.js'
+import { shoppingNotificationTarget, shoppingNotificationUrl, parseShoppingNotificationUrl, resolveShoppingNotification } from '../src/utils/shoppingNotificationTarget.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'vite'
@@ -210,7 +211,8 @@ test('native notification integration: permission, persistence, delay, cancellat
       const demos = delivered.filter(entry => entry.title.includes('10 秒'))
       assert.equal(demos.length, 1)
       assert.match(demos[0].options.body, /衛生紙/)
-      assert.ok(demos[0].options.data.url.endsWith('/items/a'))
+      assert.equal(new URL(demos[0].options.data.url).pathname, '/shopping')
+      assert.equal(new URL(demos[0].options.data.url).searchParams.get('notificationItem'), 'a')
     })
     await t.test('completed, deleted and removed items invalidate a waiting demo', async () => {
       for (const change of [item => { item.shoppingCompletedAt = 1 }, item => { item.inShoppingList = false }, null]) {
@@ -327,6 +329,70 @@ test('native notification integration: permission, persistence, delay, cancellat
         assert.equal(JSON.stringify(items.getItem('a')), before)
       } finally { sessionStorage.setItem = originalSet }
     })
+    await t.test('saving a snooze automatically schedules one independent demo, concurrent saves share the operation', async () => {
+      const { native, items } = fresh()
+      let saves = 0
+      const save = items.snoozeShoppingReminder
+      items.snoozeShoppingReminder = (...args) => { saves++; return save(...args) }
+      const results = await Promise.all([native.saveSnoozeAndScheduleDemo('a', '2099-01-03'), native.saveSnoozeAndScheduleDemo('a', '2099-01-03')])
+      assert.equal(results.every(result => result.ok && result.demoResult.ok), true)
+      assert.equal(saves, 1)
+      const tasks = JSON.parse(memory.get(key('native-notifications'))).data.tasks
+      assert.equal(tasks.filter(task => task.demo && task.state === 'scheduled').length, 1)
+      assert.equal(items.getItem('a').reminderSnoozes.self, '2099-01-03')
+      now += 10000; await native.tick(); await native.tick()
+      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 1)
+      assert.equal(items.getItem('a').reminderSnoozes.self, '2099-01-03')
+    })
+    await t.test('normal mode, denied permission, disabled item and other pending demo preserve saved formal dates', async () => {
+      for (const state of ['off', 'denied', 'reminder-off', 'other']) {
+        const { native, items } = fresh()
+        if (state === 'off') await native.endDemo()
+        if (state === 'denied') MockNotification.permission = 'denied'
+        if (state === 'reminder-off') items.disableReminder('a')
+        if (state === 'other') {
+          items.items.push(createItem({ ...item(), id: 'b', name: '洗衣精' }))
+          items.updateItem('b', { quantity: 2 }); await native.demo('b')
+        }
+        const result = await native.saveSnoozeAndScheduleDemo('a', '2099-01-03')
+        assert.equal(result.ok, true)
+        if (state === 'off') assert.equal(result.demoResult, undefined)
+        else assert.equal(result.demoResult.ok, false)
+        assert.equal(items.getItem('a').reminderSnoozes.self, '2099-01-03')
+        assert.equal(native.pendingDemoItems.includes('a'), false)
+        if (state === 'other') assert.deepEqual([...native.pendingDemoItems], ['b'])
+        if (state === 'reminder-off') assert.equal(items.getItem('a').reminderEnabled, false)
+      }
+    })
+    await t.test('failed formal save creates no demo; editing the date invalidates the previous generation', async () => {
+      const { native, items } = fresh()
+      assert.equal((await native.saveSnoozeAndScheduleDemo('a', 'invalid')).ok, false)
+      assert.equal(native.pendingDemo, false)
+      await native.saveSnoozeAndScheduleDemo('a', '2099-01-03')
+      await native.saveSnoozeAndScheduleDemo('a', '2099-01-04')
+      const tasks = JSON.parse(memory.get(key('native-notifications'))).data.tasks.filter(task => task.demo)
+      assert.equal(tasks[0].state, 'cancelled')
+      assert.equal(tasks.filter(task => task.state === 'scheduled').length, 1)
+      assert.equal(items.getItem('a').reminderSnoozes.self, '2099-01-04')
+    })
+    await t.test('native click routes to shopping with a fresh request on each click, including after deletion', async () => {
+      const { native, items } = fresh(), routes = []
+      native.start(target => routes.push(target))
+      await new Promise(resolve => setTimeout(resolve, 10))
+      await native.saveSnoozeAndScheduleDemo('a', '2099-01-03')
+      now += 10000; await native.tick()
+      const notice = delivered.find(entry => entry.title.includes('10 秒'))
+      assert.ok(notice)
+      notice.instance.onclick(); notice.instance.onclick()
+      assert.equal(routes.length, 2)
+      assert.equal(routes[0].name, 'shopping')
+      assert.equal(routes[0].query.tab, 'personal')
+      assert.equal(routes[0].query.notificationItem, 'a')
+      assert.notEqual(routes[0].query.notificationRequest, routes[1].query.notificationRequest)
+      items.items.splice(0); notice.instance.onclick()
+      assert.equal(routes.at(-1).query.notificationItem, 'a')
+      native.stop()
+    })
     await t.test('corrupt task storage is not cleared or replayed', async () => {
       const { native } = fresh()
       memory.set(key('native-notifications'), '{broken')
@@ -428,8 +494,11 @@ test('notification worker focuses an existing client and refuses external target
   }
   await click('https://example.test/bubu/items/a')
   assert.equal(focused, 1); assert.equal(messages[0].type, 'bubu-notification-click'); assert.equal(opened.length, 0)
+  await click('https://example.test/bubu/shopping?tab=shared&space=family&notificationItem=b&notificationSpace=family')
+  assert.equal(messages.length, 2)
+  await click('https://example.test/bubu/settings?notificationItem=a');
   await click('https://evil.test/items/a'); await click('https://example.test/other/items/a')
-  assert.equal(focused, 1); assert.equal(messages.length, 1)
+  assert.equal(focused, 2); assert.equal(messages.length, 2)
 })
 test('notification worker opens a new app window if the original was closed', async () => {
   const { readFile } = await import('node:fs/promises')
@@ -461,4 +530,27 @@ test('exact preview origin and explicit invitation cannot be overridden by saved
   assert.equal(restoreDemoSession(DEMO_PREVIEW_ORIGIN, { ...storage, removeItem: () => { removed = true } }, 'navigate'), null)
   assert.equal(removed, true)
   assert.equal(restoreDemoSession(DEMO_PREVIEW_ORIGIN, { getItem: () => '{broken' }), null)
+})
+
+
+test('shopping native links preserve IDs/spaces and reject arbitrary destinations; stale items fail safely', () => {
+  const personal = { ...item(), name: '同名用品' }
+  const shared = { ...personal, id: 'b', spaceId: 'family' }
+  const family = { id: 'family', shared: true }
+  const url = shoppingNotificationUrl(shared, family, '/bubu/', 'https://example.test')
+  const target = parseShoppingNotificationUrl(url, '/bubu/', 'https://example.test')
+  assert.deepEqual(target, shoppingNotificationTarget('b', 'family', true))
+  assert.equal(target.query.space, 'family')
+  assert.equal(shoppingNotificationTarget('a', 'personal').query.tab, 'personal')
+  for (const bad of [url.replace('example.test', 'evil.test'), 'https://example.test/bubu/settings?notificationItem=a',
+    'https://example.test/shopping?notificationItem=a&tab=personal', url.replace('space=family', 'space=wrong')]) {
+    assert.equal(parseShoppingNotificationUrl(bad, '/bubu/', 'https://example.test'), null)
+  }
+  assert.equal(resolveShoppingNotification(null, family, 'family').ok, false)
+  assert.equal(resolveShoppingNotification(shared, null, 'family').ok, false)
+  assert.equal(resolveShoppingNotification(shared, family, 'other').ok, false)
+  assert.equal(resolveShoppingNotification(shared, family, 'family', false).ok, false)
+  assert.equal(resolveShoppingNotification({ ...shared, inShoppingList: false }, family, 'family').ok, false)
+  assert.equal(resolveShoppingNotification({ ...shared, inShoppingList: false, shoppingCompletedAt: 1 }, family, 'family').completed, true)
+  assert.equal(resolveShoppingNotification(shared, family, 'family').ok, true)
 })

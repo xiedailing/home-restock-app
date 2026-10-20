@@ -3,9 +3,8 @@ import { useNativeNotificationsStore } from '../stores/nativeNotifications'
 const native = useNativeNotificationsStore()
 </script>
 <template>
-  <aside v-if="native.demoEnabled || native.demoInvited || native.demoModeMessage" class="notification-demo-mode" aria-label="通知展示模式">
-    <template v-if="native.demoEnabled"><span>通知 Demo 展示中</span><button type="button" @click="native.endDemo">結束展示</button></template>
-    <button v-else-if="native.demoInvited" type="button" @click="native.activateDemo">啟用通知展示模式</button>
+  <aside v-if="!native.demoEnabled && native.demoInvited" class="notification-demo-mode" aria-label="通知展示模式">
+    <button type="button" @click="native.activateDemo">啟用通知展示模式</button>
     <p v-if="native.demoModeMessage" role="status">{{ native.demoModeMessage }}</p>
   </aside>
 </template>

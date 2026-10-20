@@ -104,6 +104,9 @@ const router = createRouter({
       const behavior = from.path === to.path && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant'
       return to.hash === '#system-categories-title' ? { top: 0, behavior } : { el: to.hash, top: 24, behavior }
     }
+    // ShoppingView owns notification expansion/scroll and consumes its one-shot query.
+    if (to.name === 'shopping' && from.name === 'shopping'
+      && (to.query.notificationItem || from.query.notificationItem)) return false
     // Desktop subpages scroll inside their drawer; keep the background viewport.
     const mainPages = ['inventory', 'shopping', 'settings', 'item-management', 'item-category']
     if (window.matchMedia('(min-width: 1024px)').matches

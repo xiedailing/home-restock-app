@@ -1,37 +1,25 @@
 <script setup>
-import { computed, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useItemsStore } from '../stores/items'
-import NativeNotificationSettings from './NativeNotificationSettings.vue'
 import { useNativeNotificationsStore } from '../stores/nativeNotifications'
-const props = defineProps({ itemId: { type: String, required: true } })
 const native = useNativeNotificationsStore()
 const items = useItemsStore()
-const eligibility = computed(() => native.demoEligibility(props.itemId))
-const otherPending = computed(() => native.pendingDemoItems.find(id => id !== props.itemId))
-const otherName = computed(() => items.getItem(otherPending.value)?.name || '其他用品')
-const feedback = computed(() => native.demoFeedback[props.itemId])
-watch(() => props.itemId, id => native.clearDemoFeedback(id), { immediate: true })
-const pending = computed(() => native.pendingDemoItems.includes(props.itemId))
+const operatorMessage = ref('')
+async function cancel(id) {
+  const result = await native.cancelDemo(id)
+  operatorMessage.value = result.ok ? '已取消待發送通知。' : native.demoFeedback[id]?.message || '無法取消通知，請稍後重試。'
+}
+const waiting = computed(() => native.pendingDemoItems.map(id => ({ id, name: items.getItem(id)?.name || '已移除用品' })))
 </script>
 <template>
-  <div class="snooze-notification-actions">
-    <NativeNotificationSettings />
-    <div v-if="native.demoEnabled" class="snooze-demo">
-      <button type="button" class="btn btn-secondary" @click="native.endDemo">結束此分頁展示</button>
-      <p>Demo 測試：不影響正式延後日期。分頁須保持開啟，可切換其他網站。</p>
-      <button v-if="pending" type="button" class="btn btn-secondary" @click="native.cancelDemo(itemId)">取消測試通知</button>
-      <button v-else type="button" class="btn btn-secondary" :disabled="!eligibility.ok" @click="native.demo(itemId)">Demo：10 秒後測試通知</button>
-      <template v-if="otherPending">
-        <p role="status">「{{ otherName }}」的 Demo 測試正在等待發送。</p>
-        <button type="button" class="btn btn-secondary" @click="native.cancelDemo(otherPending, itemId)">取消「{{ otherName }}」的測試</button>
-      </template>
-      <p v-if="!pending && !eligibility.ok && eligibility.code !== 'waiting-other'" role="status">{{ eligibility.message }}</p>
-      <p v-if="feedback && feedback.message !== eligibility.message" role="status" :class="{ error: feedback.error }">{{ feedback.message }}</p>
-    </div>
-  </div>
+  <details v-if="native.demoEnabled" class="demo-operator-controls">
+    <summary>展示控制</summary>
+    <button v-for="item in waiting" :key="item.id" type="button" @click="cancel(item.id)">取消「{{ item.name }}」的待發送通知</button>
+    <p v-if="operatorMessage" role="status">{{ operatorMessage }}</p>
+    <button type="button" @click="native.endDemo">結束展示並取消待發送測試</button>
+  </details>
 </template>
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
-.snooze-notification-actions { :deep(.native-notification-settings) { padding: 0; } }
-.snooze-demo { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; p { margin: 0; font-size: t.$font-size-caption; line-height: 20px; color: t.$text-sub; } p.error { color: t.$danger; } }
+.demo-operator-controls { margin-top: 4px; summary { cursor: pointer; color: t.$text-sub; } button { display: block; margin-top: 8px; border: 0; border-radius: t.$radius-pill; padding: 6px 10px; background: t.$input-bg; color: t.$primary-green; font: inherit; } }
 </style>
