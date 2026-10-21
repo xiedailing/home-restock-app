@@ -38,4 +38,22 @@ const card=page.locator('[data-shopping-item-id="'+pad.id+'"]');await card.locat
 const before=await dialog.boundingBox();await page.evaluate(()=>{window.__sheetFrames=[];let start=performance.now();function frame(){const el=document.querySelector('dialog.bottom-sheet[open]');if(el){const b=el.getBoundingClientRect();window.__sheetFrames.push({top:b.top,height:b.height,bottom:b.bottom})}if(performance.now()-start<1000)requestAnimationFrame(frame)}requestAnimationFrame(frame)});
 await page.getByRole('button',{name:'儲存',exact:true}).click();await page.getByRole('button',{name:'取消延後',exact:true}).waitFor();await page.waitForTimeout(1100);const after=await dialog.boundingBox(),frames=await page.evaluate(()=>window.__sheetFrames);assert.ok(after.height>before.height+30);assert.ok(after.y<before.y-30);assert.ok(Math.abs((after.y+after.height)-(before.y+before.height))<1);assert.ok(new Set(frames.map(f=>Math.round(f.height))).size>3);assert.equal(await dialog.getAttribute('class').then(c=>c.includes('closing')),false);await page.screenshot({path:'/tmp/bubu-snooze-grow.png'});
 await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('.snooze-cancel-reveal').evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
+// A saved date is a close-only confirmation; edits require an explicit save.
+await dialog.getByRole('button',{name:'確認',exact:true}).waitFor();
+const savedRaw=await page.evaluate(()=>localStorage.getItem('home-restock:v1:items'));
+await dialog.getByRole('button',{name:'後一天',exact:true}).click();
+await dialog.getByRole('button',{name:'儲存',exact:true}).waitFor();
+assert.equal(await page.evaluate(()=>localStorage.getItem('home-restock:v1:items')),savedRaw);
+await dialog.getByRole('button',{name:'前一天',exact:true}).click();
+await dialog.getByRole('button',{name:'確認',exact:true}).click();
+await page.waitForFunction(()=>!document.querySelector('dialog.bottom-sheet[open]'));
+assert.equal(await page.evaluate(()=>localStorage.getItem('home-restock:v1:items')),savedRaw);
+await card.locator('.snooze-reminder-button').click();
+await dialog.getByRole('button',{name:'確認',exact:true}).waitFor();
+await dialog.getByRole('button',{name:'後一天',exact:true}).click();
+await dialog.getByRole('button',{name:'儲存',exact:true}).click();
+await dialog.getByRole('button',{name:'確認',exact:true}).waitFor();
+assert.notEqual(await page.evaluate(()=>localStorage.getItem('home-restock:v1:items')),savedRaw);
+await dialog.getByRole('button',{name:'取消延後',exact:true}).click();
+await page.waitForFunction(()=>!document.querySelector('dialog.bottom-sheet[open]'));
 console.log('PASS initial3 notices + reload dedupe + personal shopping notice navigation; family checked/locked; sheet grows upward through multiple heights with fixed bottom; reduced motion respected', {before,after,sampledHeights:new Set(frames.map(f=>Math.round(f.height))).size,background});await context.unrouteAll({behavior:'wait'});await context.close();}finally{await browser.close()}

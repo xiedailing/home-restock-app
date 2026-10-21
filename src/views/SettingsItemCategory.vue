@@ -190,7 +190,7 @@ header { min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; 
 .category-empty > * { flex-shrink: 0; }
 .empty-illustration { display: grid; place-items: center; width: 88px; height: 88px; border-radius: t.$radius-pill; background: t.$active-green; box-shadow: inset -3px -3px 7px rgba(255,255,255,.9), inset 2px 3px 7px rgba(138,158,136,.16); img { width: 57px; height: 57px; } }
 .empty-copy { width: 100%; min-height: 76px; h2 { margin: 0 0 2px; color: t.$text-main; font: t.$font-weight-bold #{t.$font-size-heading} / 30px t.$font-family; letter-spacing: 0; overflow-wrap: anywhere; } }
-.empty-add { width: 222px; max-width: 100%; min-height: 48px; height: 48px; padding-block: 0; font-size: t.$font-size-button; &:hover, &:active { background: t.$primary-green; } }
+.empty-add { width: 222px; max-width: 100%; min-height: 48px; height: 48px; padding-block: 0; font-size: t.$font-size-button; &:active { background: t.$primary-green; } @media (hover: hover) and (pointer: fine) { &:hover { background: t.$primary-green; } } }
 .add-symbol { font-size: 20px; line-height: 1; }
 @media (max-height: 600px) { .category-empty { gap: t.$space-16; } }
 .add-item { box-sizing: border-box; text-decoration: none; width: 100%; margin-top: t.$space-16; padding: t.$space-8 t.$space-16; display: flex; justify-content: center; align-items: center; min-height: t.$button-height; border: 0; border-radius: t.$radius-pill; background: t.$primary-soft; color: t.$primary-green; font: t.$font-weight-bold #{t.$font-size-button} / 22px t.$font-family; cursor: pointer; }

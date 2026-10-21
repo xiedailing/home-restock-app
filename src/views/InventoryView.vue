@@ -537,7 +537,7 @@ function clearFilters() {
   padding-block: 0;
   font-size: t.$font-size-button;
   cursor: default;
-  &:hover, &:active { background: t.$primary-green; }
+  &:active { background: t.$primary-green; } @media (hover: hover) and (pointer: fine) { &:hover { background: t.$primary-green; } }
 }
 
 .empty-copy h2 { overflow-wrap: anywhere; }

@@ -73,6 +73,7 @@ const snoozeOpen = ref(false)
 const snoozeDate = ref('')
 const snoozeToday = ref(toDateString())
 const currentSnooze = computed(() => store.getItem(snoozeItemId.value)?.reminderSnoozes?.self || '')
+const snoozeDateSaved = computed(() => currentSnooze.value > snoozeToday.value && snoozeDate.value === currentSnooze.value)
 function snoozeLabel(item) {
   const date = item.reminderSnoozes?.self
   if (!date || date <= store.today) return '延後提醒'
@@ -464,7 +465,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <h2 id="snooze-reminder-title">延後提醒</h2>
           <p class="snooze-personal-hint">僅延後你對此用品的提醒，其他成員不受影響。</p>
           <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
-          <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="saveSnooze()">儲存</button>
+          <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="snoozeDateSaved ? close() : saveSnooze()">{{ snoozeSaving ? '儲存中…' : snoozeDateSaved ? '確認' : '儲存' }}</button>
           <div class="snooze-cancel-reveal" :class="{ open: currentSnooze && currentSnooze >= store.today }" :aria-hidden="!(currentSnooze && currentSnooze >= store.today)" :inert="!(currentSnooze && currentSnooze >= store.today)">
             <div class="snooze-cancel-content"><button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button></div>
           </div>

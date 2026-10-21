@@ -149,3 +149,15 @@
     }
   }
 }
+
+// Bootstrap declares hover rules without an input-capability guard.
+// Use each button's normal tokens on touch devices; active/checked/focus rules
+// keep their own variables and continue to provide interaction feedback.
+@media (hover: none), (pointer: coarse) {
+  :root body .btn {
+    --bs-btn-hover-color: var(--bs-btn-color);
+    --bs-btn-hover-bg: var(--bs-btn-bg);
+    --bs-btn-hover-border-color: var(--bs-btn-border-color);
+  }
+  a { --bs-link-hover-color-rgb: var(--bs-link-color-rgb); }
+}
