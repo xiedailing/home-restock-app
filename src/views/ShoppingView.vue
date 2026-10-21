@@ -92,7 +92,7 @@ function openSnooze(item) {
   snoozeDate.value = item.reminderSnoozes?.self > snoozeToday.value ? item.reminderSnoozes.self : addDays(snoozeToday.value, 1)
   snoozeOpen.value = true
 }
-async function saveSnooze(close) {
+async function saveSnooze() {
   if (snoozeSaving.value) return
   snoozeSaving.value = true
   try {
@@ -105,8 +105,8 @@ async function saveSnooze(close) {
     const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
     showToast(result.demoResult?.ok === false
       ? `日期已儲存；${result.demoResult.message}` : `已延後提醒至 ${month}/${day} 週${weekday}`)
-    close()
-  } catch { showToast('無法完成此操作，請確認延後日期後重試。', null, '復原', 'error'); snoozeSaving.value = false }
+  } catch { showToast('無法完成此操作，請確認延後日期後重試。', null, '復原', 'error') }
+  finally { snoozeSaving.value = false }
 }
 function completeItem(item) {
   if (item.shoppingCompletedAt != null) {
@@ -464,7 +464,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <h2 id="snooze-reminder-title">延後提醒</h2>
           <p class="snooze-personal-hint">僅延後你對此用品的提醒，其他成員不受影響。</p>
           <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
-          <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="saveSnooze(close)">儲存</button>
+          <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="saveSnooze()">儲存</button>
           <button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button>
         </div>
       </template>
