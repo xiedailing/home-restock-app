@@ -12,16 +12,14 @@ const memory = () => {
 const raw = value => JSON.stringify({ version: 2, data: value })
 const snapshot = value => Object.fromEntries(PRESENTATION_KEYS.map(key => [key, key === 'catalog-integration' ? null : raw({ marker: value })]))
 
-test('presentation transaction commits all keys, preserves settings and keeps an exact backup', () => {
+test('presentation transaction commits all keys, resets settings and keeps an exact backup', () => {
   const storage = memory(), before = snapshot('old'), after = snapshot('new')
   for (const [key, value] of Object.entries(before)) if (value) storage.setItem(prefix + key, value)
-  storage.setItem(prefix + 'notifications', 'keep-push-settings')
-  storage.setItem(prefix + 'profile', 'keep-profile')
   commitPresentationTransaction(storage, after)
   assert.deepEqual(presentationSnapshot(storage), after)
   assert.deepEqual(JSON.parse(storage.getItem(PRESENTATION_BACKUP)).before, before)
-  assert.equal(storage.getItem(prefix + 'notifications'), 'keep-push-settings')
-  assert.equal(storage.getItem(prefix + 'profile'), 'keep-profile')
+  assert.equal(storage.getItem(prefix + 'notifications'), after.notifications)
+  assert.equal(storage.getItem(prefix + 'profile'), after.profile)
   assert.equal(storage.getItem(PRESENTATION_JOURNAL), null)
 })
 for (const failKey of [PRESENTATION_BACKUP, PRESENTATION_JOURNAL, prefix + 'catalog', prefix + 'native-notifications']) {
@@ -59,9 +57,9 @@ test('commit-marker failure rolls back; malformed journal blocks loading', () =>
   write(PRESENTATION_JOURNAL, '{')
   assert.throws(() => recoverPresentationTransaction(storage))
 })
-test('exclusive setup refuses production, unknown origins, unsupported and busy browsers', async () => {
+test('exclusive setup refuses unknown origins, unsupported and busy browsers', async () => {
   let invoked = false
-  for (const origin of [DEMO_PRODUCTION_ORIGIN, 'https://unknown.vercel.app']) await assert.rejects(withPresentationExclusive(() => { invoked = true }, { location: { origin }, navigator: {} }))
+  for (const origin of ['https://unknown.vercel.app']) await assert.rejects(withPresentationExclusive(() => { invoked = true }, { location: { origin }, navigator: {} }))
   await assert.rejects(withPresentationExclusive(() => {}, { location: { origin: DEMO_PREVIEW_ORIGIN }, navigator: {} }), /不支援/)
   await assert.rejects(withPresentationExclusive(() => { invoked = true }, { location: { origin: DEMO_PREVIEW_ORIGIN }, navigator: { locks: { request: (_name, _options, callback) => callback(null) } } }), /關閉/)
   assert.equal(invoked, false)
@@ -186,9 +184,10 @@ test('six-item presentation uses real state calculations, model fields and safe 
       const locks = { request: (_name, options, callback) => typeof options === 'function' ? options({}) : callback({}) }
       const session = memory(); session.setItem('bubu:notification-demo-session:v1', 'old')
       storage.setItem(prefix + 'notifications', raw({ pushEnabled: false, restockDays: 12 }))
+      storage.setItem(prefix + 'profile', raw({ name: '測試暱稱', email: 'test@example.com', avatar: 'data:image/png;base64,test' }))
       storage.setItem(prefix + 'native-notifications', raw({ tasks: [{ id: 'old', state: 'scheduled', itemId: 'old-item' }] }))
       storage.setItem(prefix + 'items', raw(state))
-      const env = { location: { origin: DEMO_PREVIEW_ORIGIN }, navigator: { locks }, localStorage: storage, sessionStorage: session }
+      const env = { location: { origin: DEMO_PRODUCTION_ORIGIN }, navigator: { locks }, localStorage: storage, sessionStorage: session }
       await assert.rejects(setup.applyPresentationSetup({}, env), /確認/)
       const staleSnapshot = presentationSnapshot(storage)
       storage.setItem(prefix + 'items', raw({ ...state, presentationRunId: 'another-reset' }))
@@ -197,11 +196,14 @@ test('six-item presentation uses real state calculations, model fields and safe 
       await setup.applyPresentationSetup({ confirmed: true, expectedSnapshot: presentationSnapshot(storage) }, env)
       assert.deepEqual(JSON.parse(storage.getItem(prefix + 'native-notifications')).data.tasks, [])
       assert.equal(JSON.parse(storage.getItem(prefix + 'shared-notifications')).data.records.length, 3)
-      assert.deepEqual(JSON.parse(storage.getItem(prefix + 'notifications')).data, { pushEnabled: false, restockDays: 12 })
+      assert.equal(JSON.parse(storage.getItem(prefix + 'notifications')).data.pushEnabled, true)
+      assert.deepEqual(JSON.parse(storage.getItem(prefix + 'profile')).data, { name: 'bubu1028', email: 'bubu1028@gmail.com', avatar: '' })
       assert.equal(session.getItem('bubu:notification-demo-session:v1'), null)
       assert.equal(JSON.parse(storage.getItem(prefix + 'catalog')).data.presetOverrides['preset:tissues'].unit, '袋')
       await setup.applyPresentationSetup({ confirmed: true, restore: true, expectedSnapshot: presentationSnapshot(storage) }, env)
       assert.deepEqual(JSON.parse(storage.getItem(prefix + 'items')).data, state)
+      assert.equal(JSON.parse(storage.getItem(prefix + 'profile')).data.name, '測試暱稱')
+      assert.deepEqual(JSON.parse(storage.getItem(prefix + 'notifications')).data, { pushEnabled: false, restockDays: 12 })
       assert.deepEqual(JSON.parse(storage.getItem(prefix + 'native-notifications')).data.tasks, [])
     })
     for (const occupied of ['bubu-native-reminders', 'bubu-items-write']) await t.test(`reset refuses occupied inner lock ${occupied} without any writes`, async () => {
@@ -218,16 +220,16 @@ test('six-item presentation uses real state calculations, model fields and safe 
       const before = [...storage.map.entries()], write = storage.setItem
       const session = memory(); session.setItem('bubu:notification-demo-session:v1', 'keep-session')
       const locks = { request: (_name, _options, callback) => callback({}) }
-      const env = { location: { origin: DEMO_PREVIEW_ORIGIN }, navigator: { locks }, localStorage: storage, sessionStorage: session }
+      const env = { location: { origin: DEMO_PRODUCTION_ORIGIN }, navigator: { locks }, localStorage: storage, sessionStorage: session }
       storage.setItem = (key, value) => { if (key === PRESENTATION_BACKUP) throw new Error('backup quota'); write(key, value) }
       try { await assert.rejects(setup.applyPresentationSetup({ confirmed: true, expectedSnapshot: presentationSnapshot(storage) }, env), /backup quota/) }
       finally { storage.setItem = write }
       assert.deepEqual([...storage.map.entries()], before)
       assert.equal(session.getItem('bubu:notification-demo-session:v1'), 'keep-session')
     })
-    await t.test('Production and unknown origins refuse the actual reset API with valid confirmed snapshots', async () => {
+    await t.test('unknown origins refuse the actual reset API with valid confirmed snapshots', async () => {
       const before = [...storage.map.entries()]
-      for (const origin of [DEMO_PRODUCTION_ORIGIN, 'https://unknown.vercel.app']) {
+      for (const origin of ['https://unknown.vercel.app']) {
         const env = { location: { origin }, navigator: { locks: { request() { throw new Error('must not request locks') } } }, localStorage: storage }
         await assert.rejects(setup.applyPresentationSetup({ confirmed: true, expectedSnapshot: presentationSnapshot(storage) }, env))
       }
@@ -276,4 +278,14 @@ test('six-item presentation uses real state calculations, model fields and safe 
     timers.forEach(clearTimeout); globalThis.setTimeout = realTimeout
     if (previous) Object.defineProperty(globalThis, 'localStorage', previous); else delete globalThis.localStorage
   }
+})
+
+for (const state of ['prepared', 'committed']) test(`legacy journal ${state} preserves unrecorded profile/settings`, () => {
+  const storage = memory(), before = snapshot('old'), after = snapshot('new')
+  for (const key of ['profile', 'notifications']) { delete before[key]; delete after[key]; storage.setItem(prefix + key, 'keep') }
+  storage.setItem(PRESENTATION_JOURNAL, JSON.stringify({ version: 1, state, before, after }))
+  recoverPresentationTransaction(storage)
+  assert.equal(storage.getItem(prefix + 'profile'), 'keep')
+  assert.equal(storage.getItem(prefix + 'notifications'), 'keep')
+  assert.equal(storage.getItem(prefix + 'items'), (state === 'prepared' ? before : after).items)
 })

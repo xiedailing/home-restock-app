@@ -1,3 +1,5 @@
+> 最新設定：指定正式站 https://home-restock-app.vercel.app 與既有指定 Preview 均可主動啟用 5 秒通知及透過 /?demoSetup=1 使用安全展示重置。進入網站不會自動啟用或重置；長按標題 3 秒後放開只切換通知 Demo，儲存延後日期才倒數。通知授權、推播設定、Web Locks、去重與單筆限制保留。歷次驗證結果為當時紀錄。
+
 # 瀏覽器原生系統通知
 
 分支：`feature/native-browser-notifications`。沿用此分支提交與上傳，不合併 main。
@@ -23,8 +25,8 @@
 
 ## 期末展示（指定 Preview ＋展示連結＋點擊）
 
-- 唯一允許 origin：`https://home-restock-app-git-feature-native-browser-n-f5352f-xiedailing.vercel.app`，精確比對協定、網域與連接埠，不使用萬用字元。
-- 明確禁止正式站 `https://home-restock-app.vercel.app`；其他未知網址及 localhost 同樣不可啟用 Demo。
+- 既有 Preview origin：`https://home-restock-app-git-feature-native-browser-n-f5352f-xiedailing.vercel.app`，精確比對協定、網域與連接埠，不使用萬用字元。
+- 允許指定正式站 `https://home-restock-app.vercel.app`，與既有 Preview 共用精確 origin 白名單；其他未知網址及 localhost 不可啟用 Demo。
 - 展示連結：<https://home-restock-app-git-feature-native-browser-n-f5352f-xiedailing.vercel.app/shopping?notificationDemo=1>。先點「啟用通知展示模式」，再操作用品延後提醒。連結本身不會自動授權、排程或啟用展示。
 - 不需新增 Vercel Environment Variables。`VITE_NOTIFICATION_DEMO` 不再控制啟用，設為 true 也不能繞過網址限制。一般與帶舊 Demo 環境變數的建置都遵守相同規則。
 - 模式集中於 App 存續的 nativeNotifications Store。啟用後，Vue Router 導覽至設定、用品明細等頁面不會失效；`sessionStorage` 保存當前分頁的展示工作階段 ID，重新整理可恢復。
@@ -108,7 +110,7 @@
 - 完整 `node --test tests/*.test.mjs`：249 項通過、0 失敗。
 - `npm run build`（不需展示環境變數）與 `VITE_NOTIFICATION_DEMO=true npm run build`、`git diff --check` 通過。
 - 自動化 Chromium（將本機正式產物映射至指定 origin，隔離通知 API 替身，非線上部署驗收）：儲存後自動排程、連續儲存去重、簡潔 sheet、其他用品任務保留、背景發送一次、個人／共享同名用品依 ID 定位、重複點擊、冷啟動深連結、390px 手機捲動、失效用品／空間提示、設定折疊取消／結束展示、正式日期保留與重整不重送。
-- 正式建置在指定 origin、展示連結與明確點擊後才啟用；Production 與未知 origin 即使帶舊儲存資料／環境變數也拒絕啟用。設定頁無用品選單。
+- 正式建置在指定 origin、展示連結與明確點擊後才啟用；未知 origin 即使帶舊儲存資料／環境變數也拒絕啟用。設定頁無用品選單。
 - 單元／整合測試涵蓋權限、偏好、08:00 前後、修改／取消、補貨／移除／刪除、跨分頁過時資料、儲存失敗、交付失敗、程序中斷 reservation、worker 聚焦／新開視窗／外站網址拒絕，以及精確 origin、連結與點擊、儲存失敗、跨頁／重整保留、未啟用分頁不誤取消、結束展示與獨立取消。
 - 尚未以實體 Windows Chrome、macOS Chrome 或 Safari 驗收 OS 橫幅；不把 API 替身或無頭瀏覽器測試當成作業系統通知已實測。
 
@@ -167,7 +169,7 @@
 - 通知操作者：指定 Preview 的 `/settings?notificationDemo=1`，可取消等待中任務及結束展示，但不顯示啟用按鈕與成功授權狀態。可先在購買清單長按啟用，再前往測試；使用瀏覽器上一頁返回仍在同一 App 的專用頁，可保留既有工作階段。
 - 既有 `/shopping?notificationDemo=1` 仍提供明確啟用流程。啟用提示只在目前網址明確帶有該參數時顯示，不因 store 曾收到邀請就出現在後續普通頁面。網址本身不啟用、不授權、不排程。
 - 重新輸入網址造成完整新導覽時，沿用原本安全規則，可能需要重新明確啟用。若舊工作階段任務仍等待，可在專用頁啟用後先逐筆取消，再結束展示；不會冒用舊工作階段發送。
-- Production／未知 origin 即使帶參數，也無法啟用或顯示專用通知控制。
+- 未知 origin 即使帶參數，也無法啟用或顯示專用通知控制。
 
 視覺回歸使用隔離瀏覽器驗證1440px與390px的一般設定頁：沒有開發文字、初始化連結或多餘原生通知容器，推播切換與兩種提醒操作仍正常。測試另涵蓋主動授權、封鎖、不支援、授權錯誤、邀請不外洩、專用控制與退出；完整通知流程仍驗證5秒交付、點擊定位、取消與結束展示。無使用者現有資料變更。
 
@@ -178,7 +180,7 @@
 
 單擊、雙擊、提早放開、移出、移動超過8px、觸控取消、捲動、失焦與頁面隱藏均取消長按；卸載清除計時器及事件監聽。成功後抑制標題的後續 click。只加禁止標題選字／觸控選單的行為 CSS，不改字體、尺寸、間距或色彩。
 
-使用原 Store 的 activateDemo／endDemo，沒有新增第二份 Demo 狀態。隱藏手勢可代替網址邀請，但仍必須通過精確 origin 白名單；Production、其他 Preview、未知來源不得啟用。sessionStorage 與原本新導覽／重新整理規則保留。原 `/shopping?notificationDemo=1` 明確啟用方式仍相容；設定頁（包括專用設定網址）不顯示啟用按鈕或成功授權文字。
+使用原 Store 的 activateDemo／endDemo，沒有新增第二份 Demo 狀態。隱藏手勢可代替網址邀請，但仍必須通過精確 origin 白名單；其他 Preview、未知來源不得啟用。sessionStorage 與原本新導覽／重新整理規則保留。原 `/shopping?notificationDemo=1` 明確啟用方式仍相容；設定頁（包括專用設定網址）不顯示啟用按鈕或成功授權文字。
 
 第一次啟用若權限為 default，直接在放開事件中請求通知權限；這條入口不修改推播偏好。拒絕、未授權或不支援顯示實際提示，仍可正常保存正式延後日期；不得聲稱通知已安排。長按只開關模式，不建立通知任務；只有正式延後日期儲存成功後才沿用既有5秒排程。關閉先同步停用，再以原 Web Lock 取消本工作階段的待發送 Demo，不更動正式日期或用品資料。
 
@@ -217,4 +219,4 @@
 - 通知網址與 ShoppingView 依目前認領者定位：個人用品進我的清單；自己認領共享用品進我的清單的共享認領；未認領或其他人認領進對應共享空間。重複點擊及舊 shared query 依最新狀態定位，不更改用品資料。
 - 啟動時的模組 MIME／載入錯誤改提示重新載入，提供手動重載按鈕；不再將所有啟動失敗誤報為儲存不足。這不代表消除部署切換時舊分頁的資產版本差異，不會自動清資料或無限重載。
 - 整合最新 main 的 SPA Rewrite，保留 .vercel／.env* 忽略規則；不修改 main 分支。
-- 真實 Safari／Chrome 系統通知橫幅及 Production 部署仍需人工驗收；Preview 的 5 秒展示白名單不會因此擴大。
+- 真實 Safari／Chrome 系統通知橫幅及 Production 部署仍需人工驗收；5 秒展示白名單現包含指定正式站與 Preview，其他網址仍禁止。

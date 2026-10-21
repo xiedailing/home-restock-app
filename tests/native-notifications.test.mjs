@@ -233,7 +233,7 @@ test('native notification integration: permission, persistence, delay, cancellat
       const demos = delivered.filter(isDemoNotice)
       assert.equal(demos.length, 1)
       assert.equal(demos[0].title, '補補')
-      assert.equal(demos[0].options.body, '「個人」的 衛生紙已到提醒時間！')
+      assert.equal(demos[0].options.body, '「個人」的衛生紙該補貨了！')
       assert.equal(demos[0].options.icon, '/notification-icon.png')
       assert.equal(new URL(demos[0].options.data.url).pathname, '/shopping')
       assert.equal(new URL(demos[0].options.data.url).searchParams.get('notificationItem'), 'a')
@@ -322,8 +322,8 @@ test('native notification integration: permission, persistence, delay, cancellat
       assert.equal(delivered.filter(isDemoNotice).length, 1)
       for (const store of otherPinia._s.values()) store.$dispose()
     })
-    await t.test('production and unknown origins reject invitations and persisted sessions even with build flag true', async () => {
-      for (const origin of [DEMO_PRODUCTION_ORIGIN, 'https://unknown.vercel.app', 'http://localhost']) {
+    await t.test('unknown origins reject invitations and persisted sessions even with build flag true', async () => {
+      for (const origin of ['https://unknown.vercel.app', 'http://localhost']) {
         const { native } = fresh(); assert.equal((await native.demo('a')).ok, true)
         location.origin = origin
         const deniedPinia = createPinia(); const denied = useNativeNotificationsStore(deniedPinia)
@@ -628,10 +628,15 @@ test('notification worker opens a new app window if the original was closed', as
 test('exact preview origin and explicit invitation cannot be overridden by saved state or URL lookalikes', () => {
   const storage = { getItem: () => JSON.stringify({ version: 1, origin: DEMO_PREVIEW_ORIGIN, id: 'old-session' }) }
   assert.equal(allowsNotificationDemo(DEMO_PREVIEW_ORIGIN), true)
+  assert.equal(allowsNotificationDemo(DEMO_PRODUCTION_ORIGIN), true)
+  assert.equal(demoLinkRequested(DEMO_PRODUCTION_ORIGIN, '?notificationDemo=1'), true)
+  assert.equal(restoreDemoSession(DEMO_PRODUCTION_ORIGIN, storage, 'reload'), null)
+  assert.equal(allowsNotificationDemo(DEMO_PRODUCTION_ORIGIN + '.evil.test'), false)
+  assert.equal(allowsNotificationDemo(DEMO_PRODUCTION_ORIGIN + ':444'), false)
   assert.equal(demoLinkRequested(DEMO_PREVIEW_ORIGIN, '?notificationDemo=1'), true)
   assert.equal(demoLinkRequested(DEMO_PREVIEW_ORIGIN, ''), false)
   assert.equal(demoLinkRequested(DEMO_PREVIEW_ORIGIN, '?notificationDemo=true'), false)
-  for (const origin of [DEMO_PRODUCTION_ORIGIN, 'http://localhost', DEMO_PREVIEW_ORIGIN + '.evil.test',
+  for (const origin of ['http://localhost', DEMO_PREVIEW_ORIGIN + '.evil.test',
     DEMO_PREVIEW_ORIGIN.replace('https:', 'http:'), 'https://other.vercel.app', DEMO_PREVIEW_ORIGIN + ':444']) {
     assert.equal(allowsNotificationDemo(origin), false)
     assert.equal(demoLinkRequested(origin, '?notificationDemo=1'), false)

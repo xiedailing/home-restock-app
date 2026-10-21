@@ -48,7 +48,7 @@ await page.getByText('日期已儲存；「衛生紙」仍有提醒等待發送�
 const other=await context.newPage();await other.goto(origin+'/settings');await other.bringToFront();
 await page.waitForTimeout(6500);
 let notices=await page.evaluate(()=>window.__testNotifications.map(n=>({title:n.title,body:n.body,icon:n.icon,data:n.data})));
-assert.equal(notices.length,1);assert.equal(notices[0].title,'補補');assert.equal(notices[0].body,'「個人」的 衛生紙已到提醒時間！');assert.equal(notices[0].icon,'/notification-icon.png');const personalUrl=notices[0].data.url;
+assert.equal(notices.length,1);assert.equal(notices[0].title,'補補');assert.equal(notices[0].body,'「個人」的衛生紙該補貨了！');assert.equal(notices[0].icon,'/notification-icon.png');const personalUrl=notices[0].data.url;
 assert.equal(new URL(personalUrl).pathname,'/shopping');assert.equal(new URL(personalUrl).searchParams.get('notificationItem'),'qa-0');
 await clickNotice(personalUrl);await card('qa-0').locator('.item-expand[aria-expanded="true"]').waitFor();await page.waitForTimeout(700);
 assert.equal(await page.locator('.shopping-card.expanded').count(),1);

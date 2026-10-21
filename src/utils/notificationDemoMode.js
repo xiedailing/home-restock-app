@@ -3,7 +3,7 @@ export const DEMO_PRODUCTION_ORIGIN = 'https://home-restock-app.vercel.app'
 export const DEMO_SESSION_KEY = 'bubu:notification-demo-session:v1'
 // Exact origin only. Neither build flags nor saved state can override this gate.
 export function allowsNotificationDemo(origin) {
-  return origin === DEMO_PREVIEW_ORIGIN && origin !== DEMO_PRODUCTION_ORIGIN
+  return origin === DEMO_PREVIEW_ORIGIN || origin === DEMO_PRODUCTION_ORIGIN
 }
 export function demoLinkRequested(origin, search) {
   return allowsNotificationDemo(origin) && new URLSearchParams(search).get('notificationDemo') === '1'

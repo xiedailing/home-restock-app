@@ -27,7 +27,7 @@ await context.addInitScript(()=>{
  }});
 });
 
-const origin='https://home-restock-app-git-feature-native-browser-n-f5352f-xiedailing.vercel.app';
+const origin=process.env.BUBU_DEMO_ORIGIN || 'https://home-restock-app-git-feature-native-browser-n-f5352f-xiedailing.vercel.app';
 await context.route(origin+'/**',async route=>{const u=new URL(route.request().url());await route.fulfill({response:await context.request.get(previewBase+u.pathname+u.search)})});
 const errors=[];context.on('page',p=>p.on('pageerror',e=>errors.push(e.message)));page.on('pageerror',e=>errors.push(e.message));
 await page.goto(origin+'/shopping');await page.locator('[data-shopping-item-id="qa-0"]').waitFor();
@@ -73,8 +73,8 @@ await setup.locator('[data-shopping-item-id="'+padId+'"]').waitFor();
 assert.deepEqual(await setup.evaluate(()=>JSON.parse(localStorage.getItem('home-restock:v1:items')).data.items.map(i=>i.id)),fresh.items.map(i=>i.id));
 assert.equal(await setup.evaluate(()=>JSON.parse(localStorage.getItem('home-restock:v1:native-notifications')).data.tasks.some(task=>task.demo)),false);
 assert.equal(confirmations,4);
-const production=await context.newPage();await context.route('https://home-restock-app.vercel.app/**',async route=>{const u=new URL(route.request().url());await route.fulfill({response:await context.request.get(previewBase+u.pathname+u.search)})});
-await production.goto('https://home-restock-app.vercel.app/?demoSetup=1');await production.getByText(/此網址不允許初始化展示資料/).waitFor();assert.equal(await production.getByRole('button',{name:'恢復六項展示初始資料',exact:true}).count(),0);
+const production=await context.newPage();await context.route('https://unknown-bubu-origin.vercel.app/**',async route=>{const u=new URL(route.request().url());await route.fulfill({response:await context.request.get(previewBase+u.pathname+u.search)})});
+await production.goto('https://unknown-bubu-origin.vercel.app/?demoSetup=1');await production.getByText(/此網址不允許初始化展示資料/).waitFor();assert.equal(await production.getByRole('button',{name:'恢復六項展示初始資料',exact:true}).count(),0);
 assert.deepEqual(errors,[]);
-console.log('PASS quick setup UI: occupied tab refusal, cancelled confirmation untouched, one confirmation + automatic local backup without download, automatic App return, optional backup download, repeated reset, old tasks cleared, backup restore, Production blocked, 5-second notification preserved');
+console.log('PASS quick setup UI: occupied tab refusal, cancelled confirmation untouched, one confirmation + automatic local backup without download, automatic App return, optional backup download, repeated reset, old tasks cleared, backup restore, Unknown origin blocked, 5-second notification preserved');
 await context.unrouteAll({behavior:'wait'});await context.close();}finally{await browser.close()}

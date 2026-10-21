@@ -1,5 +1,6 @@
-// 原始存檔交易；prepared 回復原值，committed 完成新值。不得包含權限或通知偏好。
-export const PRESENTATION_KEYS = ['items', 'catalog', 'shared-notifications', 'native-notifications', 'catalog-integration']
+// 原始存檔交易；prepared 回復原值，committed 完成新值。包含個人資料與通知偏好；瀏覽器權限由瀏覽器管理。
+const LEGACY_KEYS = ['items', 'catalog', 'shared-notifications', 'native-notifications', 'catalog-integration']
+export const PRESENTATION_KEYS = [...LEGACY_KEYS, 'profile', 'notifications']
 export const PRESENTATION_PREFIX = 'home-restock:v1:'
 export const PRESENTATION_JOURNAL = PRESENTATION_PREFIX + 'presentation-transaction'
 export const PRESENTATION_BACKUP = PRESENTATION_PREFIX + 'presentation-backup'
@@ -7,11 +8,13 @@ export function presentationSnapshot(storage) {
   return Object.fromEntries(PRESENTATION_KEYS.map(key => [key, storage.getItem(PRESENTATION_PREFIX + key)]))
 }
 function validate(snapshot) {
-  if (!snapshot || !PRESENTATION_KEYS.every(key => Object.hasOwn(snapshot, key) && (snapshot[key] === null || typeof snapshot[key] === 'string'))) throw new Error('展示備份格式不完整。')
+  if (!snapshot || !LEGACY_KEYS.every(key => Object.hasOwn(snapshot, key)) || !PRESENTATION_KEYS.every(key => !Object.hasOwn(snapshot, key) || snapshot[key] === null || typeof snapshot[key] === 'string')) throw new Error('展示備份格式不完整。')
 }
 function apply(storage, snapshot) {
   validate(snapshot)
   for (const key of PRESENTATION_KEYS) {
+    // 舊備份與中斷交易未包含個人設定時保留現值。
+    if (!Object.hasOwn(snapshot, key)) continue
     const value = snapshot[key], name = PRESENTATION_PREFIX + key
     if (value === null) storage.removeItem(name)
     else storage.setItem(name, value)

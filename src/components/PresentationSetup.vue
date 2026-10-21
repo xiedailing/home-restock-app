@@ -34,7 +34,7 @@ async function apply(restore) {
 <template>
   <main class="presentation-setup">
     <h1>期末展示資料</h1>
-    <p>此操作會替換本瀏覽器、此 Preview 網址的用品、空間、用品目錄與通知紀錄。推播偏好與瀏覽器通知權限保留。</p>
+    <p>此操作會替換本瀏覽器、此網站的用品、空間、用品目錄與通知紀錄。暱稱、頭貼、Email 與提醒偏好一併還原預設；瀏覽器通知權限須至瀏覽器網站設定手動重設。</p>
     <p>請關閉其他補補分頁，包括舊版本分頁；這個頁面不會啟動通知排程。</p>
     <button type="button" :disabled="busy" @click="downloadBackup">下載目前資料備份</button>
     <button type="button" :disabled="busy" @click="apply(false)">恢復六項展示初始資料</button>

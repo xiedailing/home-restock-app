@@ -1,5 +1,5 @@
 import { presentationNotifications } from './presentationNotifications.js'
-import { createPresentationState, PRESENTATION_PRESET_OVERRIDES } from '../models/item.js'
+import { createPresentationState, PRESENTATION_PRESET_OVERRIDES, REMIND_WITHIN_DAYS } from '../models/item.js'
 import { DEMO_SESSION_KEY } from './notificationDemoMode.js'
 import { PRESENTATION_BACKUP, commitPresentationTransaction, presentationSnapshot, recoverPresentationTransaction } from './presentationTransaction.js'
 import { withPresentationExclusive } from './presentationAccess.js'
@@ -11,6 +11,8 @@ export const emptyPresentationNotifications = () => ({
 export function newPresentationSnapshot(today) {
   const state = createPresentationState(today)
   return { items: encode(state),
+    profile: encode({ name: 'bubu1028', email: 'bubu1028@gmail.com', avatar: '' }),
+    notifications: encode({ pushEnabled: true, restockDays: REMIND_WITHIN_DAYS }),
     catalog: encode({ catalogItems: [], presetOverrides: PRESENTATION_PRESET_OVERRIDES, deletedCategories: [], deletedCatalogItems: [] }),
     ...emptyPresentationNotifications(), 'shared-notifications': encode(presentationNotifications(state)), 'catalog-integration': null }
 }

@@ -1,6 +1,6 @@
 import { allowsNotificationDemo } from './notificationDemoMode.js'
 export const PRESENTATION_ACCESS_LOCK = 'bubu-presentation-data-access'
-// 一般 Preview 分頁在整個生命週期持有共享鎖；初始化頁不載入 stores。
+// 白名單網站的一般分頁在整個生命週期持有共享鎖；初始化頁不載入 stores。
 export async function withPresentationExclusive(operation, env = globalThis) {
   if (!allowsNotificationDemo(env.location.origin)) throw new Error('此網址不允許初始化展示資料。')
   if (!env.navigator.locks?.request) throw new Error('此瀏覽器不支援安全初始化，請使用支援 Web Locks 的電腦瀏覽器。')

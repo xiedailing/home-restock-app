@@ -189,7 +189,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       const clickTarget = shoppingNotificationTarget(item.id, item.spaceId, items.getSpace(item.spaceId)?.shared, item.shoppingClaimantId)
       try {
         await deliverBrowserNotification({ title: '補補',
-          body: `「${items.getSpace(item.spaceId).name}」的 ${item.name}已到提醒時間！`, tag: task.id,
+          body: `「${items.getSpace(item.spaceId).name}」的${item.name}該補貨了！`, tag: task.id,
           url: shoppingNotificationUrl(item, items.getSpace(item.spaceId), import.meta.env.BASE_URL, location.origin),
           onClick: () => openShopping(clickTarget),
           shouldSend: () => settings.pushEnabled && loadPersisted(STORE_KEYS.notifications)?.pushEnabled !== false && currentValid(task) })
