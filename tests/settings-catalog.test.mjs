@@ -86,6 +86,15 @@ test('settings global catalog integration', async t => {
       assert.ok(categoryPage.items.value.some(item => item.name === '消毒噴霧'))
       assert.equal(management.customCounts.value.find(category => category.name === '文具').count, 1)
     })
+    await t.test('add-item navigation preserves the background category instead of undefined', async () => {
+      const original = route.params.category
+      route.params.category = undefined
+      assert.equal(categoryPage.category.value, original)
+      assert.notEqual(categoryPage.category.value, 'undefined')
+      route.params.category = '清潔'
+      assert.equal(categoryPage.category.value, '清潔')
+      route.params.category = original
+    })
     await t.test('restock source still leaves justAddedId for its caller', async () => {
       route.query = {}
       const add = await setup('src/views/AddItemView.vue')

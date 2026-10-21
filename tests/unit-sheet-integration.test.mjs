@@ -75,6 +75,28 @@ test('shared unit options and unit-period Sheet integration', async t => {
       await nextTick(); await nextTick()
       return { editor, props }
     }
+    await t.test('presentation bag unit is shared with AddItem once and respects later removal', async () => {
+      fresh()
+      const state = JSON.parse(storage.get(key('items')))
+      state.data.presentationVersion = 1
+      state.data.items[0].unit = '袋'
+      storage.set(key('items'), JSON.stringify(state))
+      storage.set(key('unit-options'), JSON.stringify({ version: STORAGE_VERSION, data: { customUnits: ['盒'] } }))
+      const before = storage.get(key('items'))
+      freshPinia()
+      const units = useUnitOptionsStore()
+      assert.deepEqual([...units.customUnits], ['盒', '袋'])
+      assert.equal(storage.get(key('items')), before)
+      const add = await setup('src/views/AddItemView.vue')
+      await add.selectUnit('袋')
+      assert.equal(add.unit.value, '袋')
+      freshPinia()
+      const reloaded = useUnitOptionsStore()
+      assert.equal(reloaded.customUnits.filter(value => value === '袋').length, 1)
+      assert.equal(reloaded.removeUnit('袋').ok, true)
+      freshPinia()
+      assert.deepEqual([...useUnitOptionsStore().customUnits], ['盒'])
+    })
     await t.test('custom unit completion persists, auto-selects and survives cancellation of AddItem', async () => {
       const { units, catalog } = fresh()
       const before = JSON.stringify(catalog.allItems)

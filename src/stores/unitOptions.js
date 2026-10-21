@@ -10,10 +10,22 @@ export const useUnitOptionsStore = defineStore('unit-options', () => {
   const saved = loadPersisted(STORE_KEYS.unitOptions)
   const customUnits = ref([...new Set((Array.isArray(saved?.customUnits) ? saved.customUnits : [])
     .map(normalized).filter(value => valid(value) && !UNITS.includes(value)))])
-  function commit(next) {
-    if (!savePersisted(STORE_KEYS.unitOptions, { customUnits: next })) return { ok: false, message: '無法儲存自訂單位，請稍後再試。' }
+  let presentationUnitsInitialized = saved?.presentationUnitsInitialized === true
+  function commit(next, initialized = presentationUnitsInitialized) {
+    if (!savePersisted(STORE_KEYS.unitOptions, { customUnits: next, presentationUnitsInitialized: initialized })) return { ok: false, message: '無法儲存自訂單位，請稍後再試。' }
     customUnits.value = next
+    presentationUnitsInitialized = initialized
     return { ok: true }
+  }
+  // 展示資料原有單位也必須加入共用選項；只補入一次，之後尊重手動刪除。
+  const presentation = loadPersisted(STORE_KEYS.items)
+  if (!presentationUnitsInitialized && presentation?.presentationVersion === 1) {
+    const next = [...customUnits.value]
+    for (const item of presentation.items || []) {
+      const unit = normalized(item.unit)
+      if (valid(unit) && ![...UNITS, ...next].some(value => comparable(value) === comparable(unit))) next.push(unit)
+    }
+    commit(next, true)
   }
   function isNameTaken(input) {
     const name = comparable(input)

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, inject } from 'vue'
+import { computed, ref, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCatalogStore } from '../stores/catalog'
 import { SYSTEM_CATEGORIES } from '../models/itemCategories'
@@ -17,7 +17,11 @@ function goBack(event) {
   event.preventDefault()
   router.back()
 }
-const category = computed(() => String(route.params.category))
+// 新增用品會移除網址中的分類參數；轉場／桌面背景仍需保留原分類。
+const category = ref(typeof route.params.category === 'string' ? route.params.category : '')
+watch(() => route.params.category, value => {
+  if (typeof value === 'string') category.value = value
+}, { flush: 'sync' })
 const categorySection = computed(() => SYSTEM_CATEGORIES.includes(category.value)
   ? { label: '系統分類', hash: '#system-categories-title' }
   : { label: '自訂分類', hash: '#custom-categories-title' })
@@ -128,7 +132,7 @@ function edit(item = null) {
     <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink><h1><span class="desktop-management-prefix"><RouterLink class="category-overview-link" :to="{ name: 'item-management', hash: categorySection.hash }">{{ categorySection.label }}</RouterLink><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>{{ category }}</h1><button v-if="items.length" type="button" class="delete-category" :aria-label="selecting ? '取消選取' : '選取用品刪除'" @click="toggleSelection"><span v-if="selecting" class="cancel-selection">取消</span><i v-else class="fa-solid fa-trash-can" aria-hidden="true"></i></button><span v-else /></header>
     <section v-for="group in itemGroups" :key="group.key" class="item-group" :aria-labelledby="`group-${group.key}`">
       <h2 :id="`group-${group.key}`" class="group-title">{{ group.title }}</h2>
-    <div class="category-card">
+    <div class="category-card" :class="`category-card--${group.key}`">
       <div v-for="item in group.items" :key="item.id" class="swipe-item" @pointerdown="startSwipe($event, item)" @pointermove="moveSwipe" @pointerup="finishSwipe" @pointercancel="finishSwipe">
         <button v-if="!selecting && !item.id.startsWith('preset:')" type="button" class="swipe-delete" :tabindex="openSwipeId === item.id && swipeOffset < 0 ? 0 : -1" :aria-hidden="openSwipeId !== item.id || swipeOffset === 0" :aria-label="`刪除${item.name}`" @click="requestSingleDeletion(item)">刪除</button>
       <button type="button" class="item-row" :class="{ dragging: swipeDragging }" :style="{ transform: `translateX(${openSwipeId === item.id ? swipeOffset : 0}px)` }"  :disabled="selecting && item.id.startsWith('preset:')" :aria-pressed="selecting ? selectedIds.includes(item.id) : undefined" @click="clickRow(item)" @keydown.left.prevent="revealSwipe(item)" @keydown.right.prevent="closeSwipe"><span v-if="selecting && !item.id.startsWith('preset:')" class="selection-circle" :class="{ checked: selectedIds.includes(item.id) }" aria-hidden="true"><img v-if="selectedIds.includes(item.id)" :src="checkIcon" alt="" /></span><span>{{ item.name }}</span><i v-if="!selecting" class="fa-solid fa-chevron-right row-arrow" aria-hidden="true"></i></button>
@@ -174,6 +178,11 @@ header { min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; 
 .category-card { overflow: hidden; border: 1px solid t.$border-color; border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; }
 .item-row { box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; @include layout.row(48px, t.$space-16); border: 0; background: t.$card-bg; color: t.$text-body; text-align: left; font: t.$font-weight-regular #{t.$font-size-body-sm} / 20px t.$font-family; overflow-wrap: anywhere;  }
 .swipe-item { position: relative; overflow: hidden; touch-action: pan-y; &:not(:last-child) { border-bottom: 1px solid t.$border-color; } }
+// 預設用品不可左滑刪除，分隔線兩側內縮；自訂用品保留貼齊卡片的分隔線。
+.category-card--preset .swipe-item:not(:last-child) {
+  border-bottom-color: transparent;
+  &::after { content: ''; position: absolute; left: t.$space-16; right: t.$space-16; bottom: 0; height: 1px; background: t.$border-color; pointer-events: none; }
+}
 .swipe-item .item-row { position: relative; transition: transform .25s ease; user-select: none; &.dragging { transition: none; } }
 .swipe-delete { position: absolute; inset: 0 0 0 auto; width: 88px; border: 0; background: t.$danger; color: t.$text-inverse; font: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .swipe-item .item-row { transition: none; } }
