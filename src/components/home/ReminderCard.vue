@@ -218,7 +218,7 @@ function chooseMenuOption(event) {
   font: t.$font-weight-medium 14px / normal t.$font-family;
   text-align: left;
   cursor: pointer;
-  @media (hover: hover) and (pointer: fine) { &:hover { background: t.$input-bg; } }
+  @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { &:hover { background: t.$input-bg; } }
   &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
 }
 

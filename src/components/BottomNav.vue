@@ -306,7 +306,7 @@ onBeforeUnmount(() => {
   font: t.$font-weight-medium 16px / normal t.$font-family;
   text-align: left;
   cursor: pointer;
-  @media (hover: hover) and (pointer: fine) { &:hover { background: t.$input-bg; } }
+  @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { &:hover { background: t.$input-bg; } }
 }
 
 // 圓形圖示：淡綠底、綠色圖示。
