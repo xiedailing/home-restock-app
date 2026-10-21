@@ -9,6 +9,7 @@ export function restockNotificationMessage(spaceName, itemNames) {
 export function notificationIcon(type) {
   return {
     'restock-due': 'fa-regular fa-bell',
+    'shopping-pending': 'fa-solid fa-clipboard-list',
     claimed: 'fa-regular fa-hand',
     takeover: 'fa-solid fa-arrow-right-arrow-left',
     restocked: 'fa-regular fa-circle-check',

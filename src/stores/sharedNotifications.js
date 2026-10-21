@@ -22,7 +22,8 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
   const saved = loadPersisted(STORE_KEYS.sharedNotifications)
   const valid = entry => entry && typeof entry.id === 'string' && typeof entry.message === 'string'
     && typeof entry.spaceId === 'string' && Number.isFinite(entry.createdAt)
-    && ['demo', 'event'].includes(entry.source) && ['restock-due', 'claimed', 'takeover', 'restocked'].includes(entry.type)
+    && ['demo', 'event'].includes(entry.source) && (['restock-due', 'claimed', 'takeover', 'restocked'].includes(entry.type)
+      || (entry.type === 'shopping-pending' && entry.source === 'demo' && entry.previewOnly === true))
     && Array.isArray(entry.recipientIds) && entry.recipientIds.every(id => typeof id === 'string')
   const records = ref(Array.isArray(saved?.records) ? saved.records.filter(valid) : [])
   const validBatch = batch => batch && typeof batch.id === 'string' && ['restocked', 'claimed', 'takeover'].includes(batch.type)

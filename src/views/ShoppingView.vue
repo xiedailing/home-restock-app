@@ -465,7 +465,9 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <p class="snooze-personal-hint">僅延後你對此用品的提醒，其他成員不受影響。</p>
           <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
           <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="saveSnooze()">儲存</button>
-          <button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button>
+          <div class="snooze-cancel-reveal" :class="{ open: currentSnooze && currentSnooze >= store.today }" :aria-hidden="!(currentSnooze && currentSnooze >= store.today)" :inert="!(currentSnooze && currentSnooze >= store.today)">
+            <div class="snooze-cancel-content"><button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button></div>
+          </div>
         </div>
       </template>
     </BottomSheet>
@@ -622,4 +624,12 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .snooze-reminder-sheet .snooze-personal-hint { font-size: t.$font-size-caption; line-height: t.$line-height-body; }
 .snooze-reminder-sheet > .btn-primary { margin-top: t.$space-8; }
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { .snooze-reminder-button:not(:disabled):hover { background: #d5e2d0; color: t.$primary-green; } }
+</style>
+
+<style scoped>
+.snooze-cancel-reveal { display: grid; grid-template-rows: 0fr; margin-top: -16px; opacity: 0; transition: grid-template-rows .35s ease, margin-top .35s ease, opacity .25s ease; }
+.snooze-cancel-reveal.open { grid-template-rows: 1fr; margin-top: 0; opacity: 1; }
+.snooze-cancel-content { min-height: 0; overflow: hidden; }
+.snooze-cancel-content > button { width: 100%; }
+@media (prefers-reduced-motion: reduce) { .snooze-cancel-reveal { transition: none; } }
 </style>

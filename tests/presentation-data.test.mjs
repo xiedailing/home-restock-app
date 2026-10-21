@@ -168,7 +168,7 @@ test('six-item presentation uses real state calculations, model fields and safe 
         assert.equal(get('垃圾袋').shoppingClaimantId, data.spaces[1].members[0].id)
         assert.notEqual(get('垃圾袋').shoppingClaimantId, 'self')
         assert.deepEqual(JSON.parse(fixture['native-notifications']).data.tasks, [])
-        assert.deepEqual(JSON.parse(fixture['shared-notifications']).data.records, [])
+        assert.equal(JSON.parse(fixture['shared-notifications']).data.records.length, 3)
       }
     })
     await t.test('new runs never reuse item/record/period/space IDs; old notification resolves missing', async () => {
@@ -196,7 +196,7 @@ test('six-item presentation uses real state calculations, model fields and safe 
       storage.setItem(prefix + 'items', raw(state))
       await setup.applyPresentationSetup({ confirmed: true, expectedSnapshot: presentationSnapshot(storage) }, env)
       assert.deepEqual(JSON.parse(storage.getItem(prefix + 'native-notifications')).data.tasks, [])
-      assert.deepEqual(JSON.parse(storage.getItem(prefix + 'shared-notifications')).data.records, [])
+      assert.equal(JSON.parse(storage.getItem(prefix + 'shared-notifications')).data.records.length, 3)
       assert.deepEqual(JSON.parse(storage.getItem(prefix + 'notifications')).data, { pushEnabled: false, restockDays: 12 })
       assert.equal(session.getItem('bubu:notification-demo-session:v1'), null)
       assert.equal(JSON.parse(storage.getItem(prefix + 'catalog')).data.presetOverrides['preset:tissues'].unit, '袋')
@@ -233,6 +233,23 @@ test('six-item presentation uses real state calculations, model fields and safe 
       }
       assert.deepEqual([...storage.map.entries()], before)
     })
+    await t.test('three historical notifications use spec copy and current item/member IDs without scheduling OS jobs', async () => {
+      const snapshot = setup.newPresentationSnapshot(today), initial = JSON.parse(snapshot.items).data
+      const notifications = JSON.parse(snapshot['shared-notifications']).data
+      assert.deepEqual(notifications.records.map(record => record.message), ['「個人」的衛生紙該補貨了', '「個人」的衛生棉是否已購買？', '花花已認領「家庭」的垃圾袋。'])
+      assert.equal(initial.spaces[1].shared, true)
+      for (const record of notifications.records) {
+        assert.equal(record.source, 'demo'); assert.equal(record.previewOnly, true)
+        assert.deepEqual(record.recipientIds, ['self'])
+        assert.equal(initial.items.find(item => item.id === record.itemIds[0]).spaceId, record.spaceId)
+      }
+      assert.equal(notifications.records[2].actorId, initial.spaces[1].members[0].id)
+      const { notificationDestination } = await server.ssrLoadModule('/src/utils/notificationNavigation.js')
+      const lookup = { getItem: id => initial.items.find(item => item.id === id), getSpace: id => initial.spaces.find(space => space.id === id) }
+      assert.deepEqual(notificationDestination(notifications.records[1], lookup).route, { name: 'shopping', query: { tab: 'personal' } })
+      assert.equal(notifications.processedEventIds.length, 1)
+      assert.deepEqual(JSON.parse(snapshot['native-notifications']).data.tasks, [])
+    })
     await t.test('fresh store persists once and reload keeps IDs and Huahua without inserting alcohol', async () => {
       storage.map.clear()
       const pinia = createPinia(); setActivePinia(pinia)
@@ -241,6 +258,8 @@ test('six-item presentation uses real state calculations, model fields and safe 
       const items = useItemsStore(), ids = items.items.map(i => i.id)
       assert.equal(items.items.length, 6)
       assert.equal(useCatalogStore().getById('preset:tissues').unit, '袋')
+      const { useSharedNotificationsStore } = await server.ssrLoadModule('/src/stores/sharedNotifications.js')
+      const notices = useSharedNotificationsStore(); notices.publishRestockReminders(); assert.equal(notices.records.length, 3)
       assert.equal((await items.flushPersistence()).ok, true)
       pinia._e.stop()
       const second = createPinia(); setActivePinia(second)
@@ -248,6 +267,8 @@ test('six-item presentation uses real state calculations, model fields and safe 
       assert.deepEqual(loaded.items.map(i => i.id), ids)
       assert.equal(loaded.items.filter(i => i.name === '酒精').length, 1)
       assert.deepEqual(loaded.spaces[1].members.map(m => m.name), ['花花'])
+      assert.equal(loaded.spaces[1].shared, true)
+      useSharedNotificationsStore().publishRestockReminders(); assert.equal(useSharedNotificationsStore().records.length, 3)
       second._e.stop()
     })
   } finally {

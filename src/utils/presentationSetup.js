@@ -1,3 +1,4 @@
+import { presentationNotifications } from './presentationNotifications.js'
 import { createPresentationState, PRESENTATION_PRESET_OVERRIDES } from '../models/item.js'
 import { DEMO_SESSION_KEY } from './notificationDemoMode.js'
 import { PRESENTATION_BACKUP, commitPresentationTransaction, presentationSnapshot, recoverPresentationTransaction } from './presentationTransaction.js'
@@ -8,9 +9,10 @@ export const emptyPresentationNotifications = () => ({
   'shared-notifications': encode({ records: [], pendingBatches: [], processedEventIds: [], previewHistorySeeded: true }),
 })
 export function newPresentationSnapshot(today) {
-  return { items: encode(createPresentationState(today)),
+  const state = createPresentationState(today)
+  return { items: encode(state),
     catalog: encode({ catalogItems: [], presetOverrides: PRESENTATION_PRESET_OVERRIDES, deletedCategories: [], deletedCatalogItems: [] }),
-    ...emptyPresentationNotifications(), 'catalog-integration': null }
+    ...emptyPresentationNotifications(), 'shared-notifications': encode(presentationNotifications(state)), 'catalog-integration': null }
 }
 export async function applyPresentationSetup({ restore = false, confirmed = false, expectedSnapshot } = {}, env = globalThis) {
   if (!confirmed) throw new Error('請先確認要替換展示資料。')

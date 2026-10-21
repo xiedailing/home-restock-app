@@ -1,3 +1,4 @@
+import { presentationNotifications } from '../utils/presentationNotifications.js'
 import { createItemsPersistenceGuard } from '../utils/itemsPersistenceGuard.js'
 import { migrateUnitPeriods, currentUnitRecords, undoItemChange } from '../utils/unitPeriods.js'
 import { computed, ref, shallowRef, toRaw, watch, onScopeDispose } from 'vue'
@@ -7,7 +8,7 @@ import { migrateCatalogLinks, assertCatalogLinkUnique, catalogLinkError, normali
 import { isValidInviteCode } from '../utils/inviteCode'
 import { validateCategoryName as checkCategoryName } from '../utils/categoryNames.js'
 import { generateId } from '../utils/id.js'
-import { createDebouncedSaver, loadPersisted, STORE_KEYS } from '../utils/persist.js'
+import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
 import { profile } from './profile'
 import { useSharedNotificationsStore, registerRestockNotificationSource, reconcileRestockNotifications } from './sharedNotifications'
 import { useNotificationSettingsStore } from './notificationSettings'
@@ -840,6 +841,11 @@ export const useItemsStore = defineStore('items', () => {
       .catch(() => { persistFailed.value = true })
   })
   watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
+  // Persist new item identities before any historical notice can reference them.
+  if (!saved && !loadPersisted(STORE_KEYS.sharedNotifications)) {
+    const snapshot = catalogPersistenceSnapshot()
+    if (!tryWriteItems(snapshot).ok || !savePersisted(STORE_KEYS.sharedNotifications, presentationNotifications(snapshot))) persistFailed.value = true
+  }
   if (!saved || needsCatalogSave || needsUnitSave) scheduleSave()
 
   return {
