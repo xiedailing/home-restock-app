@@ -56,7 +56,7 @@ await setup.getByRole('button',{name:'啟用通知展示模式',exact:true}).cli
 const padId=fresh.items.find(i=>i.name==='衛生棉').id;
 const card=()=>setup.locator('[data-shopping-item-id="'+padId+'"]');
 await card().locator('.item-expand').click();await card().locator('.snooze-reminder-button').click();await setup.getByRole('button',{name:'儲存',exact:true}).click();
-await setup.waitForTimeout(11000);
+await setup.waitForTimeout(6000);
 assert.equal(await setup.evaluate(()=>window.__testNotifications.length),1);
 await setup.reload();await card().waitFor();
 assert.deepEqual(await setup.evaluate(()=>JSON.parse(localStorage.getItem('home-restock:v1:items')).data.items.map(i=>i.id)),fresh.items.map(i=>i.id));
@@ -76,5 +76,5 @@ assert.equal(confirmations,4);
 const production=await context.newPage();await context.route('https://home-restock-app.vercel.app/**',async route=>{const u=new URL(route.request().url());await route.fulfill({response:await context.request.get(previewBase+u.pathname+u.search)})});
 await production.goto('https://home-restock-app.vercel.app/?demoSetup=1');await production.getByText(/此網址不允許初始化展示資料/).waitFor();assert.equal(await production.getByRole('button',{name:'恢復六項展示初始資料',exact:true}).count(),0);
 assert.deepEqual(errors,[]);
-console.log('PASS quick setup UI: occupied tab refusal, cancelled confirmation untouched, one confirmation + automatic local backup without download, automatic App return, optional backup download, repeated reset, old tasks cleared, backup restore, Production blocked, 10-second notification preserved');
+console.log('PASS quick setup UI: occupied tab refusal, cancelled confirmation untouched, one confirmation + automatic local backup without download, automatic App return, optional backup download, repeated reset, old tasks cleared, backup restore, Production blocked, 5-second notification preserved');
 await context.unrouteAll({behavior:'wait'});await context.close();}finally{await browser.close()}

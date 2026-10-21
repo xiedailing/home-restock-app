@@ -18,7 +18,7 @@ export async function deliverBrowserNotification({ title, body, tag, url, onClic
   const support = notificationSupport(env)
   if (!support.ok) throw new Error(support.message)
   if (support.permission !== 'granted') throw new Error('未取得通知權限，系統通知未發送。')
-  const options = { body, tag, data: { url } }
+  const options = { body, tag, icon: `${import.meta.env.BASE_URL}notification-icon.png`, data: { url } }
   // Persistent notifications are preferred, including Chrome mobile. This worker
   // only handles clicks; it is deliberately NOT a background alarm scheduler.
   if (env.navigator?.serviceWorker) {

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { notificationDemoEligibility } from '../src/utils/notificationDemoEligibility.js'
 import { allowsNotificationDemo, demoLinkRequested, restoreDemoSession, DEMO_SESSION_KEY, DEMO_PREVIEW_ORIGIN, DEMO_PRODUCTION_ORIGIN } from '../src/utils/notificationDemoMode.js'
 import { shoppingNotificationTarget, shoppingNotificationUrl, parseShoppingNotificationUrl, resolveShoppingNotification } from '../src/utils/shoppingNotificationTarget.js'
@@ -11,7 +12,7 @@ import { reminderTime, reminderFingerprint, taskStillValid, syncReminderTasks } 
 const item = () => ({ id: 'a', spaceId: 'personal', inShoppingList: true, shoppingCompletedAt: null,
   unitPeriodId: 'p', restockRecords: [{ id: 'r', date: '2026-01-01', quantity: 1, unit: '包' }],
   reminderSnoozes: { self: '2099-01-02' }, reminderSnoozeOperationIds: { self: 'op1' } })
-const space = { id: 'personal', shared: false }
+const space = { id: 'personal', name: '個人', shared: false }
 
 test('demo eligibility distinguishes item state, saved date, queue and permission without mutations', () => {
   const source = item(), before = structuredClone(source)
@@ -111,6 +112,7 @@ test('native notification integration: permission, persistence, delay, cancellat
     const { createItem } = await server.ssrLoadModule('/src/models/item.js')
     const { requestBrowserNotifications, notificationSupport, deliverBrowserNotification } = await server.ssrLoadModule('/src/utils/browserNotifications.js')
     const key = name => `home-restock:v1:${name}`
+    const isDemoNotice = notice => JSON.parse(memory.get(key('native-notifications')) || '{"data":{"tasks":[]}}').data.tasks.some(task => task.demo && task.id === notice.options.tag)
     function fresh() {
       failStorage = false; window.dispatchEvent(new Event('pagehide')); dispose()
       for (const timer of timers) clearTimeout(timer)
@@ -195,15 +197,15 @@ test('native notification integration: permission, persistence, delay, cancellat
       assert.equal(native.error, true); assert.equal(delivered.length, 1)
       await native.tick(); assert.equal(delivered.length, 1)
     })
-    await t.test('10-second demo leaves the formal date intact, can fire with page hidden, no station spam', async () => {
+    await t.test('5-second demo leaves the formal date intact, can fire with page hidden, no station spam', async () => {
       const { native, items, shared } = fresh(); const date = items.getItem('a').reminderSnoozes.self
       assert.equal((await native.demo('a')).ok, true)
       document.visibilityState = 'hidden'
-      now += 9999; await native.tick()
-      // Formal 08:00 may also have become due; isolate the demo by its title.
-      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+      now += 4999; await native.tick()
+      // Formal 08:00 may also have become due; isolate the demo by its persisted task ID.
+      assert.equal(delivered.filter(isDemoNotice).length, 0)
       now++; await native.tick()
-      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 1)
+      assert.equal(delivered.filter(isDemoNotice).length, 1)
       assert.equal(items.getItem('a').reminderSnoozes.self, date)
       assert.equal(shared.records.length, 1)
       document.visibilityState = 'visible'
@@ -217,8 +219,8 @@ test('native notification integration: permission, persistence, delay, cancellat
       assert.equal(native.pendingDemo, false)
       native.$dispose()
       const reload = useNativeNotificationsStore()
-      now += 10000; await reload.tick()
-      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+      now += 5000; await reload.tick()
+      assert.equal(delivered.filter(isDemoNotice).length, 0)
       assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.find(task => task.demo).state, 'cancelled')
     })
     await t.test('demo pending after reload delivers once and uses current item and space', async () => {
@@ -227,10 +229,12 @@ test('native notification integration: permission, persistence, delay, cancellat
       native.$dispose()
       const reload = useNativeNotificationsStore(); await reload.tick()
       assert.deepEqual([...reload.pendingDemoItems], ['a'])
-      now += 10000; await reload.tick(); await reload.tick()
-      const demos = delivered.filter(entry => entry.title.includes('10 秒'))
+      now += 5000; await reload.tick(); await reload.tick()
+      const demos = delivered.filter(isDemoNotice)
       assert.equal(demos.length, 1)
-      assert.match(demos[0].options.body, /衛生紙/)
+      assert.equal(demos[0].title, '補補')
+      assert.equal(demos[0].options.body, '「個人」的 衛生紙已到提醒時間！')
+      assert.equal(demos[0].options.icon, '/notification-icon.png')
       assert.equal(new URL(demos[0].options.data.url).pathname, '/shopping')
       assert.equal(new URL(demos[0].options.data.url).searchParams.get('notificationItem'), 'a')
     })
@@ -242,8 +246,8 @@ test('native notification integration: permission, persistence, delay, cancellat
         if (change) { change(items.getItem('a')); change(saved.data.items[0]) }
         else { items.items.splice(0); saved.data.items = [] }
         memory.set(key('items'), JSON.stringify(saved))
-        now += 10000; await native.tick()
-        assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+        now += 5000; await native.tick()
+        assert.equal(delivered.filter(isDemoNotice).length, 0)
         assert.equal(native.pendingDemo, false)
       }
     })
@@ -298,8 +302,8 @@ test('native notification integration: permission, persistence, delay, cancellat
       assert.equal(tasks.find(task => task.demo).state, 'cancelled')
       assert.equal(tasks.find(task => !task.demo).state, 'scheduled')
       assert.equal(JSON.stringify(items.getItem('a')), before)
-      now += 10000; await reload.tick()
-      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+      now += 5000; await reload.tick()
+      assert.equal(delivered.filter(isDemoNotice).length, 0)
     })
     await t.test('an inactive or separately activated tab does not cancel or dispatch another session demo', async () => {
       const { native } = fresh()
@@ -308,14 +312,14 @@ test('native notification integration: permission, persistence, delay, cancellat
       sessionStorage.removeItem(DEMO_SESSION_KEY)
       const otherPinia = createPinia(); const other = useNativeNotificationsStore(otherPinia)
       assert.equal(other.demoEnabled, false)
-      now += 10000; await other.tick()
+      now += 5000; await other.tick()
       assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.find(task => task.demo).state, 'scheduled')
-      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
+      assert.equal(delivered.filter(isDemoNotice).length, 0)
       other.activateDemo(); await other.tick(); await other.endDemo()
       assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.find(task => task.demo).state, 'scheduled')
       sessionStorage.setItem(DEMO_SESSION_KEY, ownerSession)
       await native.tick(); await native.tick()
-      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 1)
+      assert.equal(delivered.filter(isDemoNotice).length, 1)
       for (const store of otherPinia._s.values()) store.$dispose()
     })
     await t.test('production and unknown origins reject invitations and persisted sessions even with build flag true', async () => {
@@ -329,9 +333,9 @@ test('native notification integration: permission, persistence, delay, cancellat
         assert.equal(denied.activateDemo({ userGesture: true }).ok, false)
         assert.equal((await denied.demo('a')).ok, false)
         assert.equal((await denied.cancelDemo('a')).ok, false)
-        now += 10000; await denied.tick()
-        assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 0)
-        assert.equal(delivered.filter(entry => !entry.title.includes('10 秒')).length, 1)
+        now += 5000; await denied.tick()
+        assert.equal(delivered.filter(isDemoNotice).length, 0)
+        assert.equal(delivered.filter(entry => !isDemoNotice(entry)).length, 1)
         assert.equal(JSON.parse(memory.get(key('native-notifications'))).data.tasks.find(task => task.demo).state, 'cancelled')
         for (const store of deniedPinia._s.values()) store.$dispose()
       }
@@ -361,8 +365,8 @@ test('native notification integration: permission, persistence, delay, cancellat
       const tasks = JSON.parse(memory.get(key('native-notifications'))).data.tasks
       assert.equal(tasks.filter(task => task.demo && task.state === 'scheduled').length, 1)
       assert.equal(items.getItem('a').reminderSnoozes.self, '2099-01-03')
-      now += 10000; await native.tick(); await native.tick()
-      assert.equal(delivered.filter(entry => entry.title.includes('10 秒')).length, 1)
+      now += 5000; await native.tick(); await native.tick()
+      assert.equal(delivered.filter(isDemoNotice).length, 1)
       assert.equal(items.getItem('a').reminderSnoozes.self, '2099-01-03')
     })
     await t.test('normal mode, denied permission, disabled item and other pending demo preserve saved formal dates', async () => {
@@ -401,8 +405,8 @@ test('native notification integration: permission, persistence, delay, cancellat
       native.start(target => routes.push(target))
       await new Promise(resolve => setTimeout(resolve, 10))
       await native.saveSnoozeAndScheduleDemo('a', '2099-01-03')
-      now += 10000; await native.tick()
-      const notice = delivered.find(entry => entry.title.includes('10 秒'))
+      now += 5000; await native.tick()
+      const notice = delivered.find(isDemoNotice)
       assert.ok(notice)
       notice.instance.onclick(); notice.instance.onclick()
       assert.equal(routes.length, 2)
@@ -492,8 +496,8 @@ test('native notification integration: permission, persistence, delay, cancellat
         const result = await native.saveSnoozeAndScheduleDemo(entry.id, '2099-01-03')
         assert.equal(result.demoResult.ok, true); assert.notEqual(entry.reminderSnoozeOperationIds.self, before)
         assert.equal(native.pendingDemoItems.length, 1)
-        now += 10000; await native.tick(); await native.tick()
-        const notices = delivered.filter(n => n.title.includes('10 秒'))
+        now += 5000; await native.tick(); await native.tick()
+        const notices = delivered.filter(isDemoNotice)
         assert.equal(notices.length, ++count); assert.equal(native.pendingDemo, false)
         const url = new URL(notices.at(-1).options.data.url)
         assert.equal(url.searchParams.get('notificationItem'), entry.id)
@@ -567,7 +571,7 @@ test('native notification integration: permission, persistence, delay, cancellat
       const { native, items } = fresh()
       assert.equal((await native.demo('a')).ok, true)
       items.cancelShoppingReminderSnooze('a')
-      now += 10000; await native.tick()
+      now += 5000; await native.tick()
       assert.equal(delivered.length, 0)
     })
     await t.test('state is revalidated after waiting for native transport setup', async () => {
@@ -661,4 +665,10 @@ test('shopping native links preserve IDs/spaces and reject arbitrary destination
   assert.equal(resolveShoppingNotification({ ...shared, inShoppingList: false }, family, 'family').ok, false)
   assert.equal(resolveShoppingNotification({ ...shared, inShoppingList: false, shoppingCompletedAt: 1 }, family, 'family').completed, true)
   assert.equal(resolveShoppingNotification(shared, family, 'family').ok, true)
+})
+
+test('notification icon is a 256px PNG rendered from the existing Bubu logo', () => {
+  const png = readFileSync(new URL('../public/notification-icon.png', import.meta.url))
+  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a')
+  assert.equal(png.readUInt32BE(16), 256); assert.equal(png.readUInt32BE(20), 256)
 })

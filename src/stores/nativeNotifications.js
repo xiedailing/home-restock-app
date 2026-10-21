@@ -188,8 +188,8 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       saveTasks(tasks)
       const clickTarget = shoppingNotificationTarget(item.id, item.spaceId, items.getSpace(item.spaceId)?.shared)
       try {
-        await deliverBrowserNotification({ title: task.demo ? '補補｜10 秒測試提醒' : '補補｜延後提醒',
-          body: `${items.getSpace(item.spaceId).name}的${item.name}已到提醒時間。`, tag: task.id,
+        await deliverBrowserNotification({ title: '補補',
+          body: `「${items.getSpace(item.spaceId).name}」的 ${item.name}已到提醒時間！`, tag: task.id,
           url: shoppingNotificationUrl(item, items.getSpace(item.spaceId), import.meta.env.BASE_URL, location.origin),
           onClick: () => openShopping(clickTarget),
           shouldSend: () => settings.pushEnabled && loadPersisted(STORE_KEYS.notifications)?.pushEnabled !== false && currentValid(task) })
@@ -246,14 +246,14 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
           if (!latest.ok) throw new Error(latest.message)
           const item = items.getItem(itemId)
           tasks.push({ id: generateId(), itemId, spaceId: item.spaceId, fingerprint: reminderFingerprint(item),
-            dueAt: Date.now() + 10000, createdAt: Date.now(), state: 'scheduled', demo: true, demoSessionId: demoSessionId.value,
+            dueAt: Date.now() + 5000, createdAt: Date.now(), state: 'scheduled', demo: true, demoSessionId: demoSessionId.value,
             demoReminderSignature: JSON.stringify([item.reminderSnoozes?.self || null, item.reminderSnoozeOperationIds?.self || null]) })
           saveTasks(tasks)
           return { ok: true }
         })
         if (!committed.ok) throw new Error(committed.error.message)
       })
-      report('已安排 10 秒測試，可切換至其他分頁；瀏覽器節流可能延遲，不會修改正式提醒日期。', false, itemId)
+      report('已安排 5 秒測試，可切換至其他分頁；瀏覽器節流可能延遲，不會修改正式提醒日期。', false, itemId)
       return { ok: true }
     } catch (cause) { report(cause.message, true, itemId); return { ok: false } }
   }
@@ -290,7 +290,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
   function start(routerNavigate) {
     if (active) return
     active = true; navigate = routerNavigate; support()
-    try { if (readTasks().some(task => task.state === 'attempted')) report('上次通知交付結果不確定，為避免重複不會自動重送。可用 10 秒測試檢查通知設定。', true) }
+    try { if (readTasks().some(task => task.state === 'attempted')) report('上次通知交付結果不確定，為避免重複不會自動重送。可用 5 秒測試檢查通知設定。', true) }
     catch (cause) { report(cause.message, true) }
     document.addEventListener('visibilitychange', tick)
     window.addEventListener('focus', tick)
