@@ -467,7 +467,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
           <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="snoozeDateSaved ? close() : saveSnooze()">{{ snoozeSaving ? '儲存中…' : snoozeDateSaved ? '確認' : '儲存' }}</button>
           <div class="snooze-cancel-reveal" :class="{ open: currentSnooze && currentSnooze >= store.today }" :aria-hidden="!(currentSnooze && currentSnooze >= store.today)" :inert="!(currentSnooze && currentSnooze >= store.today)">
-            <div class="snooze-cancel-content"><button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button></div>
+            <div class="snooze-cancel-content"><button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="remove-shopping-item snooze-cancel-button" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button></div>
           </div>
         </div>
       </template>
@@ -624,6 +624,7 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .snooze-reminder-sheet { display: flex; flex-direction: column; gap: 16px; h2 { margin: 0; font: 700 17px / 24px t.$font-family; } p { margin: 0; color: t.$text-sub; } }
 .snooze-reminder-sheet .snooze-personal-hint { font-size: t.$font-size-caption; line-height: t.$line-height-body; }
 .snooze-reminder-sheet > .btn-primary { margin-top: t.$space-8; }
+.snooze-cancel-button { min-height: 49px; margin-top: 0; border-radius: t.$radius-pill; font: t.$font-weight-bold #{t.$font-size-button} / 24px t.$font-family; }
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { .snooze-reminder-button:not(:disabled):hover { background: #d5e2d0; color: t.$primary-green; } }
 </style>
 
