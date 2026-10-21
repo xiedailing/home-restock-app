@@ -119,7 +119,7 @@ $toast-success-accent: #c7e7a2; // 成功：勾勾圖示與「復原」「查看
 $toast-error-accent: #ffb8a6;   // 失敗：「重試」文字
 $toast-shadow: 0 6px 8px rgba(0, 0, 0, 0.22);
 
-/* 失敗提示圖示的淡紅底（驚嘆號用 $danger） */
+/* 淡紅底：失敗提示、取消認領及次要危險操作按鈕共用。 */
 $feedback-error-subtle: #fce9e4;
 
 

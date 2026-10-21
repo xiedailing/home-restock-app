@@ -95,7 +95,11 @@
       cursor: pointer;
       transition: background-color .18s ease, color .18s ease;
     }
-    :is(.btn-danger-subtle, .remove-shopping-item, .delete-record, .more-option--danger):not(:disabled):not([aria-disabled='true']):hover {
+    .btn-danger-subtle:not(:disabled):not([aria-disabled='true']):hover {
+      background-color: color.mix(t.$danger, t.$feedback-error-subtle, 10%);
+      color: t.$danger;
+    }
+    :is(.remove-shopping-item, .delete-record, .more-option--danger):not(:disabled):not([aria-disabled='true']):hover {
       background-color: rgba(t.$danger, .1); color: t.$danger;
     }
 
