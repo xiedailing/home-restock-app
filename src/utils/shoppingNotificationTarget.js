@@ -1,11 +1,12 @@
 // One deep-link contract for native notifications and ShoppingView.
-export function shoppingNotificationTarget(itemId, spaceId, shared = false) {
+export function shoppingNotificationTarget(itemId, spaceId, shared = false, claimantId = null) {
+  shared = shared && claimantId !== 'self'
   return { name: 'shopping', query: { tab: shared ? 'shared' : 'personal',
     ...(shared && spaceId ? { space: spaceId } : {}), notificationItem: itemId,
     ...(spaceId ? { notificationSpace: spaceId } : {}) } }
 }
 export function shoppingNotificationUrl(item, space, base, origin) {
-  const target = shoppingNotificationTarget(item.id, item.spaceId, !!space?.shared)
+  const target = shoppingNotificationTarget(item.id, item.spaceId, !!space?.shared, item.shoppingClaimantId)
   const url = new URL(`${base}shopping`, origin)
   url.search = new URLSearchParams(target.query).toString()
   return url.href

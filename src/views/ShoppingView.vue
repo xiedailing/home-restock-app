@@ -2,7 +2,7 @@
 import { createTitleLongPress } from '../utils/titleLongPress.js'
 import { allowsNotificationDemo } from '../utils/notificationDemoMode.js'
 import { useNativeNotificationsStore } from '../stores/nativeNotifications'
-import { resolveShoppingNotification } from '../utils/shoppingNotificationTarget.js'
+import { resolveShoppingNotification, shoppingNotificationTarget } from '../utils/shoppingNotificationTarget.js'
 import AppToast from '../components/AppToast.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import RestockDateBar from '../components/restock/RestockDateBar.vue'
@@ -272,14 +272,16 @@ async function focusNotificationItem() {
   notificationSpaceInvalid.value = !!item && (!space || !accessible || !!expectedSpace && item.spaceId !== expectedSpace)
   const query = { ...route.query }
   delete query.notificationItem; delete query.notificationSpace; delete query.notificationRequest
+  const targetTab = item && space ? shoppingNotificationTarget(item.id, space.id, space.shared, item.shoppingClaimantId).query.tab : null
   if (resolution.ok) {
-    activeTab.value = space.shared ? 'shared' : 'personal'
-    selectedSpace.value = space.shared ? space.id : ''
+    activeTab.value = targetTab
+    selectedSpace.value = targetTab === 'shared' ? space.id : ''
     query.tab = activeTab.value
-    if (space.shared) query.space = space.id
+    if (targetTab === 'shared') query.space = space.id
     else delete query.space
-    const groupId = resolution.completed ? (space.shared ? 'shared-completed' : 'completed')
-      : space.shared ? (item.shoppingClaimantId ? 'shared-claimed' : 'shared-pending') : 'pending'
+    const groupId = resolution.completed ? (targetTab === 'shared' ? 'shared-completed' : 'completed')
+      : targetTab === 'shared' ? (item.shoppingClaimantId ? 'shared-claimed' : 'shared-pending')
+        : space.shared ? 'claimed' : 'pending'
     collapsedGroups.value = collapsedGroups.value.filter(group => group !== groupId)
     if (!resolution.completed) toggleItem(id)
   }
@@ -294,7 +296,7 @@ async function focusNotificationItem() {
   // Wait for the existing expansion/route animations before measuring the card.
   const animations = card.getAnimations?.({ subtree: true }).filter(animation => Number.isFinite(animation.effect?.getTiming().iterations)) || []
   await Promise.race([Promise.allSettled(animations.map(animation => animation.finished)), new Promise(resolve => setTimeout(resolve, 600))])
-  if (generation !== focusGeneration || route.name !== 'shopping' || activeTab.value !== (space.shared ? 'shared' : 'personal')) return
+  if (generation !== focusGeneration || route.name !== 'shopping' || activeTab.value !== targetTab) return
   window.scrollTo({ top: Math.max(0, window.scrollY + card.getBoundingClientRect().top - 24), behavior: 'instant' })
 }
 watch(() => [route.query.notificationItem, route.query.notificationRequest], () => {

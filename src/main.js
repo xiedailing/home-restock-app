@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { isModuleLoadError, startupErrorMessage } from './utils/startupError.js'
 import { createPinia } from 'pinia'
 import './style.css'
 import './assets/scss/main.scss'
@@ -29,5 +30,13 @@ async function boot() {
   })
 }
 boot().catch(error => {
-  document.getElementById('app').textContent = `無法載入補補：${error.message}。請恢復儲存空間後重新整理。`
+  const root = document.getElementById('app')
+  root.textContent = startupErrorMessage(error)
+  if (isModuleLoadError(error)) {
+    const reload = document.createElement('button')
+    reload.type = 'button'
+    reload.textContent = '重新載入補補'
+    reload.addEventListener('click', () => location.reload())
+    root.appendChild(reload)
+  }
 })

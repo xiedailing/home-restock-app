@@ -186,7 +186,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       // A process crash between these steps is reported as uncertain, never replayed.
       task.state = 'attempted'
       saveTasks(tasks)
-      const clickTarget = shoppingNotificationTarget(item.id, item.spaceId, items.getSpace(item.spaceId)?.shared)
+      const clickTarget = shoppingNotificationTarget(item.id, item.spaceId, items.getSpace(item.spaceId)?.shared, item.shoppingClaimantId)
       try {
         await deliverBrowserNotification({ title: '補補',
           body: `「${items.getSpace(item.spaceId).name}」的 ${item.name}已到提醒時間！`, tag: task.id,
@@ -283,7 +283,7 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
       const id = decodeURIComponent(url.pathname.slice(prefix.length))
       if (!id || id.includes('/')) return
       const item = items.getItem(id)
-      openShopping(shoppingNotificationTarget(id, item?.spaceId, items.getSpace(item?.spaceId)?.shared))
+      openShopping(shoppingNotificationTarget(id, item?.spaceId, items.getSpace(item?.spaceId)?.shared, item?.shoppingClaimantId))
     } catch { report('無法開啟通知對應的用品。', true) }
   }
 

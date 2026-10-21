@@ -672,3 +672,16 @@ test('notification icon is a 256px PNG rendered from the existing Bubu logo', ()
   assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a')
   assert.equal(png.readUInt32BE(16), 256); assert.equal(png.readUInt32BE(20), 256)
 })
+
+test('shared notification links distinguish self claims from other and unclaimed items', () => {
+  const space = { id: 'family', shared: true }
+  for (const claimant of [null, 'demo-huahua', 'self']) {
+    const item = { id: 'unique-id', spaceId: space.id, shoppingClaimantId: claimant }
+    const target = shoppingNotificationTarget(item.id, space.id, true, claimant)
+    assert.equal(target.query.tab, claimant === 'self' ? 'personal' : 'shared')
+    assert.equal(target.query.notificationSpace, 'family')
+    const url = shoppingNotificationUrl(item, space, '/', 'https://example.test')
+    assert.deepEqual(parseShoppingNotificationUrl(url, '/', 'https://example.test'), target)
+    assert.equal(item.shoppingClaimantId, claimant)
+  }
+})
