@@ -543,7 +543,7 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .item-expand { position: absolute; top: t.$space-16; right: 0; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: t.$radius-input; color: t.$text-disabled; background: t.$input-bg; box-shadow: t.$shadow-raised; cursor: pointer; i { font-size: t.$font-size-caption; transition: transform .5s ease; } }
 .expanded .item-expand i { transform: rotate(180deg); }
 .item-expand-region { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s ease; &.open { grid-template-rows: 1fr; } }
-.item-expand-inner { min-height: 0; overflow: hidden; }
+.item-expand-inner { min-height: 0; overflow: hidden; padding: 10px; margin: -10px; }
 .item-controls { border-top: 1px solid t.$border-color; padding-top: t.$space-20; padding-bottom: t.$space-20; }
 .quantity-field { display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; min-height: 72px; padding-inline: t.$space-20; border-radius: t.$radius-popover; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-sub; font-size: t.$font-size-body-sm; }
 .quantity-stepper { display: flex; align-items: center; gap: t.$space-12; button { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: t.$radius-pill; color: t.$primary-green; background: t.$input-bg; box-shadow: t.$shadow-raised; font-size: t.$font-size-page-title; cursor: pointer; &:disabled { color: t.$text-disabled; cursor: default; } } }
@@ -630,7 +630,8 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 <style scoped>
 .snooze-cancel-reveal { display: grid; grid-template-rows: 0fr; margin-top: -16px; opacity: 0; transition: grid-template-rows .35s ease, margin-top .35s ease, opacity .25s ease; }
 .snooze-cancel-reveal.open { grid-template-rows: 1fr; margin-top: 0; opacity: 1; }
-.snooze-cancel-content { min-height: 0; overflow: hidden; }
+/* 保留陰影空間，負 margin 抵銷 padding，不改變按鈕位置與展開高度。 */
+.snooze-cancel-content { min-height: 0; overflow: hidden; padding: 10px; margin: -10px; }
 .snooze-cancel-content > button { width: 100%; }
 @media (prefers-reduced-motion: reduce) { .snooze-cancel-reveal { transition: none; } }
 </style>
