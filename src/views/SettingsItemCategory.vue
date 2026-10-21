@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, inject } from 'vue'
+import { computed, ref, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCatalogStore } from '../stores/catalog'
 import { SYSTEM_CATEGORIES } from '../models/itemCategories'
@@ -17,7 +17,11 @@ function goBack(event) {
   event.preventDefault()
   router.back()
 }
-const category = computed(() => String(route.params.category))
+// 新增用品會移除網址中的分類參數；轉場／桌面背景仍需保留原分類。
+const category = ref(typeof route.params.category === 'string' ? route.params.category : '')
+watch(() => route.params.category, value => {
+  if (typeof value === 'string') category.value = value
+}, { flush: 'sync' })
 const categorySection = computed(() => SYSTEM_CATEGORIES.includes(category.value)
   ? { label: '系統分類', hash: '#system-categories-title' }
   : { label: '自訂分類', hash: '#custom-categories-title' })
@@ -128,7 +132,7 @@ function edit(item = null) {
     <header><RouterLink class="back-button" :to="{ name: 'item-management' }" aria-label="返回用品管理" @click.capture="goBack"><img :src="backIcon" alt="" /></RouterLink><h1><span class="desktop-management-prefix"><RouterLink class="category-overview-link" :to="{ name: 'item-management', hash: categorySection.hash }">{{ categorySection.label }}</RouterLink><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>{{ category }}</h1><button v-if="items.length" type="button" class="delete-category" :aria-label="selecting ? '取消選取' : '選取用品刪除'" @click="toggleSelection"><span v-if="selecting" class="cancel-selection">取消</span><i v-else class="fa-solid fa-trash-can" aria-hidden="true"></i></button><span v-else /></header>
     <section v-for="group in itemGroups" :key="group.key" class="item-group" :aria-labelledby="`group-${group.key}`">
       <h2 :id="`group-${group.key}`" class="group-title">{{ group.title }}</h2>
-    <div class="category-card">
+    <div class="category-card" :class="`category-card--${group.key}`">
       <div v-for="item in group.items" :key="item.id" class="swipe-item" @pointerdown="startSwipe($event, item)" @pointermove="moveSwipe" @pointerup="finishSwipe" @pointercancel="finishSwipe">
         <button v-if="!selecting && !item.id.startsWith('preset:')" type="button" class="swipe-delete" :tabindex="openSwipeId === item.id && swipeOffset < 0 ? 0 : -1" :aria-hidden="openSwipeId !== item.id || swipeOffset === 0" :aria-label="`刪除${item.name}`" @click="requestSingleDeletion(item)">刪除</button>
       <button type="button" class="item-row" :class="{ dragging: swipeDragging }" :style="{ transform: `translateX(${openSwipeId === item.id ? swipeOffset : 0}px)` }"  :disabled="selecting && item.id.startsWith('preset:')" :aria-pressed="selecting ? selectedIds.includes(item.id) : undefined" @click="clickRow(item)" @keydown.left.prevent="revealSwipe(item)" @keydown.right.prevent="closeSwipe"><span v-if="selecting && !item.id.startsWith('preset:')" class="selection-circle" :class="{ checked: selectedIds.includes(item.id) }" aria-hidden="true"><img v-if="selectedIds.includes(item.id)" :src="checkIcon" alt="" /></span><span>{{ item.name }}</span><i v-if="!selecting" class="fa-solid fa-chevron-right row-arrow" aria-hidden="true"></i></button>
@@ -138,8 +142,9 @@ function edit(item = null) {
     <div v-if="!items.length" class="category-empty" role="status">
       <div class="empty-illustration" aria-hidden="true"><img :src="emptyItemIcon" alt="" /></div>
       <div class="empty-copy"><h2>這個分類目前還沒有用品</h2></div>
+      <RouterLink class="btn btn-primary empty-add" :to="{ name: 'add-item', query: { from: 'item-management', category } }"><span class="add-symbol" aria-hidden="true">＋</span>新增用品</RouterLink>
     </div>
-    <footer class="category-actions">
+    <footer v-if="items.length" class="category-actions">
     <button v-if="selecting" class="btn btn-danger delete-selected" type="button" :disabled="!selectedIds.length" @click="requestDeletion">刪除已選取 {{ selectedIds.length }} 項用品</button>
     <RouterLink v-else class="btn btn-primary create-item" :to="{ name: 'add-item', query: { from: 'item-management', category } }">＋ 新增用品</RouterLink>
     <p v-if="selecting" class="delete-hint">預設用品不可刪除</p>
@@ -173,6 +178,11 @@ header { min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; 
 .category-card { overflow: hidden; border: 1px solid t.$border-color; border-radius: t.$radius-card; background: t.$card-bg; box-shadow: t.$shadow-card; }
 .item-row { box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; @include layout.row(48px, t.$space-16); border: 0; background: t.$card-bg; color: t.$text-body; text-align: left; font: t.$font-weight-regular #{t.$font-size-body-sm} / 20px t.$font-family; overflow-wrap: anywhere;  }
 .swipe-item { position: relative; overflow: hidden; touch-action: pan-y; &:not(:last-child) { border-bottom: 1px solid t.$border-color; } }
+// 預設用品不可左滑刪除，分隔線兩側內縮；自訂用品保留貼齊卡片的分隔線。
+.category-card--preset .swipe-item:not(:last-child) {
+  border-bottom-color: transparent;
+  &::after { content: ''; position: absolute; left: t.$space-16; right: t.$space-16; bottom: 0; height: 1px; background: t.$border-color; pointer-events: none; }
+}
 .swipe-item .item-row { position: relative; transition: transform .25s ease; user-select: none; &.dragging { transition: none; } }
 .swipe-delete { position: absolute; inset: 0 0 0 auto; width: 88px; border: 0; background: t.$danger; color: t.$text-inverse; font: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .swipe-item .item-row { transition: none; } }
@@ -186,11 +196,11 @@ header { min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; 
 .add-item:disabled { color: t.$text-disabled; cursor: default; }
 .category-page--empty { min-height: calc(100svh - 167px); }
 .category-page--empty header { flex-shrink: 0; }
-.category-empty { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: t.$space-32; text-align: center; }
+.category-empty { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: t.$space-24; text-align: center; }
 .category-empty > * { flex-shrink: 0; }
 .empty-illustration { display: grid; place-items: center; width: 88px; height: 88px; border-radius: t.$radius-pill; background: t.$active-green; box-shadow: inset -3px -3px 7px rgba(255,255,255,.9), inset 2px 3px 7px rgba(138,158,136,.16); img { width: 57px; height: 57px; } }
-.empty-copy { width: 100%; min-height: 76px; h2 { margin: 0 0 2px; color: t.$text-main; font: t.$font-weight-bold #{t.$font-size-heading} / 30px t.$font-family; letter-spacing: 0; overflow-wrap: anywhere; } }
-.empty-add { width: 222px; max-width: 100%; min-height: 48px; height: 48px; padding-block: 0; font-size: t.$font-size-button; &:hover, &:active { background: t.$primary-green; } }
+.empty-copy { width: 100%; h2 { margin: 0 0 2px; color: t.$text-main; font: t.$font-weight-bold #{t.$font-size-heading} / 30px t.$font-family; letter-spacing: 0; overflow-wrap: anywhere; } }
+.empty-add { width: 160px; max-width: 100%; min-height: 48px; height: 48px; padding-block: 0; font-size: t.$font-size-button; &:active { background: t.$primary-green; } @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { &:hover { background: t.$primary-green; } } }
 .add-symbol { font-size: 20px; line-height: 1; }
 @media (max-height: 600px) { .category-empty { gap: t.$space-16; } }
 .add-item { box-sizing: border-box; text-decoration: none; width: 100%; margin-top: t.$space-16; padding: t.$space-8 t.$space-16; display: flex; justify-content: center; align-items: center; min-height: t.$button-height; border: 0; border-radius: t.$radius-pill; background: t.$primary-soft; color: t.$primary-green; font: t.$font-weight-bold #{t.$font-size-button} / 22px t.$font-family; cursor: pointer; }
@@ -201,4 +211,12 @@ header { min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; 
 .category-delete-dialog { width: min(320px, calc(100vw - 32px)); margin: auto; padding: t.$space-24; border: 0; border-radius: t.$radius-card; background: t.$card-bg; color: t.$text-main; box-shadow: t.$shadow-card; text-align: center; &::backdrop { background: rgba(29,29,31,.35); } h2 { margin: 0 0 t.$space-8; font-size: 18px; overflow-wrap: anywhere; } p { color: t.$text-sub; font-size: 15px; overflow-wrap: anywhere; margin-bottom: 0; } .preserved-data { margin-top: 0; } .delete-error { color: t.$accent-text; } }
 .delete-actions { display: flex; gap: t.$space-12; margin-top: t.$space-24; .btn { flex: 1; min-width: 0; } }
 button:focus-visible, a:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
+
+@media (max-width: 1023px) {
+  // 同一個 footer 在新增與刪除模式保持相同的底部操作位置。
+  // 空分類維持圖示、文字與新增按鈕成組置中的設計。
+  .category-page:not(.category-page--empty) {
+    min-height: calc(100svh - max(44px, env(safe-area-inset-bottom)));
+  }
+}
 </style>

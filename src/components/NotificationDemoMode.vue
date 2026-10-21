@@ -1,0 +1,16 @@
+<script setup>
+import { useRoute } from 'vue-router'
+import { useNativeNotificationsStore } from '../stores/nativeNotifications'
+const native = useNativeNotificationsStore()
+const route = useRoute()
+</script>
+<template>
+  <aside v-if="route.name !== 'settings' && !native.demoEnabled && native.demoInvited && route.query.notificationDemo === '1'" class="notification-demo-mode" aria-label="通知展示模式">
+    <button type="button" @click="native.activateDemo">啟用通知展示模式</button>
+    <p v-if="native.demoModeMessage" role="status">{{ native.demoModeMessage }}</p>
+  </aside>
+</template>
+<style scoped lang="scss">
+@use '../assets/scss/tokens' as t;
+.notification-demo-mode { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 1100; max-width: calc(100vw - 24px); padding: 8px 12px; border-radius: t.$radius-pill; background: t.$primary-soft; color: t.$primary-green; box-shadow: t.$shadow-raised; font-size: t.$font-size-caption; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; p { margin: 0; } button { border: 0; border-radius: t.$radius-pill; padding: 4px 8px; background: t.$input-bg; color: inherit; font: inherit; } }
+</style>

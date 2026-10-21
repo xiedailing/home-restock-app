@@ -1,9 +1,13 @@
 <script setup>
+import { createTitleLongPress } from '../utils/titleLongPress.js'
+import { allowsNotificationDemo } from '../utils/notificationDemoMode.js'
+import { useNativeNotificationsStore } from '../stores/nativeNotifications'
+import { resolveShoppingNotification, shoppingNotificationTarget } from '../utils/shoppingNotificationTarget.js'
 import AppToast from '../components/AppToast.vue'
 import BottomSheet from '../components/BottomSheet.vue'
 import RestockDateBar from '../components/restock/RestockDateBar.vue'
 import { addDays, toDateString, getReminderStatus } from '../models/item'
-import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick, inject, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SharedNotificationsMenu from '../components/SharedNotificationsMenu.vue'
 import BrandLogo from '../components/BrandLogo.vue'
@@ -15,12 +19,61 @@ import shoppingListEmpty from '../assets/household-icons-by-state/empty-states/s
 import { profile } from '../stores/profile'
 import { getItemIconSrc } from '../assets/household-icons-by-state'
 const store = useItemsStore()
+const native = useNativeNotificationsStore()
+const appToast = inject('appToast', null)
+const shoppingPage = ref(null)
 const { toast, showToast, hideToast, runUndo } = useToast({ duration: 8000, pauseOnInteraction: true })
+const hiddenDemoAllowed = allowsNotificationDemo(location.origin)
+let demoToggleBusy = false
+async function toggleHiddenDemo() {
+  if (!hiddenDemoAllowed || demoToggleBusy) return
+  demoToggleBusy = true
+  try {
+    if (native.demoEnabled) {
+      const result = await native.endDemo()
+      showToast(result.ok ? '通知展示模式已關閉' : native.demoModeMessage, null, '復原', result.ok ? 'success' : 'error')
+      return
+    }
+    const result = native.activateDemo({ userGesture: true })
+    if (!result.ok) { showToast(native.demoModeMessage || '無法啟用通知展示模式。', null, '復原', 'error'); return }
+    showToast('通知展示模式已啟用')
+    // No await before requesting permission; keep push preferences unchanged.
+    const support = native.support()
+    if (support.permission === 'default') {
+      const authorization = await native.enable({ preservePush: true })
+      if (!authorization.ok) showToast(authorization.message, null, '復原', 'error')
+    } else if (!support.ok || support.permission !== 'granted') {
+      showToast(support.message || '尚未允許系統通知，請在瀏覽器網站設定中允許通知。', null, '復原', 'error')
+    }
+  } finally { demoToggleBusy = false }
+}
+const titleGesture = createTitleLongPress(toggleHiddenDemo, { enabled: () => hiddenDemoAllowed && !demoToggleBusy })
+const cancelTitleGesture = () => titleGesture.cancel()
+onMounted(() => {
+  if (!hiddenDemoAllowed) return
+  window.addEventListener('pointermove', titleGesture.pointermove)
+  window.addEventListener('pointerup', titleGesture.pointerup)
+  window.addEventListener('pointercancel', cancelTitleGesture)
+  window.addEventListener('scroll', cancelTitleGesture, true)
+  window.addEventListener('blur', cancelTitleGesture)
+  document.addEventListener('visibilitychange', cancelTitleGesture)
+})
+onBeforeUnmount(() => {
+  titleGesture.dispose()
+  window.removeEventListener('pointermove', titleGesture.pointermove)
+  window.removeEventListener('pointerup', titleGesture.pointerup)
+  window.removeEventListener('pointercancel', cancelTitleGesture)
+  window.removeEventListener('scroll', cancelTitleGesture, true)
+  window.removeEventListener('blur', cancelTitleGesture)
+  document.removeEventListener('visibilitychange', cancelTitleGesture)
+})
 const snoozeItemId = ref(null)
+const snoozeSaving = ref(false)
 const snoozeOpen = ref(false)
 const snoozeDate = ref('')
 const snoozeToday = ref(toDateString())
 const currentSnooze = computed(() => store.getItem(snoozeItemId.value)?.reminderSnoozes?.self || '')
+const snoozeDateSaved = computed(() => currentSnooze.value > snoozeToday.value && snoozeDate.value === currentSnooze.value)
 function snoozeLabel(item) {
   const date = item.reminderSnoozes?.self
   if (!date || date <= store.today) return '延後提醒'
@@ -34,18 +87,27 @@ function cancelSnooze(close) {
   close()
 }
 function openSnooze(item) {
+  snoozeSaving.value = false
   snoozeToday.value = toDateString()
   snoozeItemId.value = item.id
   snoozeDate.value = item.reminderSnoozes?.self > snoozeToday.value ? item.reminderSnoozes.self : addDays(snoozeToday.value, 1)
   snoozeOpen.value = true
 }
-function saveSnooze(close) {
-  const result = store.snoozeShoppingReminder(snoozeItemId.value, snoozeDate.value)
-  if (!result.ok) { showToast(result.error.message, null, '復原', 'error'); return }
-  const [year, month, day] = snoozeDate.value.split('-').map(Number)
-  const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
-  showToast(`已延後提醒至 ${month}/${day} 週${weekday}`)
-  close()
+async function saveSnooze() {
+  if (snoozeSaving.value) return
+  snoozeSaving.value = true
+  try {
+    const result = await native.saveSnoozeAndScheduleDemo(snoozeItemId.value, snoozeDate.value)
+    if (!result.ok) {
+      const notify = result.error.code === 'STALE_ITEMS' ? appToast?.showToast || showToast : showToast
+      notify(result.error.message, null, '復原', 'error'); snoozeSaving.value = false; return
+    }
+    const [year, month, day] = snoozeDate.value.split('-').map(Number)
+    const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
+    showToast(result.demoResult?.ok === false
+      ? `日期已儲存；${result.demoResult.message}` : `已延後提醒至 ${month}/${day} 週${weekday}`)
+  } catch { showToast('無法完成此操作，請確認延後日期後重試。', null, '復原', 'error') }
+  finally { snoozeSaving.value = false }
 }
 function completeItem(item) {
   if (item.shoppingCompletedAt != null) {
@@ -114,20 +176,23 @@ const router = useRouter()
 const fromSharedItem = route.query.tab === 'shared'
 const selectedSpace = ref(fromSharedItem && store.getSpace(route.query.space)?.shared ? route.query.space : '')
 const activeTab = ref(fromSharedItem ? 'shared' : 'personal')
-watch(() => [route.query.tab, route.query.space], ([tab, space]) => {
+const notificationSpaceInvalid = ref(false)
+watch(() => [route.query.tab, route.query.space], ([tab, space], previous) => {
+  if (previous && (tab !== previous[0] || space !== previous[1])) notificationSpaceInvalid.value = false
   activeTab.value = tab === 'shared' ? 'shared' : 'personal'
   selectedSpace.value = store.getSpace(space)?.shared ? space : ''
 })
 function selectShoppingTab(tab) {
+  notificationSpaceInvalid.value = false
   const query = { ...route.query, tab }
   if (tab === 'personal') delete query.space
   router.replace({ name: 'shopping', query })
 }
 const personalItems = computed(() => store.shoppingList.filter(item => !store.getSpace(item.spaceId)?.shared))
 const allSharedItems = computed(() => store.items.filter(item => (item.inShoppingList || item.shoppingCompletedAt != null) && store.getSpace(item.spaceId)?.shared))
-const sharedItems = computed(() => allSharedItems.value.filter(item => !selectedSpace.value || selectedSpace.value === item.spaceId))
+const sharedItems = computed(() => notificationSpaceInvalid.value ? [] : allSharedItems.value.filter(item => !selectedSpace.value || selectedSpace.value === item.spaceId))
 const pendingSharedSpaces = computed(() => store.sharedSpaces.filter(space => allSharedItems.value.some(item => item.spaceId === space.id && item.inShoppingList)))
-watch(pendingSharedSpaces, spaces => { if (selectedSpace.value && !spaces.some(space => space.id === selectedSpace.value)) selectedSpace.value = '' })
+watch(pendingSharedSpaces, spaces => { if (selectedSpace.value && !spaces.some(space => space.id === selectedSpace.value) && !allSharedItems.value.some(item => item.spaceId === selectedSpace.value)) selectedSpace.value = '' })
 function claimOperation(item, takeOver = false) {
   return takeOver ? store.takeOverShoppingClaim(item.id) : store.claimShoppingItem(item.id)
 }
@@ -191,6 +256,54 @@ function restockAll(ids = myPendingItems.value.map(item => item.id)) {
   })
 }
 const collapsedGroups = ref([])
+let focusGeneration = 0
+async function focusNotificationItem() {
+  if (route.name !== 'shopping' || typeof route.query.notificationItem !== 'string') return
+  const generation = ++focusGeneration
+  const id = route.query.notificationItem
+  const expectedSpace = typeof route.query.notificationSpace === 'string' ? route.query.notificationSpace : ''
+  snoozeOpen.value = false
+  for (const dialog of [deleteDialog, restockAllDialog, claimAllDialog, claimDialog]) dialog.value?.close()
+  personalExpandedItems.value = []; sharedExpandedItems.value = []
+  const item = store.getItem(id)
+  const space = item && store.getSpace(item.spaceId)
+  const accessible = !space?.shared || store.getSpaceMembers(space.id).some(member => member.id === 'self')
+  const resolution = resolveShoppingNotification(item, space, expectedSpace, accessible)
+  notificationSpaceInvalid.value = !!item && (!space || !accessible || !!expectedSpace && item.spaceId !== expectedSpace)
+  const query = { ...route.query }
+  delete query.notificationItem; delete query.notificationSpace; delete query.notificationRequest
+  const targetTab = item && space ? shoppingNotificationTarget(item.id, space.id, space.shared, item.shoppingClaimantId).query.tab : null
+  if (resolution.ok) {
+    activeTab.value = targetTab
+    selectedSpace.value = targetTab === 'shared' ? space.id : ''
+    query.tab = activeTab.value
+    if (targetTab === 'shared') query.space = space.id
+    else delete query.space
+    const groupId = resolution.completed ? (targetTab === 'shared' ? 'shared-completed' : 'completed')
+      : targetTab === 'shared' ? (item.shoppingClaimantId ? 'shared-claimed' : 'shared-pending')
+        : space.shared ? 'claimed' : 'pending'
+    collapsedGroups.value = collapsedGroups.value.filter(group => group !== groupId)
+    if (!resolution.completed) toggleItem(id)
+  }
+  if (resolution.message) showToast(resolution.message)
+  await router.replace({ name: 'shopping', query })
+  await nextTick()
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  if (generation !== focusGeneration || route.name !== 'shopping' || !resolution.ok) return
+  const card = [...(shoppingPage.value?.querySelectorAll('[data-shopping-item-id]') || [])]
+    .find(element => element.dataset.shoppingItemId === id)
+  if (!card) return
+  // Wait for the existing expansion/route animations before measuring the card.
+  const animations = card.getAnimations?.({ subtree: true }).filter(animation => Number.isFinite(animation.effect?.getTiming().iterations)) || []
+  await Promise.race([Promise.allSettled(animations.map(animation => animation.finished)), new Promise(resolve => setTimeout(resolve, 600))])
+  if (generation !== focusGeneration || route.name !== 'shopping' || activeTab.value !== targetTab) return
+  window.scrollTo({ top: Math.max(0, window.scrollY + card.getBoundingClientRect().top - 24), behavior: 'instant' })
+}
+watch(() => [route.query.notificationItem, route.query.notificationRequest], () => {
+  if (route.query.notificationItem) focusNotificationItem()
+}, { flush: 'post' })
+onMounted(focusNotificationItem)
+onBeforeUnmount(() => { focusGeneration++ })
 function claimItem(item, takeOver = false) {
   const previousClaimant = item.shoppingClaimantId
   claimOperation(item, takeOver)
@@ -265,8 +378,8 @@ function claimStatus(item) {
 const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '垃圾袋': 'trash-bags', '洗碗精': 'dish-soap', '狗狗糧食': 'dog-food' }
 </script>
 <template>
-  <section class="shopping-page" aria-labelledby="shopping-title">
-    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title">購買清單<span class="desktop-breadcrumb"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span class="breadcrumb-current">{{ activeTab === 'shared' ? (store.getSpace(selectedSpace)?.name || '共享清單') : '我的清單' }}</span></span></h1></div><SharedNotificationsMenu /></header>
+  <section ref="shoppingPage" class="shopping-page" aria-labelledby="shopping-title">
+    <header class="shopping-header"><div class="page-brand"><BrandLogo /><h1 id="shopping-title" :data-demo-switch="hiddenDemoAllowed ? '' : undefined" :tabindex="hiddenDemoAllowed ? 0 : undefined" :aria-description="hiddenDemoAllowed ? '長按三秒後放開，或聚焦後按住空白鍵或 Enter 三秒後放開，切換通知展示模式。' : undefined" @pointerdown="titleGesture.pointerdown" @pointerleave="cancelTitleGesture" @keydown="titleGesture.keydown" @keyup="titleGesture.keyup" @blur="cancelTitleGesture" @click.capture="titleGesture.click" @contextmenu="hiddenDemoAllowed && $event.preventDefault()" @selectstart="hiddenDemoAllowed && $event.preventDefault()">購買清單<span class="desktop-breadcrumb"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span class="breadcrumb-current">{{ activeTab === 'shared' ? (store.getSpace(selectedSpace)?.name || '共享清單') : '我的清單' }}</span></span></h1></div><SharedNotificationsMenu /></header>
     <div class="shopping-main">
     <div class="shopping-tabs" role="tablist" aria-label="購買清單類型">
       <button id="personal-shopping-tab" type="button" role="tab" :aria-selected="activeTab === 'personal'" aria-controls="personal-shopping-panel" @click="selectShoppingTab('personal')">我的清單</button>
@@ -280,7 +393,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <p v-if="group.id === 'completed'" class="completed-group-hint">24 小時後移出購買清單</p>
           <Transition name="group-slide" @enter="expandGroup" @leave="collapseGroup" @after-enter="finishGroupAnimation" @after-leave="finishGroupAnimation" @enter-cancelled="finishGroupAnimation" @leave-cancelled="finishGroupAnimation">
           <div v-show="group.id !== 'completed' || !collapsedGroups.includes(group.id)" :id="`shopping-group-${group.id}`" :inert="group.id === 'completed' && collapsedGroups.includes(group.id)"><div class="group-drawer-content">
-            <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card" :class="{ completed: group.id === 'completed', expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
+            <article v-for="item in group.items" :key="item.id" :data-shopping-item-id="item.id" class="shopping-card personal-card" :class="{ completed: group.id === 'completed', expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
               <div class="personal-card-summary">
                 <input class="shopping-checkbox" type="checkbox" :checked="group.id === 'completed'"  :aria-label="`${item.name}已補貨`" @change="completeItem(item)" />
                 <div class="item-icon-disc" ><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, getReminderStatus(item, store.today, store.remindWithinDays))" alt="" /></div>
@@ -308,8 +421,8 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
     </div>
     <div v-else id="shared-shopping-panel" role="tabpanel" aria-labelledby="shared-shopping-tab">
       <div v-if="pendingSharedSpaces.length" class="shared-space-tabs">
-        <button type="button" :aria-pressed="!selectedSpace" @click="selectedSpace = ''">全部 {{ allSharedItems.length }}</button>
-        <button v-for="space in pendingSharedSpaces" :key="space.id" type="button" :aria-pressed="selectedSpace === space.id" :style="{ '--space-color': getSpaceColor(space.color).dark }" :title="space.name" @click="selectedSpace = space.id">{{ formatSpaceLabel(space.name) }} {{ sharedSpaceCount(space.id) }}</button>
+        <button type="button" :aria-pressed="!selectedSpace" @click="notificationSpaceInvalid = false; selectedSpace = ''">全部 {{ allSharedItems.length }}</button>
+        <button v-for="space in pendingSharedSpaces" :key="space.id" type="button" :aria-pressed="selectedSpace === space.id" :style="{ '--space-color': getSpaceColor(space.color).dark }" :title="space.name" @click="notificationSpaceInvalid = false; selectedSpace = space.id">{{ formatSpaceLabel(space.name) }} {{ sharedSpaceCount(space.id) }}</button>
       </div>
       <section v-for="group in sharedGroups" :key="group.id" class="shopping-group">
         <div v-if="group.id === 'shared-pending'" class="pending-group-heading"><h2>{{ group.title }} {{ group.items.length }}項</h2><button v-if="showClaimAll" type="button" class="claim-all-heading-button" @click="requestClaimAll">全部認領</button></div>
@@ -318,7 +431,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
         <p v-if="group.id === 'shared-completed'" class="completed-group-hint">24 小時後移出購買清單</p>
         <Transition name="group-slide" @enter="expandGroup" @leave="collapseGroup" @after-enter="finishGroupAnimation" @after-leave="finishGroupAnimation" @enter-cancelled="finishGroupAnimation" @leave-cancelled="finishGroupAnimation">
           <div v-show="group.id !== 'shared-completed' || !collapsedGroups.includes(group.id)" :id="`shopping-group-${group.id}`" :inert="group.id === 'shared-completed' && collapsedGroups.includes(group.id)"><div class="group-drawer-content">
-          <article v-for="item in group.items" :key="item.id" class="shopping-card personal-card shared-card" :class="{ completed: item.shoppingCompletedAt != null, expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
+          <article v-for="item in group.items" :key="item.id" :data-shopping-item-id="item.id" class="shopping-card personal-card shared-card" :class="{ completed: item.shoppingCompletedAt != null, expanded: expandedItems.includes(item.id) }" @click="toggleCard($event, item.id)">
             <div class="personal-card-summary">
               <div class="item-icon-disc" ><img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc({ iconPhoto: item.iconPhoto, iconKey: item.iconKey || iconKeys[item.name] }, getReminderStatus(item, store.today, store.remindWithinDays))" alt="" /></div>
               <div class="item-info"><h3>{{ item.name }}</h3><p>{{ store.getSpace(item.spaceId)?.name }}</p><p>補貨數量 {{ item.shoppingCompletedAt != null ? item.shoppingCompletedQuantity : item.quantity ?? 1 }} {{ item.unit }}</p></div>
@@ -354,8 +467,10 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
           <h2 id="snooze-reminder-title">延後提醒</h2>
           <p class="snooze-personal-hint">僅延後你對此用品的提醒，其他成員不受影響。</p>
           <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
-          <button type="button" class="btn btn-primary" @click="saveSnooze(close)">儲存</button>
-          <button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="btn btn-danger-subtle" @click="cancelSnooze(close)">取消延後</button>
+          <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="snoozeDateSaved ? close() : saveSnooze()">{{ snoozeSaving ? '儲存中…' : snoozeDateSaved ? '確認' : '儲存' }}</button>
+          <div class="snooze-cancel-reveal" :class="{ open: currentSnooze && currentSnooze >= store.today }" :aria-hidden="!(currentSnooze && currentSnooze >= store.today)" :inert="!(currentSnooze && currentSnooze >= store.today)">
+            <div class="snooze-cancel-content"><button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="remove-shopping-item snooze-cancel-button" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button></div>
+          </div>
         </div>
       </template>
     </BottomSheet>
@@ -391,6 +506,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
 .shopping-header { @include ph.page-header; align-items: center; }
 .page-brand { @include ph.page-brand; }
 h1 { @include ph.page-title; }
+#shopping-title[data-demo-switch] { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .inline-claim-all { margin-bottom: t.$space-16; .btn { width: 100%; min-height: t.$button-height; background: t.$primary-soft; color: t.$primary-green; box-shadow: t.$shadow-raised; } .btn:disabled { background: t.$text-disabled; color: t.$text-inverse; box-shadow: none; opacity: 1; } }
 .shopping-tabs { display: flex; box-sizing: border-box; min-height: 46px; padding: 3px; margin-bottom: t.$space-16; border-radius: t.$radius-popover; background: t.$surface-bg; button { flex: 1; min-width: 0; min-height: 40px; padding: 0 t.$space-8; border: 0; border-radius: t.$radius-popover; background: transparent; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; cursor: pointer; &[aria-selected="true"] { background: t.$primary-soft; color: t.$primary-green; font-weight: t.$font-weight-medium; box-shadow: t.$shadow-added; } &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; } } }
 .shopping-empty { display: flex; flex-direction: column; align-items: center; padding-top: max(64px, calc(36dvh - 126px)); text-align: center; h2 { margin: 19px 0 2px; font: t.$font-weight-bold #{t.$font-size-heading} / 30px t.$font-family; } p { max-width: 318px; margin: 0; color: t.$text-sub; font: t.$font-weight-regular #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; } }
@@ -429,7 +545,7 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .item-expand { position: absolute; top: t.$space-16; right: 0; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: t.$radius-input; color: t.$text-disabled; background: t.$input-bg; box-shadow: t.$shadow-raised; cursor: pointer; i { font-size: t.$font-size-caption; transition: transform .5s ease; } }
 .expanded .item-expand i { transform: rotate(180deg); }
 .item-expand-region { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s ease; &.open { grid-template-rows: 1fr; } }
-.item-expand-inner { min-height: 0; overflow: hidden; }
+.item-expand-inner { min-height: 0; overflow: hidden; padding: 10px; margin: -10px; }
 .item-controls { border-top: 1px solid t.$border-color; padding-top: t.$space-20; padding-bottom: t.$space-20; }
 .quantity-field { display: flex; align-items: center; justify-content: space-between; gap: t.$space-8; min-height: 72px; padding-inline: t.$space-20; border-radius: t.$radius-popover; background: t.$input-bg; box-shadow: t.$shadow-inset; color: t.$text-sub; font-size: t.$font-size-body-sm; }
 .quantity-stepper { display: flex; align-items: center; gap: t.$space-12; button { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: t.$radius-pill; color: t.$primary-green; background: t.$input-bg; box-shadow: t.$shadow-raised; font-size: t.$font-size-page-title; cursor: pointer; &:disabled { color: t.$text-disabled; cursor: default; } } }
@@ -510,5 +626,24 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .snooze-reminder-sheet { display: flex; flex-direction: column; gap: 16px; h2 { margin: 0; font: 700 17px / 24px t.$font-family; } p { margin: 0; color: t.$text-sub; } }
 .snooze-reminder-sheet .snooze-personal-hint { font-size: t.$font-size-caption; line-height: t.$line-height-body; }
 .snooze-reminder-sheet > .btn-primary { margin-top: t.$space-8; }
+.snooze-cancel-button { min-height: 44px; margin-top: 0; border-radius: t.$radius-pill; font: t.$font-weight-bold #{t.$font-size-button} / 24px t.$font-family; }
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { .snooze-reminder-button:not(:disabled):hover { background: #d5e2d0; color: t.$primary-green; } }
+</style>
+
+<style scoped>
+.snooze-cancel-reveal { display: grid; grid-template-rows: 0fr; margin-top: -16px; opacity: 0; transition: grid-template-rows .35s ease, margin-top .35s ease, opacity .25s ease; }
+.snooze-cancel-reveal.open { grid-template-rows: 1fr; margin-top: -8px; opacity: 1; }
+/* 保留陰影空間，負 margin 抵銷 padding，不改變按鈕位置與展開高度。 */
+.snooze-cancel-content { min-height: 0; overflow: hidden; padding: 10px; margin: -10px; }
+.snooze-cancel-content > button { width: 100%; }
+@media (prefers-reduced-motion: reduce) { .snooze-cancel-reveal { transition: none; } }
+@media (max-width: 1023px) {
+  :global(dialog[aria-labelledby="snooze-reminder-title"]:has(.snooze-cancel-reveal.open)) {
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    transition: padding-bottom .35s ease;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :global(dialog[aria-labelledby="snooze-reminder-title"]) { transition: none; }
+}
 </style>

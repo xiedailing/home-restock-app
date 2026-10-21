@@ -185,6 +185,7 @@ export function createItem(input = {}) {
     addedToShoppingListDate: input.addedToShoppingListDate ?? null,
     // 「暫時不用補貨」的延後到期日；當天起重新出現在首頁補貨提醒（specs/005 SNZ-02）。
     snoozedUntil: input.snoozedUntil ?? null,
+    reminderSnoozeOperationIds: input.reminderSnoozeOperationIds && typeof input.reminderSnoozeOperationIds === 'object' ? { ...input.reminderSnoozeOperationIds } : {},
     reminderSnoozes: input.reminderSnoozes && typeof input.reminderSnoozes === 'object' ? { ...input.reminderSnoozes } : {},
     // 依新增順序排列；同一天多筆時，較晚新增者為最新一筆。
     restockRecords: input.restockRecords ?? [],
@@ -300,18 +301,32 @@ export function sampleHistory(today, daysLeft, cycleDays, recordCount = 3) {
   return { restockRecords, lastRestockDate: latest }
 }
 
-// 涵蓋的狀態：該補貨了（已過期）、該補貨了（快到）、購買清單中、不需補貨、提醒開關關閉、不足兩筆。
-export function createSampleItems(today = toDateString()) {
-  const onlyOnce = addDays(today, -25)
+// 單一展示資料來源；只在首次建立或操作者明確重置時呼叫。
+export const PRESENTATION_MEMBER_ID = 'demo-huahua'
+export const PRESENTATION_PRESET_OVERRIDES = { 'preset:tissues': { unit: '袋' } }
+export function createSampleItems(today = toDateString(), familyId = 'demo-family') {
+  const build = (name, iconKey, category, unit, extra = {}) => createItem({
+    name, iconKey, category, unit, catalogId: `preset:${iconKey}`, catalogIconInherited: true,
+    reminderEnabled: true, unitPeriodId: generateId(), ...extra,
+  })
+  const waiting = { inShoppingList: true, quantity: 1, addedToShoppingListDate: today }
   return [
-    createItem({ name: '垃圾袋', iconKey: 'trash-bags', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, ...sampleHistory(today, -2, 30) }),
-    createItem({ name: '洗衣精', iconKey: 'laundry-detergent', category: '洗衣', unit: '瓶', spaceId: DEFAULT_SPACE_ID, ...sampleHistory(today, 5, 45) }),
-    createItem({ name: '衛生紙', iconKey: 'tissues', category: '生活日用品', unit: '包', spaceId: DEFAULT_SPACE_ID, ...sampleHistory(today, 3, 21), inShoppingList: true, quantity: 1, addedToShoppingListDate: today }),
-    createItem({ name: '洗碗精', iconKey: 'dish-soap', category: '廚房', unit: '瓶', spaceId: DEFAULT_SPACE_ID, ...sampleHistory(today, 20, 40) }),
-    // 提醒開關關閉：有紀錄但不提醒。
-    createItem({ name: '海綿', iconKey: 'sponge', category: '清潔', unit: '個', spaceId: DEFAULT_SPACE_ID, reminderEnabled: false, ...sampleHistory(today, 40, 60) }),
-    // 只有 1 筆紀錄：推算不出下次補貨日，詳情頁顯示提示。
-    createItem({ name: '狗狗糧食', iconKey: 'dog-food', category: '寵物用品', unit: '包', spaceId: DEFAULT_SPACE_ID, restockRecords: [createRestockRecord({ date: onlyOnce, quantity: 1 })], lastRestockDate: onlyOnce }),
+    build('衛生紙', 'tissues', '生活日用品', '袋', sampleHistory(today, -1, 30)),
+    build('洗衣精', 'laundry-detergent', '洗衣', '瓶', { restockRecords: [createRestockRecord({ date: addDays(today, -10), quantity: 1 })], lastRestockDate: addDays(today, -10) }),
+    build('衛生棉', 'sanitary-pads', '個人護理', '包', { ...sampleHistory(today, 30, 60), ...waiting }),
+    build('狗狗糧食', 'dog-food', '寵物用品', '包', sampleHistory(today, 30, 60)),
+    build('酒精', 'rubbing-alcohol', '清潔', '瓶', { spaceId: familyId, ...sampleHistory(today, 30, 60), ...waiting }),
+    build('垃圾袋', 'trash-bags', '生活日用品', '包', { spaceId: familyId, ...sampleHistory(today, 30, 60), ...waiting, shoppingClaimantId: PRESENTATION_MEMBER_ID }),
   ]
 }
-
+export function createPresentationState(today = toDateString()) {
+  const familyId = generateId()
+  return {
+    presentationVersion: 1, presentationRunId: generateId(), presentationDate: today,
+    items: createSampleItems(today, familyId),
+    spaces: [
+      { ...DEFAULT_SPACES[0], ownerId: 'self', members: [] },
+      { id: familyId, name: '家庭', shared: true, color: 'blue', ownerId: 'self', members: [{ id: PRESENTATION_MEMBER_ID, name: '花花', avatar: '' }] },
+    ], customCategories: [], departedSpaces: [], demoSeeds: [],
+  }
+}

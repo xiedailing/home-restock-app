@@ -72,7 +72,7 @@ export function commitCatalogWithLinks(pinia, beforeCatalog, afterCatalog, befor
   const bridge = bridges.get(pinia)
   let beforeItems
   try { beforeItems = bridge?.snapshot() ?? loadPersisted(STORE_KEYS.items) }
-  catch { return { ok: false, error: { code: 'RECOVERY_REQUIRED', message: '用品同步尚待復原，請重新整理後再試。' } } }
+  catch (error) { return { ok: false, error: { code: error.code || 'RECOVERY_REQUIRED', message: error.message || '用品同步尚待復原，請重新整理後再試。' } } }
   if ((removedCategory || restoredCategory) && (!bridge?.applyCategories || !Array.isArray(beforeItems?.customCategories))) return { ok: false, error: { code: 'CATEGORY_CONTEXT_REQUIRED', message: '請從設定頁重新開啟分類後再試。' } }
   if (removedCategory && !beforeItems.customCategories.includes(removedCategory) && !beforeAll.some(item => item.category === removedCategory) && !beforeItems.items.some(item => item.category === removedCategory)) return { ok: false, error: { code: 'NOT_FOUND', message: '找不到此分類。' } }
   if (restoredCategory) {
@@ -94,6 +94,7 @@ export function commitCatalogWithLinks(pinia, beforeCatalog, afterCatalog, befor
     if (restoredCategory.index >= 0) afterItems.customCategories.splice(Math.min(restoredCategory.index, afterItems.customCategories.length), 0, restoredCategory.name)
   }
   const result = commitCatalogStatePair({ catalog: beforeCatalog, items: beforeItems }, { catalog: afterCatalog, items: afterItems })
+  if (result.ok || result.error?.code === 'STORAGE_FAILED') bridge?.didPersist?.(result.ok ? afterItems : beforeItems)
   if (result.ok) {
     bridge?.apply(plan.items)
     if (removedCategory || restoredCategory) bridge.applyCategories(afterItems.customCategories)

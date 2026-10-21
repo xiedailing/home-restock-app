@@ -2,8 +2,8 @@
 import { computed, ref, watch, onScopeDispose } from 'vue'
 import { defineStore, getActivePinia } from 'pinia'
 import { loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
+import { reminderFingerprint, snoozeObsolete } from '../utils/nativeReminderTasks.js'
 import { generateId } from '../utils/id.js'
-import { toDateString } from '../models/item.js'
 import { notificationCutoff } from '../utils/notificationRetention.js'
 import { previewNotificationHistory } from '../utils/notificationPreview.js'
 import { memberNotificationMessage, restockNotificationMessage } from '../utils/notificationCopy.js'
@@ -22,7 +22,8 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
   const saved = loadPersisted(STORE_KEYS.sharedNotifications)
   const valid = entry => entry && typeof entry.id === 'string' && typeof entry.message === 'string'
     && typeof entry.spaceId === 'string' && Number.isFinite(entry.createdAt)
-    && ['demo', 'event'].includes(entry.source) && ['restock-due', 'claimed', 'takeover', 'restocked'].includes(entry.type)
+    && ['demo', 'event'].includes(entry.source) && (['restock-due', 'claimed', 'takeover', 'restocked'].includes(entry.type)
+      || (entry.type === 'shopping-pending' && entry.source === 'demo' && entry.previewOnly === true))
     && Array.isArray(entry.recipientIds) && entry.recipientIds.every(id => typeof id === 'string')
   const records = ref(Array.isArray(saved?.records) ? saved.records.filter(valid) : [])
   const validBatch = batch => batch && typeof batch.id === 'string' && ['restocked', 'claimed', 'takeover'].includes(batch.type)
@@ -92,13 +93,16 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
     if (!source?.reminderGroups) return { ok: true }
     const next = clone(records.value)
     const processed = [...processedEventIds.value]
+    const nativeTasks = loadPersisted(STORE_KEYS.nativeNotifications)?.tasks || []
     for (const { space, items, recipientIds } of source.reminderGroups()) {
-      const today = toDateString()
       const groups = new Map()
       for (const recipientId of recipientIds) {
         const fresh = items.filter(item => {
           const snooze = item.reminderSnoozes?.[recipientId]
-          if (snooze && today < snooze) return false
+          // Native reminder scheduler owns personal snooze events, including 08:00 expiry.
+          const task = Array.isArray(nativeTasks) ? nativeTasks.filter(task => !task.demo && task.itemId === item.id
+            && task.date === snooze && (task.operationId || null) === (item.reminderSnoozeOperationIds?.[recipientId] || null)).at(-1) : null
+          if (snooze && !snoozeObsolete(item, snooze) && (!task || task.fingerprint === reminderFingerprint(item))) return false
           const base = `due:${space.id}:${item.id}:${item.unitPeriodId}:${item.nextRestockDate}`
           const event = snooze ? `${base}:snooze:${recipientId}:${snooze}` : base
           return !processed.includes(`${event}:recipient:${recipientId}`) && (snooze || !processed.includes(base))
@@ -124,6 +128,21 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
     }
     if (next.length === records.value.length) return { ok: true }
     return commit(next, clone(pendingBatches.value), processed)
+  }
+  function publishScheduledSnooze(task, now = Date.now()) {
+    const source = sources.get(pinia)
+    const item = source?.getItem(task.itemId)
+    const space = item && source?.getSpace(item.spaceId)
+    if (!item || !space || !item.inShoppingList || item.shoppingCompletedAt != null
+      || item.spaceId !== task.spaceId || item.reminderSnoozes?.self !== task.date || now < task.dueAt) return { ok: false, skipped: true }
+    const eventId = `scheduled-snooze:${task.id}:self`
+    if (processedEventIds.value.includes(eventId)) return { ok: true, record: records.value.find(entry => entry.eventIds?.includes(eventId)) }
+    const record = { id: generateId(), type: 'restock-due', reminderKind: 'snoozed', source: 'event',
+      spaceId: space.id, spaceName: space.name, recipientIds: ['self'], itemIds: [item.id], itemNames: [item.name],
+      eventIds: [eventId], createdAt: now, recipientState: { self: { read: false, seen: false } },
+      message: `「${space.name}」的${item.name}已到你設定的提醒時間。`, targets: [{ itemId: item.id, completionRecordIds: [] }] }
+    const result = commit([...clone(records.value), record], clone(pendingBatches.value), [...processedEventIds.value, eventId])
+    return result.ok ? { ok: true, record } : result
   }
   let previewHistorySeeded = saved?.previewHistorySeeded === true
   function seedPreviewHistory(spaces, items) {
@@ -278,5 +297,5 @@ export const useSharedNotificationsStore = defineStore('shared-notifications', (
   pruneExpired()
   schedule()
   return { records, pendingBatches, processedEventIds, deliveryDiagnostics, publishMemberEvent, trackRestockCompletion, pruneExpired, flushPending,
-    seedPreviewHistory, visibleRecords, hasUnseen, hasUnread, recipientState, markViewed, markRead, markAllRead, cancelMemberEvents, publishRestockReminders }
+    publishScheduledSnooze, seedPreviewHistory, visibleRecords, hasUnseen, hasUnread, recipientState, markViewed, markRead, markAllRead, cancelMemberEvents, publishRestockReminders }
 })

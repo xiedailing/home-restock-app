@@ -23,7 +23,7 @@ export const routes = [
     path: '/items/new',
     name: 'add-item',
     component: () => import('../views/AddItemView.vue'),
-    meta: { title: '新增用品' },
+    meta: { title: '新增用品', hideBottomNav: true },
   },
   {
     path: '/items/:id',
@@ -59,22 +59,22 @@ export const routes = [
     path: '/settings/spaces',
     name: 'spaces',
     component: () => import('../views/SettingsSpacesView.vue'),
-    meta: { title: '空間管理' },
+    meta: { title: '空間管理', hideBottomNav: true },
   },
   {
     path: '/settings/spaces/new',
     name: 'add-space',
     component: () => import('../views/SettingsAddSpace.vue'),
-    meta: { title: '新增空間' },
+    meta: { title: '新增空間', hideBottomNav: true },
   },
   {
     path: '/settings/spaces/:spaceId',
     name: 'edit-space',
     component: () => import('../views/SettingsEditSpace.vue'),
-    meta: { title: '編輯空間' },
+    meta: { title: '編輯空間', hideBottomNav: true },
   },
-  { path: '/settings/items', name: 'item-management', component: () => import('../views/SettingsItemsView.vue'), meta: { title: '用品管理' } },
-  { path: '/settings/items/:category', name: 'item-category', component: () => import('../views/SettingsItemCategory.vue'), meta: { title: '分類用品' } },
+  { path: '/settings/items', name: 'item-management', component: () => import('../views/SettingsItemsView.vue'), meta: { title: '用品管理', hideBottomNav: true } },
+  { path: '/settings/items/:category', name: 'item-category', component: () => import('../views/SettingsItemCategory.vue'), meta: { title: '分類用品', hideBottomNav: true } },
   { path: '/:pathMatch(.*)*', redirect: '/inventory' },
 ]
 
@@ -104,6 +104,9 @@ const router = createRouter({
       const behavior = from.path === to.path && !window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'instant'
       return to.hash === '#system-categories-title' ? { top: 0, behavior } : { el: to.hash, top: 24, behavior }
     }
+    // ShoppingView owns notification expansion/scroll and consumes its one-shot query.
+    if (to.name === 'shopping' && from.name === 'shopping'
+      && (to.query.notificationItem || from.query.notificationItem)) return false
     // Desktop subpages scroll inside their drawer; keep the background viewport.
     const mainPages = ['inventory', 'shopping', 'settings', 'item-management', 'item-category']
     if (window.matchMedia('(min-width: 1024px)').matches

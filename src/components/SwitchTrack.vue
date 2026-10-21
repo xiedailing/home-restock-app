@@ -24,9 +24,8 @@ defineProps({ checked: Boolean, disabled: Boolean })
     box-shadow: t.$switch-track-shadow-on;
   }
   &.disabled {
-    background: t.$switch-bg-off;
-    box-shadow: t.$switch-track-shadow-off;
     opacity: .65;
+    &:not(.checked) { background: t.$switch-bg-off; box-shadow: t.$switch-track-shadow-off; }
   }
 }
 .switch-thumb {

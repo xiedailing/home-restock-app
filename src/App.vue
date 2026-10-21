@@ -1,7 +1,9 @@
 <script setup>
 import { loadRouteLocation, useRoute, useRouter } from 'vue-router'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue'
+import NotificationDemoMode from './components/NotificationDemoMode.vue'
 import BottomNav from './components/BottomNav.vue'
+import { useNativeNotificationsStore } from './stores/nativeNotifications'
 import DesktopWallpaper from './components/DesktopWallpaper.vue'
 import AddSpaceSheet from './components/add-item/AddSpaceSheet.vue'
 import AppToast from './components/AppToast.vue'
@@ -15,12 +17,24 @@ const route = useRoute()
 const router = useRouter()
 const itemsStore = useItemsStore()
 const notifications = useSharedNotificationsStore()
+const nativeNotifications = useNativeNotificationsStore()
+watch(() => route.query.notificationDemo, value => {
+  if (value === '1') nativeNotifications.captureDemoLink('?notificationDemo=1')
+}, { immediate: true })
+onMounted(() => nativeNotifications.start(target => router.push(target)))
+onBeforeUnmount(() => nativeNotifications.stop())
 if (import.meta.env.DEV) notifications.seedPreviewHistory(itemsStore.spaces, itemsStore.items)
 watch(() => itemsStore.itemsWithStatus, () => {
   try { notifications.publishRestockReminders() }
   catch (error) { console.error('[notifications] Reminder generation failed', error) }
 }, { deep: true, immediate: true })
 const { toast, showToast, runUndo } = useToast()
+watch(() => itemsStore.persistenceConflict, message => {
+  if (message) showToast(message, null, '復原', 'error')
+})
+watch(() => nativeNotifications.deliveryFailure, failure => {
+  if (failure) showToast(failure.message, null, '復原', 'error')
+})
 // 補貨頁記錄成功後會回到上一頁，Toast（含復原）要跟得過去，所以提供 App 層的 Toast。
 provide('appToast', { showToast })
 const hideBottomNav = useBottomNavHidden()
@@ -158,6 +172,7 @@ function onSpaceCreated(space) {
 </script>
 
 <template>
+  <NotificationDemoMode />
   <div class="app-container">
     <DesktopWallpaper v-if="!hideBottomNav || drawerOpen" />
     <!-- 主內容呈現區 -->

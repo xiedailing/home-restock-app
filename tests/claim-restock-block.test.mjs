@@ -142,7 +142,7 @@ test('claimed-by-other shared items cannot be restocked until taken over', async
       const before = structuredClone(JSON.parse(JSON.stringify(items.getItem('mine'))))
       assert.equal(items.snoozeShoppingReminder('mine', '2099-01-10').ok, true)
       const after = JSON.parse(JSON.stringify(items.getItem('mine')))
-      assert.deepEqual({ ...after, updatedAt: before.updatedAt }, { ...before, reminderSnoozes: { self: '2099-01-10' } })
+      assert.deepEqual({ ...after, updatedAt: before.updatedAt, reminderSnoozeOperationIds: before.reminderSnoozeOperationIds }, { ...before, reminderSnoozes: { self: '2099-01-10' } })
       const persisted = JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'mine')
       assert.equal(persisted.reminderSnoozes.self, '2099-01-10')
     })

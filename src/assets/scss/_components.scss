@@ -95,14 +95,14 @@
   @include soft-btn-shadow(t.$shadow-added);
 }
 
-// 退出空間：淡紅底、淡外框。
+// 取消延後／登出：不透明淡紅底、淡外框。
 .btn-danger-subtle {
   --bs-btn-color: #{t.$danger};
   --bs-btn-hover-color: #{t.$danger};
   --bs-btn-active-color: #{t.$danger};
-  --bs-btn-bg: #{color.change(t.$danger, $alpha: 0.06)};
-  --bs-btn-hover-bg: #{color.change(t.$danger, $alpha: 0.06)};
-  --bs-btn-active-bg: #{color.change(t.$danger, $alpha: 0.06)};
+  --bs-btn-bg: #{t.$feedback-error-subtle};
+  --bs-btn-hover-bg: #{t.$feedback-error-subtle};
+  --bs-btn-active-bg: #{t.$feedback-error-subtle};
   --bs-btn-border-width: 1px;
   --bs-btn-font-size: 1rem;
   --bs-btn-font-weight: 700;
@@ -115,9 +115,9 @@
   --bs-btn-color: #{t.$danger};
   --bs-btn-hover-color: #{t.$danger};
   --bs-btn-active-color: #{t.$danger};
-  --bs-btn-bg: #{color.change(t.$danger, $alpha: 0.06)};
-  --bs-btn-hover-bg: #{color.change(t.$danger, $alpha: 0.06)};
-  --bs-btn-active-bg: #{color.change(t.$danger, $alpha: 0.06)};
+  --bs-btn-bg: #{t.$feedback-error-subtle};
+  --bs-btn-hover-bg: #{t.$feedback-error-subtle};
+  --bs-btn-active-bg: #{t.$feedback-error-subtle};
   --bs-btn-font-size: 0.875rem;
   --bs-btn-font-weight: 700;
   min-height: 44px;

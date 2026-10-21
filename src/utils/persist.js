@@ -1,13 +1,17 @@
+import { recoverPresentationTransaction } from './presentationTransaction.js'
 import { recoverCatalogTransaction, commitCatalogTransaction } from './catalogTransaction.js'
 // localStorage 持久化：所有讀寫都包 try/catch，無痕模式、禁用儲存或空間已滿時照常運作，只是不保存。
 // 存檔格式帶版本號；版本不符或 JSON 損壞時回傳 null，由呼叫端改用示範資料。
 export const STORAGE_VERSION = 2
 const PREFIX = 'home-restock:v1:'
 
-export const STORE_KEYS = { items: 'items', profile: 'profile', notifications: 'notifications', sharedNotifications: 'shared-notifications', catalog: 'catalog', unitOptions: 'unit-options', catalogIntegration: 'catalog-integration' }
+export const STORE_KEYS = { nativeNotifications: 'native-notifications', items: 'items', profile: 'profile', notifications: 'notifications', sharedNotifications: 'shared-notifications', catalog: 'catalog', unitOptions: 'unit-options', catalogIntegration: 'catalog-integration' }
 
 const catalogTransactionConfig = { prefix: PREFIX, version: STORAGE_VERSION, journalKey: STORE_KEYS.catalogIntegration }
 function checkCatalogRecovery(name) {
+  let hasPresentationJournal = false
+  try { hasPresentationJournal = !!localStorage.getItem('home-restock:v1:presentation-transaction') } catch { /* 原有無儲存空間降級 */ }
+  if (hasPresentationJournal) recoverPresentationTransaction(localStorage)
   // 未開放本機儲存時沿用既有讀取降級；可讀到交易時才必須先復原。
   try { if (!localStorage.getItem(PREFIX + STORE_KEYS.catalogIntegration)) return } catch { return }
   if ([STORE_KEYS.catalog, STORE_KEYS.items].includes(name) && !recoverCatalogTransaction(catalogTransactionConfig)) {
@@ -34,10 +38,10 @@ export function loadPersisted(name) {
 }
 
 // 回傳是否寫入成功；失敗（空間已滿等）不丟錯。
-export function savePersisted(name, data) {
+export function savePersisted(name, data, metadata = {}) {
   try {
     checkCatalogRecovery(name)
-    localStorage.setItem(PREFIX + name, JSON.stringify({ version: STORAGE_VERSION, data }))
+    localStorage.setItem(PREFIX + name, JSON.stringify({ version: STORAGE_VERSION, data, ...metadata }))
     return true
   } catch {
     return false

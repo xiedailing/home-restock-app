@@ -90,12 +90,22 @@
       background-color: color.scale(t.$danger, $lightness: -12%);
       color: t.$text-inverse; box-shadow: t.$shadow-raised;
     }
+    // 關閉提醒只調整設定，沿用綠色主按鈕的 hover。
+    .reminder-off-dialog .delete-dialog-confirm:not(:disabled):hover {
+      background-color: t.$dark-green;
+      color: t.$text-inverse;
+      box-shadow: t.$shadow-primary;
+    }
     :is(.remove-shopping-item, .delete-record, .more-option--danger) { border-radius: t.$radius-input; }
     :is(.delete-record, .more-option--danger) {
       cursor: pointer;
       transition: background-color .18s ease, color .18s ease;
     }
-    :is(.btn-danger-subtle, .remove-shopping-item, .delete-record, .more-option--danger):not(:disabled):not([aria-disabled='true']):hover {
+    .btn-danger-subtle:not(:disabled):not([aria-disabled='true']):hover {
+      background-color: color.mix(t.$danger, t.$feedback-error-subtle, 10%);
+      color: t.$danger;
+    }
+    :is(.remove-shopping-item, .delete-record, .more-option--danger):not(:disabled):not([aria-disabled='true']):hover {
       background-color: rgba(t.$danger, .1); color: t.$danger;
     }
 
@@ -148,4 +158,16 @@
         .remove-shopping-item, .toast-undo, .app-toast-undo) { transition: none; }
     }
   }
+}
+
+// Bootstrap declares hover rules without an input-capability guard.
+// Use normal button tokens in compact layouts or on touch devices; active/checked/focus rules
+// keep their own variables and continue to provide interaction feedback.
+@media (max-width: 1023px), (hover: none), (pointer: coarse) {
+  :root body .btn {
+    --bs-btn-hover-color: var(--bs-btn-color);
+    --bs-btn-hover-bg: var(--bs-btn-bg);
+    --bs-btn-hover-border-color: var(--bs-btn-border-color);
+  }
+  a { --bs-link-hover-color-rgb: var(--bs-link-color-rgb); }
 }

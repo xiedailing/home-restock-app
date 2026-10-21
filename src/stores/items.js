@@ -1,3 +1,5 @@
+import { presentationNotifications } from '../utils/presentationNotifications.js'
+import { createItemsPersistenceGuard } from '../utils/itemsPersistenceGuard.js'
 import { migrateUnitPeriods, currentUnitRecords, undoItemChange } from '../utils/unitPeriods.js'
 import { computed, ref, shallowRef, toRaw, watch, onScopeDispose } from 'vue'
 import { defineStore, getActivePinia } from 'pinia'
@@ -7,18 +9,17 @@ import { isValidInviteCode } from '../utils/inviteCode'
 import { validateCategoryName as checkCategoryName } from '../utils/categoryNames.js'
 import { generateId } from '../utils/id.js'
 import { createDebouncedSaver, loadPersisted, savePersisted, STORE_KEYS } from '../utils/persist.js'
-import { avatarOptions } from '../assets/household-icons-by-state/avatars/index.js'
 import { profile } from './profile'
 import { useSharedNotificationsStore, registerRestockNotificationSource, reconcileRestockNotifications } from './sharedNotifications'
 import { useNotificationSettingsStore } from './notificationSettings'
 import { SYSTEM_CATEGORIES, PRESET_ITEMS, getItemCategory } from '../models/itemCategories'
 import { SPACE_COLORS, limitSpaceName } from '../models/space'
 import {
-  DEFAULT_SPACES,
   DEFAULT_SPACE_ID,
   createItem,
   createRestockRecord,
-  createSampleItems,
+  createPresentationState,
+  PRESENTATION_PRESET_OVERRIDES,
   countRecordDates,
   daysUntil,
   getLatestRecord,
@@ -26,7 +27,6 @@ import {
   getReminderStatus,
   getStatus,
   isSnoozed,
-  sampleHistory,
   SNOOZE_DAYS,
   STATUS,
   addDays,
@@ -40,23 +40,7 @@ export const UNDO_DURATION_MS = 8000
 export const SHOPPING_COMPLETED_KEEP_MS = 24 * 60 * 60 * 1000
 
 // 第一次使用（或存檔無效）時的示範資料。
-function createDemoState() {
-  const items = createSampleItems()
-  const spaces = DEFAULT_SPACES.map((space) => ({ ...space, ownerId: 'self', members: [] }))
-  // 保留展示空間；用品只使用五種補貨狀態各一筆的共用示範資料。
-  const previewSpaces = [
-    { id: 'preview-family', name: '家庭', shared: true, color: 'blue' },
-    { id: 'preview-company', name: '公司', shared: true, color: 'orange' },
-    { id: 'preview-travel', name: '旅行', shared: false, color: 'red' },
-  ]
-  spaces.push(...previewSpaces.map(space => ({ ...space, ownerId: 'self', members: [] })))
-  // 購買清單展示：目前使用者可接手小明已認購的家庭用品。
-  const takeoverPreviewSpace = spaces.find(space => space.id === 'preview-family')
-  takeoverPreviewSpace.members.push({ id: 'preview-xiaoming', name: '小明', avatar: avatarOptions[0].image }, { id: 'preview-huahua', name: '花花', avatar: avatarOptions[1].image })
-  const takeoverPreviewItem = items.find(item => item.name === '衛生紙')
-  Object.assign(takeoverPreviewItem, { spaceId: 'preview-family', inShoppingList: true, quantity: 2, addedToShoppingListDate: toDateString(), shoppingClaimantId: 'preview-xiaoming' })
-  return { items, spaces }
-}
+function createDemoState() { return createPresentationState() }
 
 // 讀取存檔並檢查結構；任何一項不符就回傳 null，整批改用示範資料，不載入一半。
 function loadSavedState() {
@@ -71,6 +55,17 @@ function loadSavedState() {
 
 export const useItemsStore = defineStore('items', () => {
   const saved = loadSavedState()
+  const persistenceConflict = ref('')
+  const persistenceGuard = createItemsPersistenceGuard(message => { persistenceConflict.value = message })
+  function writeItems(data) { return persistenceGuard.write(data) }
+  function tryWriteItems(data) {
+    try { return writeItems(data) ? { ok: true } : { ok: false, error: { code: 'STORAGE_FAILED', message: '無法儲存用品資料。' } } }
+    catch (error) { return { ok: false, error: { code: error.code || 'STORAGE_FAILED', message: error.message } } }
+  }
+  async function withPersistenceLock(operation) {
+    try { return await persistenceGuard.withLock(operation) }
+    catch (error) { return { ok: false, error: { code: error.code || 'STORAGE_FAILED', message: error.message || '無法儲存用品資料。' } } }
+  }
   const demo = saved ? null : createDemoState()
   const originalItems = saved?.items ?? demo.items
   const normalizedItems = originalItems.map(migrateUnitPeriods)
@@ -78,18 +73,11 @@ export const useItemsStore = defineStore('items', () => {
   const items = ref(normalizedItems)
   const customCategories = ref(saved?.customCategories ?? [])
   const spaces = ref(saved?.spaces ?? demo.spaces)
-  // 一次性新增共享清單展示用品；使用者之後刪除時不再自動補回。
   const demoSeeds = new Set(Array.isArray(saved?.demoSeeds) ? saved.demoSeeds : [])
-  const familyAlcoholSeed = 'family-unclaimed-alcohol-v1'
-  const needsFamilyAlcoholSeed = !demoSeeds.has(familyAlcoholSeed)
-  if (needsFamilyAlcoholSeed) {
-    const family = spaces.value.find(space => space.shared && space.name === '家庭')
-    if (family && !items.value.some(item => item.spaceId === family.id && item.name === '酒精')) {
-      items.value.push(createItem({ name: '酒精', iconKey: 'rubbing-alcohol', category: '清潔', unit: '瓶', spaceId: family.id, reminderEnabled: false, ...sampleHistory(toDateString(), 10, 30), inShoppingList: true, quantity: 1, addedToShoppingListDate: toDateString(), shoppingClaimantId: null }))
-    }
-    demoSeeds.add(familyAlcoholSeed)
-  }
   const catalog = useCatalogStore()
+  if (!saved && !loadPersisted(STORE_KEYS.catalog)) {
+    for (const [id, changes] of Object.entries(PRESENTATION_PRESET_OVERRIDES)) catalog.updateCatalogItem(id, changes, { confirmUnitChange: true })
+  }
   // 傳 toRaw：migrateCatalogLinks 以 {...item} 複製，若來源是 reactive，巢狀陣列會變成 Proxy，之後 snapshotItem 的 structuredClone 會失敗。
   const linkedItems = migrateCatalogLinks(toRaw(items.value), catalog.allItems, catalog.deletedCatalogItems)
   const needsCatalogSave = linkedItems.some((item, index) => item.catalogId !== items.value[index].catalogId)
@@ -295,7 +283,8 @@ export const useItemsStore = defineStore('items', () => {
       || !Number.isFinite(new Date(`${date}T00:00:00`).getTime()) || addDays(date, 0) !== date || date <= toDateString()) {
       return { ok: false, error: { message: '請選擇明天或之後的提醒日期。' } }
     }
-    return persistItemsOperation(() => updateItem(id, { reminderSnoozes: { ...item.reminderSnoozes, self: date } }))
+    return persistItemsOperation(() => updateItem(id, { reminderSnoozes: { ...item.reminderSnoozes, self: date },
+      reminderSnoozeOperationIds: { ...item.reminderSnoozeOperationIds, self: generateId() } }))
   }
 
   function cancelShoppingReminderSnooze(id) {
@@ -303,7 +292,9 @@ export const useItemsStore = defineStore('items', () => {
     if (!item?.inShoppingList || item.shoppingCompletedAt != null) return { ok: false, error: { message: '用品已不在待買清單。' } }
     const reminderSnoozes = { ...item.reminderSnoozes }
     delete reminderSnoozes.self
-    return persistItemsOperation(() => updateItem(id, { reminderSnoozes }))
+    const reminderSnoozeOperationIds = { ...item.reminderSnoozeOperationIds }
+    delete reminderSnoozeOperationIds.self
+    return persistItemsOperation(() => updateItem(id, { reminderSnoozes, reminderSnoozeOperationIds }))
   }
 
   // specs/009 FR-913：重新開啟不再填寫，直接用補貨紀錄重算；推算日已過就直接是「該補貨了」。
@@ -366,7 +357,7 @@ export const useItemsStore = defineStore('items', () => {
     const space = getSpace(item.spaceId)
     if (!space?.shared) return
     // Persist the source operation before its pending notification, so immediate reload can verify it.
-    if (!savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot())) throw new Error('無法保存通知來源操作，未建立待發送通知。')
+    if (!writeItems(catalogPersistenceSnapshot())) throw new Error('無法保存通知來源操作，未建立待發送通知。')
     useSharedNotificationsStore().publishMemberEvent({ type, space, actorId: 'self', actorName: profile.name,
       itemName: item.name, itemId: item.id, recordId, operationId, memberIds: getSpaceMembers(space.id).map(member => member.id) })
   }
@@ -379,9 +370,10 @@ export const useItemsStore = defineStore('items', () => {
     itemsTransactionDepth++
     let result
     try {
+      persistenceGuard.assertCurrent()
       result = change()
       if (result?.ok === false) throw Object.assign(new Error(result.error?.message || '用品操作失敗。'), result.error)
-      if (!savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot())) {
+      if (!writeItems(catalogPersistenceSnapshot())) {
         throw Object.assign(new Error('用品資料儲存失敗，操作未套用。'), { code: 'STORAGE_FAILED' })
       }
     } catch (error) {
@@ -702,7 +694,8 @@ export const useItemsStore = defineStore('items', () => {
     const snapshot = catalogPersistenceSnapshot()
     const next = { ...snapshot, spaces: [...snapshot.spaces, structuredClone(toRaw(entry.space))],
       items: plan.items, departedSpaces: snapshot.departedSpaces.filter((_, i) => i !== index) }
-    if (!savePersisted(STORE_KEYS.items, next)) return { ok: false, code: 'STORAGE_FAILED', message: '無法儲存空間同步，資料未變更。' }
+    const written = tryWriteItems(next)
+    if (!written.ok) return { ok: false, code: written.error.code, message: written.error.message }
     const restoredIds = new Set(entry.items.map(item => item.id))
     spaces.value.push(entry.space)
     items.value.push(...plan.items.filter(item => restoredIds.has(item.id)))
@@ -764,7 +757,9 @@ export const useItemsStore = defineStore('items', () => {
   // 寫入失敗（儲存空間不足等）時為 true，讓畫面提示照片可能不會保留（specs/008 FR-807）。
   const persistFailed = ref(false)
   function catalogPersistenceSnapshot() {
-    return JSON.parse(JSON.stringify({ demoSeeds: [...demoSeeds], items: toRaw(items.value), spaces: toRaw(spaces.value),
+    return JSON.parse(JSON.stringify({
+      presentationVersion: (saved ?? demo)?.presentationVersion, presentationRunId: (saved ?? demo)?.presentationRunId, presentationDate: (saved ?? demo)?.presentationDate,
+      demoSeeds: [...demoSeeds], items: toRaw(items.value), spaces: toRaw(spaces.value),
       customCategories: toRaw(customCategories.value), departedSpaces: toRaw(departedSpaces.value) }))
   }
   function applyCatalogLinkedItems(nextItems) {
@@ -778,7 +773,7 @@ export const useItemsStore = defineStore('items', () => {
       }
     }
   }
-  const unregisterBridge = catalog.registerItemsBridge({ snapshot: catalogPersistenceSnapshot, apply: applyCatalogLinkedItems, applyCategories: names => { customCategories.value = [...names] } })
+  const unregisterBridge = catalog.registerItemsBridge({ snapshot: () => { persistenceGuard.assertCurrent(); return catalogPersistenceSnapshot() }, didPersist: persistenceGuard.didCommitCatalog, apply: applyCatalogLinkedItems, applyCategories: names => { customCategories.value = [...names] } })
   onScopeDispose(unregisterBridge)
   function getItemByCatalogId(spaceId, catalogId) {
     if (typeof catalogId !== 'string' || !catalogId) throw catalogLinkError('INVALID_INPUT', '全域用品 ID 無效。')
@@ -797,7 +792,7 @@ export const useItemsStore = defineStore('items', () => {
         if (!plan.ok) return plan
         const refreshed = plan.items.find(item => item.id === existing.id)
         if (JSON.stringify(refreshed) !== JSON.stringify(existing)) {
-          if (persist && !savePersisted(STORE_KEYS.items, { ...catalogPersistenceSnapshot(), items: plan.items })) {
+          if (persist && !writeItems({ ...catalogPersistenceSnapshot(), items: plan.items })) {
             return { ok: false, error: { code: 'STORAGE_FAILED', message: '用品同步儲存失敗，資料未變更。' } }
           }
           applyCatalogLinkedItems(plan.items)
@@ -815,7 +810,8 @@ export const useItemsStore = defineStore('items', () => {
   function migrateCatalogAssociations() {
     const next = migrateCatalogLinks(items.value, catalog.allItems, catalog.deletedCatalogItems)
     const snapshot = catalogPersistenceSnapshot()
-    if (!savePersisted(STORE_KEYS.items, { ...snapshot, items: next })) return { ok: false, error: { code: 'STORAGE_FAILED', message: '無法儲存用品關聯。' } }
+    const written = tryWriteItems({ ...snapshot, items: next })
+    if (!written.ok) return written
     applyCatalogLinkedItems(next)
     return { ok: true }
   }
@@ -834,12 +830,26 @@ export const useItemsStore = defineStore('items', () => {
     try { useSharedNotificationsStore().flushPending() }
     catch (error) { console.error('[restock-notification] Pending recovery failed', error) }
   }
-  const scheduleSave = createDebouncedSaver(() => { persistFailed.value = !savePersisted(STORE_KEYS.items, catalogPersistenceSnapshot()) })
+  async function flushPersistence() {
+    return withPersistenceLock(() => {
+      if (!writeItems(catalogPersistenceSnapshot())) return { ok: false, error: { code: 'STORAGE_FAILED', message: '無法儲存用品資料。' } }
+      return { ok: true }
+    })
+  }
+  const scheduleSave = createDebouncedSaver(() => {
+    persistenceGuard.withLock(() => { persistFailed.value = !writeItems(catalogPersistenceSnapshot()) })
+      .catch(() => { persistFailed.value = true })
+  })
   watch([items, spaces, customCategories, departedSpaces], scheduleSave, { deep: true })
-  if (needsFamilyAlcoholSeed || needsCatalogSave || needsUnitSave) scheduleSave()
+  // Persist new item identities before any historical notice can reference them.
+  if (!saved && !loadPersisted(STORE_KEYS.sharedNotifications)) {
+    const snapshot = catalogPersistenceSnapshot()
+    if (!tryWriteItems(snapshot).ok || !savePersisted(STORE_KEYS.sharedNotifications, presentationNotifications(snapshot))) persistFailed.value = true
+  }
+  if (!saved || needsCatalogSave || needsUnitSave) scheduleSave()
 
   return {
-    getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations, getClaimInfo,
+    persistenceConflict, withPersistenceLock, flushPersistence, getItemByCatalogId, ensureCatalogItem, migrateCatalogAssociations, getClaimInfo,
     persistFailed,
     customCategories,
     systemCategoryCounts,

@@ -400,7 +400,7 @@ function record() {
   text-align: left;
   cursor: pointer;
   svg { flex: none; color: t.$text-body; }
-  &:hover { background: t.$primary-soft; }
+  @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { &:hover { background: t.$primary-soft; } }
   &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
 }
 

@@ -102,7 +102,7 @@ onBeforeUnmount(() => {
             <div v-if="item.name === 'settings' && isCurrent('settings')" class="desktop-shopping-nav" aria-label="設定子頁">
               <RouterLink :to="{ name: 'settings', hash: '#reminder-title' }" :class="{ active: route.name === 'settings' && route.hash === '#reminder-title' }" :aria-current="route.name === 'settings' && route.hash === '#reminder-title' ? 'location' : undefined"><span class="desktop-subnav-label">提醒設定</span></RouterLink>
               <RouterLink :to="{ name: 'settings', hash: '#spaces-title' }" :class="{ active: route.name === 'settings' && route.hash === '#spaces-title' }" :aria-current="route.name === 'settings' && route.hash === '#spaces-title' ? 'location' : undefined"><span class="desktop-subnav-label">空間管理</span></RouterLink>
-              <RouterLink :to="{ name: 'item-management' }" :class="{ active: currentRoute.path === '/settings/items' || currentRoute.path.startsWith('/settings/items/') }" :aria-current="currentRoute.path === '/settings/items' || currentRoute.path.startsWith('/settings/items/') ? 'page' : undefined"><span class="desktop-subnav-label">用品管理</span></RouterLink>
+              <RouterLink :to="{ name: 'item-management' }" :class="{ active: currentRoute.path === '/settings/items' || currentRoute.path.startsWith('/settings/items/') }" :aria-current="currentRoute.path === '/settings/items' || currentRoute.path.startsWith('/settings/items/') ? 'page' : undefined"><span class="desktop-subnav-label">用品管理</span><i class="fa-solid fa-chevron-down desktop-subnav-arrow" :class="{ expanded: route.name === 'item-management' || route.name === 'item-category' }" aria-hidden="true"></i></RouterLink>
               <Transition name="shopping-subnav">
                 <div v-if="route.name === 'item-management' || route.name === 'item-category'" class="desktop-management-subnav" aria-label="用品管理分類">
                   <RouterLink :to="{ name: 'item-management', hash: '#system-categories-title' }" :class="{ active: managementSection === 'system' }"><span class="desktop-subnav-label">系統分類</span></RouterLink>
@@ -306,7 +306,7 @@ onBeforeUnmount(() => {
   font: t.$font-weight-medium 16px / normal t.$font-family;
   text-align: left;
   cursor: pointer;
-  &:hover { background: t.$input-bg; }
+  @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { &:hover { background: t.$input-bg; } }
 }
 
 // 圓形圖示：淡綠底、綠色圖示。

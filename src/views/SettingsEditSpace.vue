@@ -25,6 +25,17 @@ const spaceMembers = computed(() => store.getSpaceMembers(route.params.spaceId))
 const collapsibleMembers = computed(() => spaceMembers.value.length > 4)
 const visibleMembers = computed(() => collapsibleMembers.value && !membersExpanded.value
   ? spaceMembers.value.slice(0, 3) : spaceMembers.value)
+const avatarPreviewDialog = ref(null)
+const avatarPreviewMember = ref(null)
+function openMemberAvatar(member) {
+  avatarPreviewMember.value = member
+  avatarPreviewDialog.value?.showModal()
+}
+function closeAvatarOnBackdrop(event) {
+  if (event.target !== avatarPreviewDialog.value) return
+  const box = event.currentTarget.getBoundingClientRect()
+  if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) event.currentTarget.close()
+}
 function memberAvatar(member) {
   if (member.avatar) return member.avatar
   if (member.id === 'self') return defaultAvatar
@@ -188,7 +199,7 @@ function confirmLeave() {
       <h2>成員</h2>
       <div class="space-card members-card">
         <div v-for="member in visibleMembers" :key="member.id" class="info-row member-row">
-          <img class="member-avatar" :src="memberAvatar(member)" alt="" />
+          <button type="button" class="member-avatar-button" :aria-label="`放大${member.name}的頭貼`" aria-haspopup="dialog" @click="openMemberAvatar(member)"><img class="member-avatar" :src="memberAvatar(member)" alt="" /></button>
           <span>{{ member.name }}{{ member.id === 'self' ? '（你）' : '' }}</span>
         </div>
         <button v-if="collapsibleMembers" type="button" class="members-toggle" :aria-expanded="membersExpanded" @click="membersExpanded = !membersExpanded">
@@ -203,6 +214,15 @@ function confirmLeave() {
     <p v-else>找不到此空間，請返回空間管理。</p>
     <InviteMemberSheet hide-close-button :open="inviteSheetOpen" :space="space" @close="inviteSheetOpen = false" @copied="showColorToast" />
     <AppToast :toast="colorToast" />
+    <dialog ref="avatarPreviewDialog" class="member-avatar-dialog" aria-labelledby="member-avatar-preview-title" @click="closeAvatarOnBackdrop" @close="avatarPreviewMember = null">
+      <template v-if="avatarPreviewMember">
+        <header class="member-avatar-preview-header">
+          <h2 id="member-avatar-preview-title">{{ avatarPreviewMember.name }}的頭貼</h2>
+          <button type="button" class="member-avatar-preview-close" aria-label="關閉頭貼預覽" autofocus @click="avatarPreviewDialog.close()">×</button>
+        </header>
+        <img class="member-avatar-large" :src="memberAvatar(avatarPreviewMember)" :alt="`${avatarPreviewMember.name}的頭貼`" />
+      </template>
+    </dialog>
     <dialog ref="leaveDialog" tabindex="-1" class="leave-dialog" aria-labelledby="leave-dialog-title" aria-describedby="leave-dialog-message">
       <form v-if="space" @submit.prevent="confirmLeave">
         <h2 id="leave-dialog-title">退出空間？</h2>
@@ -373,4 +393,16 @@ button:focus-visible, a:focus-visible { outline: 2px solid t.$primary-green; out
 .name-row .name-length-error { margin-bottom: 0; }
 .leave-dialog .leave-actions .btn-secondary:focus, .leave-dialog .leave-actions .btn-secondary:focus-visible { outline: none; }
 header h1 { letter-spacing: .5px; }
+
+
+.member-avatar-button { position: relative; display: block; flex: 0 0 32px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.member-avatar-button::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; }
+.member-avatar-button .member-avatar { display: block; }
+.member-avatar-button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 4px; }
+.member-avatar-dialog { box-sizing: border-box; width: min(320px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: t.$space-24; border: 0; border-radius: t.$radius-card; background: t.$card-bg; color: t.$text-main; font-family: t.$font-family; box-shadow: t.$shadow-card; }
+.member-avatar-dialog::backdrop { background: rgba(29, 29, 31, .4); }
+.member-avatar-preview-header { display: flex; align-items: center; justify-content: space-between; gap: t.$space-12; margin-bottom: t.$space-16; min-height: 32px; }
+.member-avatar-preview-header h2 { margin: 0; min-width: 0; overflow-wrap: anywhere; font: t.$font-weight-bold #{t.$font-size-button} / 24px t.$font-family; }
+.member-avatar-preview-close { flex: 0 0 32px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: t.$input-bg; color: t.$text-body; font: 24px / 32px t.$font-family; cursor: pointer; }
+.member-avatar-large { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: t.$radius-input; background: t.$active-green; }
 </style>

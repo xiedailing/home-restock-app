@@ -2,6 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { useNotificationSettingsStore } from '../stores/notificationSettings'
 import AppToast from '../components/AppToast.vue'
+import NativeNotificationSettings from '../components/NativeNotificationSettings.vue'
 import { useToast } from '../composables/useToast'
 import { isValidInviteCode } from '../utils/inviteCode'
 import { computed, ref, onBeforeMount, onMounted, onBeforeUnmount } from 'vue'
@@ -214,7 +215,7 @@ function saveChanges() {
       <div class="card settings-card">
         <div class="notification-section">
         <div class="settings-row">
-          <span>推播通知</span>
+          <div class="push-notification-label"><span>推播通知</span><NativeNotificationSettings /></div>
           <button type="button" class="notification-switch" role="switch" :aria-checked="notifications" aria-label="推播通知" @click="notifications = !notifications">
             <SwitchTrack :checked="notifications" />
           </button>
@@ -559,4 +560,6 @@ button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -3px
 }
 .settings-dialog .dialog-actions .btn-secondary:focus, .settings-dialog .dialog-actions .btn-secondary:focus-visible { outline: none; }
 .notice-icon { width: 22px; flex-shrink: 0; font-size: 22px; color: t.$toast-success-accent; }
+.push-notification-label { flex: 1; min-width: 0; }
+.push-notification-label :deep(.native-notification-settings) { padding: 0; line-height: 18px; }
 </style>
