@@ -71,7 +71,7 @@ export const routes = [
     path: '/settings/spaces/:spaceId',
     name: 'edit-space',
     component: () => import('../views/SettingsEditSpace.vue'),
-    meta: { title: '編輯空間' },
+    meta: { title: '編輯空間', hideBottomNav: true },
   },
   { path: '/settings/items', name: 'item-management', component: () => import('../views/SettingsItemsView.vue'), meta: { title: '用品管理', hideBottomNav: true } },
   { path: '/settings/items/:category', name: 'item-category', component: () => import('../views/SettingsItemCategory.vue'), meta: { title: '分類用品', hideBottomNav: true } },

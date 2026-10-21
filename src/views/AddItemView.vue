@@ -390,4 +390,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid t.$primary-green;
 }
 
 @media (prefers-reduced-motion: reduce) { .selector-row img { transition: none; } }
+
+// 手機隱藏導覽後，主要按鈕下緣對齊原導覽膠囊內的操作位置。
+@media (max-width: 1023px) {
+  .add-item-page { min-height: calc(100svh - max(44px, env(safe-area-inset-bottom))); }
+}
 </style>

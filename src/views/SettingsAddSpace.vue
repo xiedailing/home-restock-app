@@ -215,4 +215,9 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 }
 .space-name-row .space-error, .space-name-row .name-length-error { margin-bottom: 0; }
 header h1 { letter-spacing: .5px; }
+
+// 手機隱藏導覽後，主要按鈕下緣對齊原導覽膠囊內的操作位置。
+@media (max-width: 1023px) {
+  .add-space-page { min-height: calc(100svh - max(44px, env(safe-area-inset-bottom))); }
+}
 </style>

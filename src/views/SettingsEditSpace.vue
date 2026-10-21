@@ -373,4 +373,16 @@ button:focus-visible, a:focus-visible { outline: 2px solid t.$primary-green; out
 .name-row .name-length-error { margin-bottom: 0; }
 .leave-dialog .leave-actions .btn-secondary:focus, .leave-dialog .leave-actions .btn-secondary:focus-visible { outline: none; }
 header h1 { letter-spacing: .5px; }
+
+@media (max-width: 1023px) {
+  .edit-space-page:has(.invite-button) { padding-bottom: 112px; }
+  .invite-button {
+    position: fixed;
+    left: 50%;
+    bottom: max(44px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(314px, calc(100% - 32px));
+    z-index: 10;
+  }
+}
 </style>
