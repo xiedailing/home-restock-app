@@ -59,13 +59,13 @@ export const routes = [
     path: '/settings/spaces',
     name: 'spaces',
     component: () => import('../views/SettingsSpacesView.vue'),
-    meta: { title: '空間管理' },
+    meta: { title: '空間管理', hideBottomNav: true },
   },
   {
     path: '/settings/spaces/new',
     name: 'add-space',
     component: () => import('../views/SettingsAddSpace.vue'),
-    meta: { title: '新增空間' },
+    meta: { title: '新增空間', hideBottomNav: true },
   },
   {
     path: '/settings/spaces/:spaceId',
