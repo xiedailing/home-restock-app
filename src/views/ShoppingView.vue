@@ -624,15 +624,24 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .snooze-reminder-sheet { display: flex; flex-direction: column; gap: 16px; h2 { margin: 0; font: 700 17px / 24px t.$font-family; } p { margin: 0; color: t.$text-sub; } }
 .snooze-reminder-sheet .snooze-personal-hint { font-size: t.$font-size-caption; line-height: t.$line-height-body; }
 .snooze-reminder-sheet > .btn-primary { margin-top: t.$space-8; }
-.snooze-cancel-button { min-height: 49px; margin-top: 0; border-radius: t.$radius-pill; font: t.$font-weight-bold #{t.$font-size-button} / 24px t.$font-family; }
+.snooze-cancel-button { min-height: 44px; margin-top: 0; border-radius: t.$radius-pill; font: t.$font-weight-bold #{t.$font-size-button} / 24px t.$font-family; }
 @media (min-width: 1024px) and (hover: hover) and (pointer: fine) { .snooze-reminder-button:not(:disabled):hover { background: #d5e2d0; color: t.$primary-green; } }
 </style>
 
 <style scoped>
 .snooze-cancel-reveal { display: grid; grid-template-rows: 0fr; margin-top: -16px; opacity: 0; transition: grid-template-rows .35s ease, margin-top .35s ease, opacity .25s ease; }
-.snooze-cancel-reveal.open { grid-template-rows: 1fr; margin-top: 0; opacity: 1; }
+.snooze-cancel-reveal.open { grid-template-rows: 1fr; margin-top: -8px; opacity: 1; }
 /* 保留陰影空間，負 margin 抵銷 padding，不改變按鈕位置與展開高度。 */
 .snooze-cancel-content { min-height: 0; overflow: hidden; padding: 10px; margin: -10px; }
 .snooze-cancel-content > button { width: 100%; }
 @media (prefers-reduced-motion: reduce) { .snooze-cancel-reveal { transition: none; } }
+@media (max-width: 1023px) {
+  :global(dialog[aria-labelledby="snooze-reminder-title"]:has(.snooze-cancel-reveal.open)) {
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    transition: padding-bottom .35s ease;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :global(dialog[aria-labelledby="snooze-reminder-title"]) { transition: none; }
+}
 </style>

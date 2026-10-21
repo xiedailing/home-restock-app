@@ -40,7 +40,7 @@ await page.getByRole('button',{name:'儲存',exact:true}).click();await page.get
 // Animated clipping wrappers must leave room for raised button shadows.
 const shadowRoom=await page.locator('.snooze-cancel-content').evaluate(el=>{const clip=el.getBoundingClientRect(),button=el.querySelector('button').getBoundingClientRect();return {left:button.left-clip.left,right:clip.right-button.right,top:button.top-clip.top,bottom:clip.bottom-button.bottom}});
 for(const room of Object.values(shadowRoom))assert.ok(room>=9.9,'cancel shadow must fit inside animation clipping bounds');
-assert.equal(Math.round(before.height),265);assert.equal(Math.round(after.height),330);
+assert.equal(Math.round(before.height),265);assert.equal(Math.round(after.height),297);
 await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('.snooze-cancel-reveal').evaluate(el=>getComputedStyle(el).transitionDuration),'0s');
 // A saved date is a close-only confirmation; edits require an explicit save.
 await dialog.getByRole('button',{name:'確認',exact:true}).waitFor();
