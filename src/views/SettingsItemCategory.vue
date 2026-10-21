@@ -202,4 +202,12 @@ header { min-height: 44px; display: grid; grid-template-columns: 44px 1fr 44px; 
 .category-delete-dialog { width: min(320px, calc(100vw - 32px)); margin: auto; padding: t.$space-24; border: 0; border-radius: t.$radius-card; background: t.$card-bg; color: t.$text-main; box-shadow: t.$shadow-card; text-align: center; &::backdrop { background: rgba(29,29,31,.35); } h2 { margin: 0 0 t.$space-8; font-size: 18px; overflow-wrap: anywhere; } p { color: t.$text-sub; font-size: 15px; overflow-wrap: anywhere; margin-bottom: 0; } .preserved-data { margin-top: 0; } .delete-error { color: t.$accent-text; } }
 .delete-actions { display: flex; gap: t.$space-12; margin-top: t.$space-24; .btn { flex: 1; min-width: 0; } }
 button:focus-visible, a:focus-visible { outline: 2px solid t.$primary-green; outline-offset: -2px; }
+
+@media (max-width: 1023px) {
+  // 同一個 footer 在新增與刪除模式保持相同的底部操作位置。
+  // 空分類維持圖示、文字與新增按鈕成組置中的設計。
+  .category-page:not(.category-page--empty) {
+    min-height: calc(100svh - max(44px, env(safe-area-inset-bottom)));
+  }
+}
 </style>
