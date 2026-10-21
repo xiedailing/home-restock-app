@@ -90,6 +90,12 @@
       background-color: color.scale(t.$danger, $lightness: -12%);
       color: t.$text-inverse; box-shadow: t.$shadow-raised;
     }
+    // 關閉提醒只調整設定，沿用綠色主按鈕的 hover。
+    .reminder-off-dialog .delete-dialog-confirm:not(:disabled):hover {
+      background-color: t.$dark-green;
+      color: t.$text-inverse;
+      box-shadow: t.$shadow-primary;
+    }
     :is(.remove-shopping-item, .delete-record, .more-option--danger) { border-radius: t.$radius-input; }
     :is(.delete-record, .more-option--danger) {
       cursor: pointer;
