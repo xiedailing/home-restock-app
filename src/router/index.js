@@ -23,7 +23,7 @@ export const routes = [
     path: '/items/new',
     name: 'add-item',
     component: () => import('../views/AddItemView.vue'),
-    meta: { title: '新增用品' },
+    meta: { title: '新增用品', hideBottomNav: true },
   },
   {
     path: '/items/:id',
@@ -73,8 +73,8 @@ export const routes = [
     component: () => import('../views/SettingsEditSpace.vue'),
     meta: { title: '編輯空間' },
   },
-  { path: '/settings/items', name: 'item-management', component: () => import('../views/SettingsItemsView.vue'), meta: { title: '用品管理' } },
-  { path: '/settings/items/:category', name: 'item-category', component: () => import('../views/SettingsItemCategory.vue'), meta: { title: '分類用品' } },
+  { path: '/settings/items', name: 'item-management', component: () => import('../views/SettingsItemsView.vue'), meta: { title: '用品管理', hideBottomNav: true } },
+  { path: '/settings/items/:category', name: 'item-category', component: () => import('../views/SettingsItemCategory.vue'), meta: { title: '分類用品', hideBottomNav: true } },
   { path: '/:pathMatch(.*)*', redirect: '/inventory' },
 ]
 
