@@ -82,8 +82,8 @@ function snoozeLabel(item) {
 }
 function cancelSnooze(close) {
   const result = store.cancelShoppingReminderSnooze(snoozeItemId.value)
-  if (!result.ok) { showToast(result.error.message, null, '復原', 'error'); return }
-  showToast('已取消延後提醒')
+  if (!result.ok) { showToast(result.error.message, null, '復原', 'error', 3000); return }
+  showToast('已取消延後提醒', null, '復原', 'success', 3000)
   close()
 }
 function openSnooze(item) {
@@ -100,13 +100,13 @@ async function saveSnooze() {
     const result = await native.saveSnoozeAndScheduleDemo(snoozeItemId.value, snoozeDate.value)
     if (!result.ok) {
       const notify = result.error.code === 'STALE_ITEMS' ? appToast?.showToast || showToast : showToast
-      notify(result.error.message, null, '復原', 'error'); snoozeSaving.value = false; return
+      notify(result.error.message, null, '復原', 'error', 3000); snoozeSaving.value = false; return
     }
     const [year, month, day] = snoozeDate.value.split('-').map(Number)
     const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
     showToast(result.demoResult?.ok === false
-      ? `日期已儲存；${result.demoResult.message}` : `已延後提醒至 ${month}/${day} 週${weekday}`)
-  } catch { showToast('無法完成此操作，請確認延後日期後重試。', null, '復原', 'error') }
+      ? `日期已儲存；${result.demoResult.message}` : `已延後提醒至 ${month}/${day} 週${weekday}`, null, '復原', 'success', 3000)
+  } catch { showToast('無法完成此操作，請確認延後日期後重試。', null, '復原', 'error', 3000) }
   finally { snoozeSaving.value = false }
 }
 function completeItem(item) {
@@ -213,7 +213,7 @@ function confirmClaimAll() {
     return item && (!request.spaceId || item.spaceId === request.spaceId) && item.inShoppingList && !item.shoppingClaimantId ? claimOperation(item) : null
   }).filter(Boolean)
   sharedExpandedItems.value = sharedExpandedItems.value.filter(id => !request.ids.includes(id))
-  if (operations.length) showToast(`已認領「${request.name}」的 ${operations.length}項用品`)
+  if (operations.length) showToast(`已認領「${request.name}」的 ${operations.length}項用品`, null, '復原', 'success', 3000)
   claimAllDialog.value.close()
 }
 function sharedSpaceCount(id) { return allSharedItems.value.filter(item => item.spaceId === id).length }
@@ -309,13 +309,13 @@ function claimItem(item, takeOver = false) {
   claimOperation(item, takeOver)
   if (previousClaimant !== 'self' && item.shoppingClaimantId === 'self') {
     if (!previousClaimant) sharedExpandedItems.value = sharedExpandedItems.value.filter(id => id !== item.id)
-    showToast(`已${takeOver ? '接手認領' : '認領'}「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`)
+    showToast(`已${takeOver ? '接手認領' : '認領'}「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`, null, '復原', 'success', 3000)
   }
 }
 function cancelClaim(item) {
   const operation = store.cancelShoppingClaim(item.id)
   if (operation) {
-    showToast(`已取消認領「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`, () => store.undoShoppingOperation(operation))
+    showToast(`已取消認領「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`, () => store.undoShoppingOperation(operation), '復原', 'success', 3000)
     collapsedGroups.value = collapsedGroups.value.filter(id => id !== 'shared-pending')
   }
 }
@@ -517,7 +517,7 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 .item-info { display: flex; flex-direction: column; gap: t.$space-8; min-width: 0; h3 { margin: 0; font: t.$font-weight-bold #{t.$font-size-heading} / #{t.$line-height-app-bar} t.$font-family; } p { margin: 0; font-size: t.$font-size-body-sm; color: t.$text-sub; } }
 .pending-group-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: t.$space-16; h2 { margin: 0; color: t.$text-sub; font: t.$font-weight-bold #{t.$font-size-app-bar} / #{t.$line-height-app-bar} t.$font-family; } }
 .claim-all-heading-button { padding: t.$space-8 t.$space-12; border: 0; border-radius: t.$radius-pill; background: t.$primary-soft; box-shadow: t.$shadow-raised; color: t.$primary-green; font: t.$font-weight-bold #{t.$font-size-body-sm} / normal t.$font-family; cursor: pointer; }
-.shared-space-tabs { scrollbar-width: none; &::-webkit-scrollbar { display: none; } display: flex; gap: t.$space-8; overflow-x: auto; margin-bottom: t.$space-16; padding-block: 4px; button { --space-color: #{t.$primary-green}; flex-shrink: 0; box-sizing: border-box; min-width: 74px; height: 34px; padding: 0 t.$space-12; border: 1px solid var(--space-color); background: transparent; color: var(--space-color); font: t.$font-weight-medium #{t.$font-size-metadata} / #{t.$line-height-body} t.$font-family; cursor: pointer; border-radius: t.$radius-pill; } button[aria-pressed="true"] { border-color: transparent; background: var(--space-color); color: t.$text-inverse; outline: none; } button:focus-visible { outline: 2px solid t.$text-main; outline-offset: 2px; } }
+.shared-space-tabs { scrollbar-width: none; &::-webkit-scrollbar { display: none; } display: flex; gap: t.$space-8; overflow-x: auto; margin-top: -4px; margin-bottom: t.$space-12; padding-block: t.$space-8; button { --space-color: #{t.$primary-green}; flex-shrink: 0; box-sizing: border-box; min-width: 74px; height: 34px; padding: 0 t.$space-12; border: 1px solid var(--space-color); background: transparent; box-shadow: t.$shadow-raised, 2px 3px 6px rgba(143, 134, 114, .14); color: var(--space-color); font: t.$font-weight-medium #{t.$font-size-metadata} / #{t.$line-height-body} t.$font-family; cursor: pointer; border-radius: t.$radius-pill; } button[aria-pressed="true"] { border-color: transparent; background: var(--space-color); box-shadow: t.$switch-track-shadow-on, inset 1.5px 2px 3px rgba(31, 58, 29, .18); color: t.$text-inverse; outline: none; } button:focus-visible { outline: 2px solid t.$text-main; outline-offset: 2px; } }
 
 .empty-message { color: t.$text-sub; font-size: 14px; }
 .group-slide-enter-active, .group-slide-leave-active { transition: height .5s ease; }

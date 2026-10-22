@@ -30,9 +30,9 @@ export function useToast({ duration = UNDO_DURATION_MS, pauseOnInteraction = tru
   }
 
   // undo 為選填；有傳入時 Toast 顯示按鈕，文字預設「復原」，可改成「查看」等（specs/004 FR-403）。
-  function showToast(message, undo = null, actionLabel = '復原', variant = 'success') {
+  function showToast(message, undo = null, actionLabel = '復原', variant = 'success', displayDuration = duration) {
     hideToast()
-    remaining = duration
+    remaining = displayDuration
     toast.value = { message, undo, actionLabel, variant, pause: pauseOnInteraction ? pause : null, resume: pauseOnInteraction ? resume : null }
     resume()
   }
