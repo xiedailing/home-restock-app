@@ -31,12 +31,12 @@ async function toggleHiddenDemo() {
   try {
     if (native.demoEnabled) {
       const result = await native.endDemo()
-      showToast(result.ok ? '通知展示模式已關閉' : native.demoModeMessage, null, '復原', result.ok ? 'success' : 'error')
+      showToast(result.ok ? '通知展示模式已關閉' : native.demoModeMessage, null, '復原', result.ok ? 'success' : 'error', result.ok ? 1000 : 8000)
       return
     }
     const result = native.activateDemo({ userGesture: true })
     if (!result.ok) { showToast(native.demoModeMessage || '無法啟用通知展示模式。', null, '復原', 'error'); return }
-    showToast('通知展示模式已啟用')
+    showToast('通知展示模式已啟用', null, '復原', 'success', 1000)
     // No await before requesting permission; keep push preferences unchanged.
     const support = native.support()
     if (support.permission === 'default') {
