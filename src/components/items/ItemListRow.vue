@@ -147,8 +147,8 @@ onBeforeUnmount(cancelLongPress)
       <span v-if="selecting" class="select-circle" :class="{ 'select-circle--on': selected }" aria-hidden="true">
         <i v-if="selected" class="fa-solid fa-check"></i>
       </span>
-      <span class="item-icon-circle" aria-hidden="true">
-        <img class="item-icon" :class="{ 'item-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" draggable="false" />
+      <span class="item-icon-circle" :class="{ 'item-icon-circle--photo': item.iconPhoto }" aria-hidden="true">
+        <img class="item-icon" :class="{ 'item-row-photo': item.iconPhoto }" :src="getItemIconSrc(item, item.reminderStatus)" alt="" draggable="false" />
       </span>
       <div class="item-body">
         <p class="item-name">{{ item.name }}</p>
@@ -210,6 +210,8 @@ onBeforeUnmount(cancelLongPress)
 }
 
 .item-icon-circle {
+  display: grid;
+  place-items: center;
   flex: 0 0 48px;
   width: 48px;
   height: 48px;
@@ -236,6 +238,7 @@ onBeforeUnmount(cancelLongPress)
 }
 
 .item-icon { display: block; width: 48px; height: 48px; object-fit: contain; }
+.item-row-photo { width: 42px; height: 42px; object-fit: cover; border-radius: 50%; }
 .item-body { flex: 1; min-width: 0; }
 
 .item-name {
@@ -257,4 +260,8 @@ onBeforeUnmount(cancelLongPress)
 .item-trailing { display: flex; align-items: center; gap: t.$space-8; flex-shrink: 0; }
 
 .item-chevron { flex: 0 0 16px; width: 16px; height: 16px; }
+</style>
+
+<style scoped>
+.item-icon-circle--photo { background: transparent; box-shadow: none; }
 </style>

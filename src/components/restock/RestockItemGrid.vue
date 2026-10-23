@@ -31,8 +31,8 @@ const emit = defineEmits(['toggle', 'new-item', 'blocked'])
         :aria-label="locked[item.id] ? `${item.name}，${locked[item.id]}認領中` : null"
         @click="locked[item.id] ? emit('blocked', item.id) : emit('toggle', item.id)"
       >
-        <span class="tile-pic" aria-hidden="true">
-          <img :src="getItemIconSrc(item, ITEM_STATUS.IN_STOCK)" alt="" />
+        <span class="tile-pic" :class="{ 'tile-pic--photo': item.iconPhoto }" aria-hidden="true">
+          <img :src="getItemIconSrc(item, ITEM_STATUS.IN_STOCK)" :class="{ 'tile-photo': item.iconPhoto }" alt="" />
         </span>
         <span class="tile-name">{{ item.name }}</span>
         <span v-if="selectedIds.includes(item.id)" class="tile-check" aria-hidden="true">✓</span>
@@ -109,6 +109,7 @@ const emit = defineEmits(['toggle', 'new-item', 'blocked'])
   border-radius: 50%;
   background: t.$icon-circle-bg;
   img { width: 40px; height: 40px; object-fit: contain; }
+  .tile-photo { border-radius: 50%; object-fit: cover; }
 }
 
 .tile-name {
@@ -161,4 +162,8 @@ const emit = defineEmits(['toggle', 'new-item', 'blocked'])
   color: t.$text-inverse;
   font: t.$font-weight-bold 12px / 1 t.$font-family;
 }
+</style>
+
+<style scoped>
+.tile-pic.tile-pic--photo { background: transparent; }
 </style>

@@ -120,6 +120,7 @@ const entries = computed(() =>
       name: item.name,
       unit: item.unit,
       icon: getItemIconSrc(item, ITEM_STATUS.IN_STOCK),
+      isPhoto: !!item.iconPhoto,
       quantity: entry.quantity,
       lastDate: latest ? formatMonthDay(latest.date) : null,
     }]

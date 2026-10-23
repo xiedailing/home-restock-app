@@ -36,6 +36,9 @@ function closeAvatarOnBackdrop(event) {
   const box = event.currentTarget.getBoundingClientRect()
   if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) event.currentTarget.close()
 }
+function isCustomMemberAvatar(member) {
+  return !!member.avatar && member.avatar !== defaultAvatar && !avatarOptions.some(option => option.image === member.avatar)
+}
 function memberAvatar(member) {
   if (member.avatar) return member.avatar
   if (member.id === 'self') return defaultAvatar
@@ -199,7 +202,7 @@ function confirmLeave() {
       <h2>成員</h2>
       <div class="space-card members-card">
         <div v-for="member in visibleMembers" :key="member.id" class="info-row member-row">
-          <button type="button" class="member-avatar-button" :aria-label="`放大${member.name}的頭貼`" aria-haspopup="dialog" @click="openMemberAvatar(member)"><img class="member-avatar" :src="memberAvatar(member)" alt="" /></button>
+          <button type="button" class="member-avatar-button" :aria-label="`放大${member.name}的頭貼`" aria-haspopup="dialog" @click="openMemberAvatar(member)"><img class="member-avatar" :class="{ 'member-avatar--photo': isCustomMemberAvatar(member) }" :src="memberAvatar(member)" alt="" /></button>
           <span>{{ member.name }}{{ member.id === 'self' ? '（你）' : '' }}</span>
         </div>
         <button v-if="collapsibleMembers" type="button" class="members-toggle" :aria-expanded="membersExpanded" @click="membersExpanded = !membersExpanded">
@@ -398,6 +401,7 @@ header h1 { letter-spacing: .5px; }
 .member-avatar-button { position: relative; display: block; flex: 0 0 32px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
 .member-avatar-button::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; }
 .member-avatar-button .member-avatar { display: block; }
+.member-avatar-button .member-avatar--photo { width: 28px; height: 28px; margin: 2px; background: transparent; }
 .member-avatar-button:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 4px; }
 .member-avatar-dialog { box-sizing: border-box; width: min(320px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: t.$space-24; border: 0; border-radius: t.$radius-card; background: t.$card-bg; color: t.$text-main; font-family: t.$font-family; box-shadow: t.$shadow-card; }
 .member-avatar-dialog::backdrop { background: rgba(29, 29, 31, .4); }

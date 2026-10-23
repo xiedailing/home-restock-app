@@ -12,7 +12,7 @@ const emit = defineEmits(['update:quantity', 'remove'])
   <ul class="selected-list" aria-label="已選用品">
     <li v-if="!entries.length" class="selected-empty">請選擇用品</li>
     <li v-for="entry in entries" :key="entry.id" class="selected-row">
-      <span class="selected-pic" aria-hidden="true"><img :src="entry.icon" alt="" /></span>
+      <span class="selected-pic" :class="{ 'selected-pic--photo': entry.isPhoto }" aria-hidden="true"><img :src="entry.icon" :class="{ 'selected-photo': entry.isPhoto }" alt="" /></span>
       <span class="selected-info">
         <span class="selected-name">{{ entry.name }}</span>
         <span v-if="entry.lastDate" class="selected-meta">上次補貨 {{ entry.lastDate }}</span>
@@ -72,6 +72,7 @@ const emit = defineEmits(['update:quantity', 'remove'])
   border-radius: 50%;
   background: t.$icon-circle-bg;
   img { width: 28px; height: 28px; object-fit: contain; }
+  .selected-photo { border-radius: 50%; object-fit: cover; }
 }
 
 .selected-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -98,4 +99,8 @@ const emit = defineEmits(['update:quantity', 'remove'])
   cursor: pointer;
   &:focus-visible { outline: 2px solid t.$primary-green; outline-offset: 2px; }
 }
+</style>
+
+<style scoped>
+.selected-pic--photo { background: transparent; }
 </style>
