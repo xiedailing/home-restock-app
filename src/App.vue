@@ -162,11 +162,24 @@ const handleAddRecord = () => {
   router.push({ name: 'restock-record', query: spaceId ? { space: spaceId } : {} })
 }
 
-// 新增空間：建立後切到新空間並回到我的用品。
+// 新增空間：私人空間回我的用品；共享空間待新增 Sheet 關閉後進入邀請流程。
 const addSpaceOpen = ref(false)
+const createdSharedSpaceId = ref(null)
 function onSpaceCreated(space) {
   itemsStore.inventorySpaceId = space.id
+  if (space.shared) {
+    createdSharedSpaceId.value = space.id
+    return
+  }
   if (route.name !== 'inventory') router.push({ name: 'inventory' })
+  showToast('已成功新增空間')
+}
+function onAddSpaceClosed() {
+  addSpaceOpen.value = false
+  const spaceId = createdSharedSpaceId.value
+  createdSharedSpaceId.value = null
+  if (!spaceId) return
+  router.push({ name: 'edit-space', params: { spaceId }, query: { from: 'settings', invite: '1' } })
   showToast('已成功新增空間')
 }
 </script>
@@ -203,7 +216,7 @@ function onSpaceCreated(space) {
       @add-record="handleAddRecord"
       @add-space="addSpaceOpen = true"
     />
-    <AddSpaceSheet :open="addSpaceOpen" @close="addSpaceOpen = false" @created="onSpaceCreated" />
+    <AddSpaceSheet :open="addSpaceOpen" @close="onAddSpaceClosed" @created="onSpaceCreated" />
     <AppToast :toast="toast" @undo="runUndo" />
   </div>
 </template>
