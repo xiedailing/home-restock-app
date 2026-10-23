@@ -67,7 +67,7 @@ function updateCode(event) {
   error.value = ''
 }
 function prepareProfile() {
-  if (!name.value.trim()) { error.value = '請輸入您的使用者名稱。'; return }
+  if (!name.value.trim()) { error.value = '請輸入您的暱稱。'; return }
   if (nameTooLong.value) { error.value = '名稱最多 8 個中文字或 16 個英文字元。'; return }
   go('notifications')
 }
@@ -160,8 +160,8 @@ onBeforeUnmount(() => { active = false; clearInterval(timer); clearTimeout(finis
       </form>
       <form v-else-if="step === 'profile'" novalidate @submit.prevent="prepareProfile">
         <p v-if="avatarError" class="field-error" role="alert">{{ avatarError }}</p>
-        <label for="login-name">使用者名稱</label>
-        <TextInput id="login-name" v-model="name" autocomplete="nickname" placeholder="輸入您的名稱" :aria-invalid="!!error || nameTooLong" aria-describedby="name-error" @input="error = ''" />
+        <label for="login-name">使用者暱稱</label>
+        <TextInput id="login-name" v-model="name" autocomplete="nickname" placeholder="請輸入您的暱稱" :aria-invalid="!!error || nameTooLong" aria-describedby="name-error" @input="error = ''" />
         <p v-if="error || nameTooLong" id="name-error" class="field-error" role="alert">{{ error || '名稱最多 8 個中文字或 16 個英文字元。' }}</p>
         <PrimaryButton type="submit" :disabled="loadingPhoto">{{ loadingPhoto ? '圖片讀取中…' : '開始使用' }}</PrimaryButton>
         <button class="text-button" type="button" :disabled="loadingPhoto" @click="skipProfile">暫時略過</button>
