@@ -327,6 +327,7 @@ export function createPresentationState(today = toDateString()) {
     spaces: [
       { ...DEFAULT_SPACES[0], ownerId: 'self', members: [] },
       { id: familyId, name: '家庭', shared: true, color: 'blue', ownerId: 'self', members: [{ id: PRESENTATION_MEMBER_ID, name: '花花', avatar: '' }] },
+      { id: generateId(), name: '旅行', shared: false, color: 'orange', ownerId: 'self', members: [] },
     ], customCategories: [], departedSpaces: [], demoSeeds: [],
   }
 }

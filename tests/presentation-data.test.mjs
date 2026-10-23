@@ -90,8 +90,18 @@ test('six-item presentation uses real state calculations, model fields and safe 
     const setup = await server.ssrLoadModule('/src/utils/presentationSetup.js')
     const today = '2026-10-21', state = model.createPresentationState(today)
     const get = name => state.items.find(item => item.name === name)
-    await t.test('exactly two spaces, six items, one other member Huahua and no bulb', () => {
-      assert.equal(state.items.length, 6); assert.deepEqual(state.spaces.map(s => s.name), ['個人', '家庭'])
+    await t.test('three spaces including empty private travel, six items, one other member Huahua and no bulb', () => {
+      assert.equal(state.items.length, 6); assert.deepEqual(state.spaces.map(s => s.name), ['個人', '家庭', '旅行'])
+      const travel = state.spaces[2]
+      assert.equal(travel.shared, false)
+      assert.equal(travel.ownerId, 'self')
+      assert.deepEqual(travel.members, [])
+      assert.equal(state.items.some(item => item.spaceId === travel.id), false)
+      const nextTravel = model.createPresentationState(today).spaces.find(space => space.name === '旅行')
+      assert.ok(nextTravel)
+      assert.notEqual(nextTravel.id, travel.id)
+      const resetItems = JSON.parse(setup.newPresentationSnapshot(today).items).data
+      assert.equal(resetItems.spaces.some(space => space.name === '旅行'), true)
       const family = state.spaces[1]
       assert.deepEqual(family.members.map(m => m.name), ['花花']); assert.notEqual(family.members[0].id, 'self')
       assert.equal(get('垃圾袋').shoppingClaimantId, family.members[0].id)
@@ -140,7 +150,7 @@ test('six-item presentation uses real state calculations, model fields and safe 
         const data = JSON.parse(fixture.items).data
         const catalog = JSON.parse(fixture.catalog).data
         assert.deepEqual(data.items.map(i => [i.name, i.category, i.unit, i.iconKey]), expected)
-        assert.equal(new Set(data.spaces.map(space => space.id)).size, 2)
+        assert.equal(new Set(data.spaces.map(space => space.id)).size, 3)
         assert.equal(new Set(data.items.map(item => item.id)).size, 6)
         const recordIds = data.items.flatMap(item => item.restockRecords.map(record => record.id))
         assert.equal(new Set(recordIds).size, recordIds.length)
