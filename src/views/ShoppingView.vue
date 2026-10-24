@@ -5,6 +5,7 @@ import { useNativeNotificationsStore } from '../stores/nativeNotifications'
 import { resolveShoppingNotification, shoppingNotificationTarget } from '../utils/shoppingNotificationTarget.js'
 import AppToast from '../components/AppToast.vue'
 import BottomSheet from '../components/BottomSheet.vue'
+import TimeWheelPicker from '../components/TimeWheelPicker.vue'
 import RestockDateBar from '../components/restock/RestockDateBar.vue'
 import { addDays, toDateString, getReminderStatus } from '../models/item'
 import { computed, ref, watch, nextTick, inject, onMounted, onBeforeUnmount } from 'vue'
@@ -71,14 +72,17 @@ const snoozeItemId = ref(null)
 const snoozeSaving = ref(false)
 const snoozeOpen = ref(false)
 const snoozeDate = ref('')
+const snoozeTime = ref('08:00')
+const snoozeDatePicker = ref(null)
+const snoozeTimePicker = ref(null)
 const snoozeToday = ref(toDateString())
 const currentSnooze = computed(() => store.getItem(snoozeItemId.value)?.reminderSnoozes?.self || '')
-const snoozeDateSaved = computed(() => currentSnooze.value > snoozeToday.value && snoozeDate.value === currentSnooze.value)
+const snoozeDateSaved = computed(() => currentSnooze.value > snoozeToday.value && snoozeDate.value === currentSnooze.value && snoozeTime.value === (store.getItem(snoozeItemId.value)?.reminderSnoozeTimes?.self || '08:00'))
 function snoozeLabel(item) {
   const date = item.reminderSnoozes?.self
   if (!date || date <= store.today) return '延後提醒'
   const [, month, day] = date.split('-')
-  return `延至 ${Number(month)}/${Number(day)}`
+  return `${Number(month)}/${Number(day)} ${item.reminderSnoozeTimes?.self || '08:00'}`
 }
 function cancelSnooze(close) {
   const result = store.cancelShoppingReminderSnooze(snoozeItemId.value)
@@ -91,13 +95,14 @@ function openSnooze(item) {
   snoozeToday.value = toDateString()
   snoozeItemId.value = item.id
   snoozeDate.value = item.reminderSnoozes?.self > snoozeToday.value ? item.reminderSnoozes.self : addDays(snoozeToday.value, 1)
+  snoozeTime.value = item.reminderSnoozeTimes?.self || '08:00'
   snoozeOpen.value = true
 }
 async function saveSnooze() {
   if (snoozeSaving.value) return
   snoozeSaving.value = true
   try {
-    const result = await native.saveSnoozeAndScheduleDemo(snoozeItemId.value, snoozeDate.value)
+    const result = await native.saveSnoozeAndScheduleDemo(snoozeItemId.value, snoozeDate.value, snoozeTime.value)
     if (!result.ok) {
       const notify = result.error.code === 'STALE_ITEMS' ? appToast?.showToast || showToast : showToast
       notify(result.error.message, null, '復原', 'error', 3000); snoozeSaving.value = false; return
@@ -105,7 +110,7 @@ async function saveSnooze() {
     const [year, month, day] = snoozeDate.value.split('-').map(Number)
     const weekday = ['日', '一', '二', '三', '四', '五', '六'][new Date(year, month - 1, day).getDay()]
     showToast(result.demoResult?.ok === false
-      ? `日期已儲存；${result.demoResult.message}` : `已延後提醒至 ${month}/${day} 週${weekday}`, null, '復原', 'success', 3000)
+      ? `日期已儲存；${result.demoResult.message}` : `已延後提醒至 ${month}/${day} 週${weekday} ${snoozeTime.value}`, null, '復原', 'success', 3000)
   } catch { showToast('無法完成此操作，請確認延後日期後重試。', null, '復原', 'error', 3000) }
   finally { snoozeSaving.value = false }
 }
@@ -407,7 +412,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
                     <button v-if="group.id === 'claimed'" type="button" class="btn claim-button cancel-claim-button personal-cancel-claim" @click="requestClaimChange(item, 'cancel')"><i class="fa-regular fa-circle-xmark" aria-hidden="true"></i>取消認領</button>
                     <div v-if="item.shoppingCompletedAt == null" class="shopping-secondary-actions">
                     <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
-                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ snoozeLabel(item) }}</button>
+                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i><span>{{ snoozeLabel(item) }}</span></button>
                   </div>
                   </div>
                 </div>
@@ -447,7 +452,7 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
                   <button v-else-if="item.inShoppingList" type="button" class="btn claim-button takeover-button" @click="requestClaimChange(item, 'takeover')"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i>接手認領</button>
                   <div v-if="item.shoppingCompletedAt == null" class="shopping-secondary-actions">
                     <button type="button" class="remove-shopping-item" :disabled="item.shoppingCompletedAt != null" @click="requestRemoval(item)"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>移除用品</button>
-                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ snoozeLabel(item) }}</button>
+                    <button v-if="item.shoppingCompletedAt == null" type="button" class="btn snooze-reminder-button" @click="openSnooze(item)"><i class="fa-regular fa-clock" aria-hidden="true"></i><span>{{ snoozeLabel(item) }}</span></button>
                   </div>
                 </div>
               </div>
@@ -466,7 +471,8 @@ const iconKeys = { '洗衣精': 'laundry-detergent', '衛生紙': 'tissues', '�
         <div class="snooze-reminder-sheet">
           <h2 id="snooze-reminder-title">延後提醒</h2>
           <p class="snooze-personal-hint">僅延後你對此用品的提醒，其他成員不受影響。</p>
-          <RestockDateBar v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
+          <RestockDateBar ref="snoozeDatePicker" @expand="snoozeTimePicker?.collapse()" v-model="snoozeDate" :today="snoozeToday" :min-date="addDays(snoozeToday, 1)" allow-future expand-upward />
+          <TimeWheelPicker ref="snoozeTimePicker" @expand="snoozeDatePicker?.closeCalendar()" v-model="snoozeTime" :active="snoozeOpen" />
           <button type="button" class="btn btn-primary" :disabled="snoozeSaving" @click="snoozeDateSaved ? close() : saveSnooze()">{{ snoozeSaving ? '儲存中…' : snoozeDateSaved ? '確認' : '儲存' }}</button>
           <div class="snooze-cancel-reveal" :class="{ open: currentSnooze && currentSnooze >= store.today }" :aria-hidden="!(currentSnooze && currentSnooze >= store.today)" :inert="!(currentSnooze && currentSnooze >= store.today)">
             <div class="snooze-cancel-content"><button v-if="currentSnooze && currentSnooze >= store.today" type="button" class="remove-shopping-item snooze-cancel-button" :disabled="snoozeSaving" @click="cancelSnooze(close)">取消延後</button></div>
@@ -596,7 +602,7 @@ h2 { margin: 0 0 16px; font: 700 16px / 22px t.$font-family; }
 
 <style scoped lang="scss">
 @use '../assets/scss/tokens' as t;
-.snooze-reminder-button { display: flex; align-items: center; justify-content: center; gap: t.$space-8; width: 100%; background: t.$primary-soft; color: t.$primary-green; border-radius: t.$radius-pill; font: t.$font-weight-medium #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; }
+.snooze-reminder-button { white-space: nowrap; padding-inline: t.$space-8; display: flex; align-items: center; justify-content: center; gap: t.$space-8; width: 100%; background: t.$primary-soft; color: t.$primary-green; border-radius: t.$radius-pill; font: t.$font-weight-medium #{t.$font-size-body-sm} / #{t.$line-height-body} t.$font-family; }
 .shopping-secondary-actions {
   display: flex; align-items: stretch; gap: t.$space-12; margin-top: t.$space-16;
   > button { flex: 1 1 0; min-width: 0; width: auto; min-height: t.$button-height; margin: 0; }

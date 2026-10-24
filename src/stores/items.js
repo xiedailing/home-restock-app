@@ -276,14 +276,15 @@ export const useItemsStore = defineStore('items', () => {
     updateItem(id, { snoozedUntil: addDays(toDateString(), SNOOZE_DAYS) })
   }
 
-  function snoozeShoppingReminder(id, date) {
+  function snoozeShoppingReminder(id, date, time = '08:00') {
     const item = getItem(id)
     if (!item?.inShoppingList || item.shoppingCompletedAt != null) return { ok: false, error: { message: '用品已不在待買清單。' } }
     if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)
       || !Number.isFinite(new Date(`${date}T00:00:00`).getTime()) || addDays(date, 0) !== date || date <= toDateString()) {
       return { ok: false, error: { message: '請選擇明天或之後的提醒日期。' } }
     }
-    return persistItemsOperation(() => updateItem(id, { reminderSnoozes: { ...item.reminderSnoozes, self: date },
+    if (typeof time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { ok: false, error: { message: '請選擇有效的提醒時間。' } }
+    return persistItemsOperation(() => updateItem(id, { reminderSnoozeTimes: { ...item.reminderSnoozeTimes, self: time }, reminderSnoozes: { ...item.reminderSnoozes, self: date },
       reminderSnoozeOperationIds: { ...item.reminderSnoozeOperationIds, self: generateId() } }))
   }
 
@@ -292,9 +293,11 @@ export const useItemsStore = defineStore('items', () => {
     if (!item?.inShoppingList || item.shoppingCompletedAt != null) return { ok: false, error: { message: '用品已不在待買清單。' } }
     const reminderSnoozes = { ...item.reminderSnoozes }
     delete reminderSnoozes.self
+    const reminderSnoozeTimes = { ...item.reminderSnoozeTimes }
+    delete reminderSnoozeTimes.self
     const reminderSnoozeOperationIds = { ...item.reminderSnoozeOperationIds }
     delete reminderSnoozeOperationIds.self
-    return persistItemsOperation(() => updateItem(id, { reminderSnoozes, reminderSnoozeOperationIds }))
+    return persistItemsOperation(() => updateItem(id, { reminderSnoozes, reminderSnoozeTimes, reminderSnoozeOperationIds }))
   }
 
   // specs/009 FR-913：重新開啟不再填寫，直接用補貨紀錄重算；推算日已過就直接是「該補貨了」。

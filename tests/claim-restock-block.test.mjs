@@ -137,23 +137,28 @@ test('claimed-by-other shared items cannot be restocked until taken over', async
       assert.equal(item.inShoppingList, true)
       assert.equal(item.restockRecords.length, 1)
     })
-    await t.test('shopping snooze persists only its date and preserves history and claimant', () => {
+    await t.test('shopping snooze persists its date and time and preserves history and claimant', () => {
       const { items } = fresh()
       const before = structuredClone(JSON.parse(JSON.stringify(items.getItem('mine'))))
       assert.equal(items.snoozeShoppingReminder('mine', '2099-01-10').ok, true)
       const after = JSON.parse(JSON.stringify(items.getItem('mine')))
-      assert.deepEqual({ ...after, updatedAt: before.updatedAt, reminderSnoozeOperationIds: before.reminderSnoozeOperationIds }, { ...before, reminderSnoozes: { self: '2099-01-10' } })
+      assert.deepEqual({ ...after, updatedAt: before.updatedAt, reminderSnoozeOperationIds: before.reminderSnoozeOperationIds }, { ...before, reminderSnoozes: { self: '2099-01-10' }, reminderSnoozeTimes: { self: '08:00' } })
       const persisted = JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'mine')
       assert.equal(persisted.reminderSnoozes.self, '2099-01-10')
+      assert.equal(persisted.reminderSnoozeTimes.self, '08:00')
     })
     await t.test('shopping snooze can be modified and cancelled without changing another member', () => {
       const { items } = fresh()
-      items.updateItem('mine', { reminderSnoozes: { 'member-1': '2099-02-01' } })
+      items.updateItem('mine', { reminderSnoozes: { 'member-1': '2099-02-01' }, reminderSnoozeTimes: { 'member-1': '09:30' } })
       assert.equal(items.snoozeShoppingReminder('mine', '2099-01-10').ok, true)
-      assert.equal(items.snoozeShoppingReminder('mine', '2099-01-20').ok, true)
+      assert.equal(items.snoozeShoppingReminder('mine', '2099-01-20', '14:35').ok, true)
       assert.equal(items.getItem('mine').reminderSnoozes.self, '2099-01-20')
+      assert.equal(items.getItem('mine').reminderSnoozeTimes.self, '14:35')
+      const persistedTime = JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'mine').reminderSnoozeTimes
+      assert.deepEqual(persistedTime, { self: '14:35', 'member-1': '09:30' })
       assert.equal(items.cancelShoppingReminderSnooze('mine').ok, true)
       assert.deepEqual(items.getItem('mine').reminderSnoozes, { 'member-1': '2099-02-01' })
+      assert.deepEqual(items.getItem('mine').reminderSnoozeTimes, { 'member-1': '09:30' })
       assert.deepEqual(JSON.parse(memory.get(key('items'))).data.items.find(item => item.id === 'mine').reminderSnoozes, { 'member-1': '2099-02-01' })
     })
     await t.test('shopping snooze cancellation rolls back on storage failure', () => {

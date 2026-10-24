@@ -33,6 +33,23 @@ test('demo eligibility distinguishes item state, saved date, queue and permissio
   assert.deepEqual(source, before)
 })
 
+test('custom snooze time schedules the selected minute and invalidates the old same-day task', () => {
+  assert.equal(reminderTime('2099-01-02', '14:35'), new Date(2099, 0, 2, 14, 35).getTime())
+  assert.equal(reminderTime('2099-01-02', '00:00'), new Date(2099, 0, 2).getTime())
+  assert.equal(reminderTime('2099-01-02', '23:59'), new Date(2099, 0, 2, 23, 59).getTime())
+  for (const time of ['24:00', '12:60', '8:00', '', null]) assert.equal(reminderTime('2099-01-02', time), null)
+  const source = item()
+  let sequence = 0
+  const original = syncReminderTasks([], [source], () => space, 0, () => String(++sequence))
+  source.reminderSnoozeTimes = { self: '14:35' }
+  assert.equal(taskStillValid(original[0], source, space), false)
+  const next = syncReminderTasks(original, [source], () => space, 0, () => String(++sequence))
+  assert.equal(next[0].state, 'cancelled')
+  assert.equal(next[1].dueAt, reminderTime('2099-01-02', '14:35'))
+  assert.equal(taskStillValid(next[1], source, space), true)
+  assert.deepEqual(syncReminderTasks(next, [source], () => space, 0, () => String(++sequence)), next)
+})
+
 test('08:00 local date validation and invalid calendar dates', () => {
   assert.equal(reminderTime('2099-01-02'), new Date(2099, 0, 2, 8).getTime())
   for (const date of [null, '', '2099-02-31', '2099-13-01', 'not-a-date']) assert.equal(reminderTime(date), null)

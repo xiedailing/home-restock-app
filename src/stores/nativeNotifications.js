@@ -123,11 +123,11 @@ export const useNativeNotificationsStore = defineStore('native-notifications', (
     // A fresh request key also handles repeated clicks before the first query is consumed.
     navigate?.({ ...target, query: { ...target.query, notificationRequest: generateId() } })
   }
-  async function saveSnoozeAndScheduleDemo(itemId, date) {
-    const key = JSON.stringify([itemId, date])
+  async function saveSnoozeAndScheduleDemo(itemId, date, time = '08:00') {
+    const key = JSON.stringify([itemId, date, time])
     if (snoozeSaves.has(key)) return snoozeSaves.get(key)
     const work = Promise.resolve().then(async () => {
-      const saved = await items.withPersistenceLock(() => items.snoozeShoppingReminder(itemId, date))
+      const saved = await items.withPersistenceLock(() => items.snoozeShoppingReminder(itemId, date, time))
       if (!saved.ok || !demoEnabled.value) return saved
       const result = await demo(itemId)
       if (result.ok) return { ...saved, demoResult: result }

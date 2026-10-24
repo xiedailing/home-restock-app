@@ -12,7 +12,7 @@ const props = defineProps({
   expandUpward: Boolean,
   minDate: { type: String, default: null },
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'expand'])
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 const calendarOpen = ref(false)
@@ -38,6 +38,7 @@ function shift(days) {
 async function toggleCalendar() {
   calendarOpen.value = !calendarOpen.value
   if (!calendarOpen.value) return
+  emit('expand')
   await nextTick()
   calendar.value?.focusSelected()
 }
@@ -57,6 +58,7 @@ function onFocusout(event) {
   if (popover.value?.contains(target) || dayButton.value?.contains(target)) return
   closeCalendar()
 }
+defineExpose({ closeCalendar })
 </script>
 
 <template>
@@ -77,7 +79,9 @@ function onFocusout(event) {
     <div v-if="calendarOpen" class="calendar-backdrop" @click="closeCalendar()" />
     <Transition name="calendar-pop">
       <div v-if="calendarOpen" ref="popover" class="calendar-popover" role="dialog" :aria-label="allowFuture ? '選擇提醒日期' : '選擇補貨日期'" @pointerdown.stop @click.stop @keydown.esc.stop.prevent="closeCalendar({ restoreFocus: true })">
+        <div class="calendar-clip"><div class="calendar-content">
         <CalendarPicker ref="calendar" :model-value="modelValue" :min-date="minDate" :max-date="allowFuture ? null : today" @update:model-value="pick" />
+        </div></div>
       </div>
     </Transition>
   </div>
@@ -93,6 +97,8 @@ function onFocusout(event) {
   .calendar-popover {
     position: relative; bottom: auto; left: auto; right: auto;
     order: -1; margin-bottom: 8px;
+    &.calendar-pop-enter-active, &.calendar-pop-leave-active { transition: grid-template-rows .5s ease, margin-bottom .5s ease, opacity .25s ease; }
+    &.calendar-pop-enter-from, &.calendar-pop-leave-to { grid-template-rows: 0fr; margin-bottom: 0; transform: none; }
   }
 }
 
@@ -143,11 +149,17 @@ function onFocusout(event) {
 .calendar-backdrop { position: fixed; inset: 0; z-index: 1; }
 
 .calendar-popover {
+  display: grid;
+  grid-template-rows: 1fr;
   position: absolute;
   bottom: calc(100% + 8px);
   left: 0;
   right: 0;
   z-index: 2;
+}
+
+.calendar-clip { min-height: 0; overflow: hidden; padding: 12px; margin: -12px; }
+.calendar-content {
   padding: t.$space-12;
   border: 1px solid t.$border-color;
   border-radius: t.$radius-popover;
@@ -158,6 +170,6 @@ function onFocusout(event) {
 .calendar-pop-enter-active, .calendar-pop-leave-active { transition: opacity .15s ease, transform .15s ease; }
 .calendar-pop-enter-from, .calendar-pop-leave-to { opacity: 0; transform: translateY(6px); }
 @media (prefers-reduced-motion: reduce) {
-  .calendar-pop-enter-active, .calendar-pop-leave-active { transition: none; }
+  .calendar-pop-enter-active, .calendar-pop-leave-active, .date-field--expand-upward .calendar-popover { transition: none !important; }
 }
 </style>
