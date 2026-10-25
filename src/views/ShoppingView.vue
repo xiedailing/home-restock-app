@@ -311,10 +311,10 @@ onMounted(focusNotificationItem)
 onBeforeUnmount(() => { focusGeneration++ })
 function claimItem(item, takeOver = false) {
   const previousClaimant = item.shoppingClaimantId
-  claimOperation(item, takeOver)
+  const operation = claimOperation(item, takeOver)
   if (previousClaimant !== 'self' && item.shoppingClaimantId === 'self') {
     if (!previousClaimant) sharedExpandedItems.value = sharedExpandedItems.value.filter(id => id !== item.id)
-    showToast(`已${takeOver ? '接手認領' : '認領'}「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`, null, '復原', 'success', 3000)
+    showToast(`已${takeOver ? '接手認領' : '認領'}「${store.getSpace(item.spaceId)?.name || '未指定空間'}」的 ${item.name}`, takeOver && operation ? () => store.undoShoppingOperation(operation) : null, '復原', 'success', 3000)
   }
 }
 function cancelClaim(item) {
