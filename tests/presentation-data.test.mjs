@@ -109,8 +109,8 @@ test('six-item presentation uses real state calculations, model fields and safe 
       assert.equal(get('酒精').inShoppingList, true)
       assert.equal(get('酒精').quantity, 1)
       assert.equal(get('燈泡'), undefined)
-      for (const name of ['衛生紙', '洗衣精', '衛生棉', '狗狗糧食']) assert.equal(get(name).spaceId, 'personal')
-      for (const name of ['酒精', '垃圾袋']) assert.equal(get(name).spaceId, family.id)
+      for (const name of ['衛生紙', '衛生棉', '狗狗糧食']) assert.equal(get(name).spaceId, 'personal')
+      for (const name of ['洗衣精', '酒精', '垃圾袋']) assert.equal(get(name).spaceId, family.id)
     })
     await t.test('due tissues, exactly one laundry record, list-only pads and unlabelled dog food at all supported thresholds', () => {
       for (const threshold of [1, 5, 20]) {
@@ -123,7 +123,10 @@ test('six-item presentation uses real state calculations, model fields and safe 
       assert.equal(get('洗衣精').restockRecords.length, 1)
       assert.equal(model.getNextRestockDate(get('洗衣精')), null)
       assert.equal(get('洗衣精').reminderEnabled, true)
-      assert.equal(get('洗衣精').inShoppingList, false)
+      assert.equal(get('洗衣精').inShoppingList, true)
+      assert.equal(get('洗衣精').shoppingClaimantId, null)
+      assert.equal(get('洗衣精').quantity, 1)
+      assert.equal(state.items.filter(item => item.name === '洗衣精').length, 1)
     })
     await t.test('units, catalog IDs, record snapshots, clean completion and snooze fields', () => {
       assert.deepEqual(state.items.map(i => i.unit), ['袋', '瓶', '包', '包', '瓶', '包'])
@@ -169,11 +172,13 @@ test('six-item presentation uses real state calculations, model fields and safe 
         for (let threshold = 1; threshold <= 20; threshold++) {
           const marks = name => model.getStatusMarks(model.getReminderStatus(get(name), date, threshold), get(name).inShoppingList)
           assert.equal(marks('衛生紙').pill, model.STATUS.OVERDUE)
-          assert.deepEqual(marks('洗衣精'), { pill: null, showListMark: false })
+          assert.equal(marks('洗衣精').pill, model.STATUS.IN_SHOPPING_LIST)
+          assert.equal(get('洗衣精').spaceId, data.spaces[1].id)
+          assert.equal(get('洗衣精').shoppingClaimantId, null)
           assert.equal(marks('衛生棉').pill, model.STATUS.IN_SHOPPING_LIST)
           assert.deepEqual(marks('狗狗糧食'), { pill: null, showListMark: false })
         }
-        assert.deepEqual(data.items.filter(item => item.inShoppingList).map(item => item.name), ['衛生棉', '酒精', '垃圾袋'])
+        assert.deepEqual(data.items.filter(item => item.inShoppingList).map(item => item.name), ['洗衣精', '衛生棉', '酒精', '垃圾袋'])
         assert.equal(get('酒精').shoppingClaimantId, model.PRESENTATION_MEMBER_ID)
         assert.equal(get('酒精').inShoppingList, true)
         assert.equal(get('酒精').quantity, 1)

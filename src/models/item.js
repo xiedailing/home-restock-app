@@ -313,7 +313,7 @@ export function createSampleItems(today = toDateString(), familyId = 'demo-famil
   const waiting = { inShoppingList: true, quantity: 1, addedToShoppingListDate: today }
   return [
     build('衛生紙', 'tissues', '生活日用品', '袋', sampleHistory(today, -1, 30)),
-    build('洗衣精', 'laundry-detergent', '洗衣', '瓶', { restockRecords: [createRestockRecord({ date: addDays(today, -10), quantity: 1 })], lastRestockDate: addDays(today, -10) }),
+    build('洗衣精', 'laundry-detergent', '洗衣', '瓶', { spaceId: familyId, ...waiting, restockRecords: [createRestockRecord({ date: addDays(today, -10), quantity: 1 })], lastRestockDate: addDays(today, -10) }),
     build('衛生棉', 'sanitary-pads', '個人護理', '包', { ...sampleHistory(today, 30, 60), ...waiting }),
     build('狗狗糧食', 'dog-food', '寵物用品', '包', sampleHistory(today, 30, 60)),
     build('酒精', 'rubbing-alcohol', '清潔', '瓶', { spaceId: familyId, ...sampleHistory(today, 30, 60), ...waiting, shoppingClaimantId: PRESENTATION_MEMBER_ID }),
