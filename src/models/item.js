@@ -316,7 +316,7 @@ export function createSampleItems(today = toDateString(), familyId = 'demo-famil
     build('洗衣精', 'laundry-detergent', '洗衣', '瓶', { restockRecords: [createRestockRecord({ date: addDays(today, -10), quantity: 1 })], lastRestockDate: addDays(today, -10) }),
     build('衛生棉', 'sanitary-pads', '個人護理', '包', { ...sampleHistory(today, 30, 60), ...waiting }),
     build('狗狗糧食', 'dog-food', '寵物用品', '包', sampleHistory(today, 30, 60)),
-    build('酒精', 'rubbing-alcohol', '清潔', '瓶', { spaceId: familyId, ...sampleHistory(today, 30, 60) }),
+    build('酒精', 'rubbing-alcohol', '清潔', '瓶', { spaceId: familyId, ...sampleHistory(today, 30, 60), ...waiting, shoppingClaimantId: PRESENTATION_MEMBER_ID }),
     build('垃圾袋', 'trash-bags', '生活日用品', '包', { spaceId: familyId, ...sampleHistory(today, 30, 60), ...waiting, shoppingClaimantId: PRESENTATION_MEMBER_ID }),
   ]
 }
